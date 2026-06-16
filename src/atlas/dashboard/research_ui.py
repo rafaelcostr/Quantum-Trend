@@ -16,6 +16,7 @@ from atlas.dashboard.actions import (
 )
 from atlas.dashboard.download_ui import show_export_result
 from atlas.dashboard.strategy_config import QUOTE_ASSETS
+from atlas.dashboard.theme import cyber_page_header, cyber_section_title
 
 QUOTE_MODE_OPTIONS = ("both", "USDT", "USDC")  # legado — preferir research_both_quotes
 
@@ -147,15 +148,17 @@ def _show_download_result(res: dict, project_root: Path) -> None:
 
 def render_research(project_root: Path) -> None:
     _init_research_state()
-    st.markdown("## Pesquisa")
-    st.caption("Backtest e analise — escolha timeframe e moeda (USDT/USDC).")
+    st.markdown(
+        cyber_page_header("PESQUISA", "Backtest, comparacao e exportacao de relatorios"),
+        unsafe_allow_html=True,
+    )
 
     configs = list_config_files(project_root)
     if not configs:
         st.error("Nenhum config/backtest*.yaml encontrado.")
         return
 
-    st.markdown("### Configuracao dos testes")
+    st.markdown(cyber_section_title("CONFIGURACAO DOS TESTES"), unsafe_allow_html=True)
 
     st.radio(
         "Timeframe do backtest",

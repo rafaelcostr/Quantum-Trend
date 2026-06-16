@@ -10,34 +10,13 @@ from plotly.subplots import make_subplots
 import streamlit as st
 
 from atlas.core.config import AtlasConfig
+from atlas.dashboard.cyber_charts import apply_cyber_layout
 from atlas.dashboard.service import DashboardService
-
-CYBER = {
-    "bg": "#050510",
-    "panel": "#0d0d1f",
-    "cyan": "#00f0ff",
-    "magenta": "#ff00aa",
-    "yellow": "#fcee0a",
-    "green": "#39ff14",
-    "red": "#ff2a6d",
-    "purple": "#bd00ff",
-    "text": "#c8d6e5",
-    "grid": "rgba(0, 240, 255, 0.12)",
-}
+from atlas.dashboard.theme import CYBER, cyber_page_header
 
 
 def _cyber_layout(fig: go.Figure, title: str) -> go.Figure:
-    fig.update_layout(
-        title=dict(text=title, font=dict(color=CYBER["cyan"], size=16), x=0.02),
-        paper_bgcolor=CYBER["bg"],
-        plot_bgcolor=CYBER["panel"],
-        font=dict(color=CYBER["text"], family="Consolas, monospace"),
-        margin=dict(l=48, r=24, t=48, b=40),
-        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=CYBER["text"])),
-        xaxis=dict(gridcolor=CYBER["grid"], zerolinecolor=CYBER["grid"]),
-        yaxis=dict(gridcolor=CYBER["grid"], zerolinecolor=CYBER["grid"]),
-    )
-    return fig
+    return apply_cyber_layout(fig, title.replace("◈ ", ""))
 
 
 def trades_to_dataframe(trades: list[dict[str, Any]]) -> pd.DataFrame:
@@ -193,23 +172,10 @@ def render_trades_history(project_root: Path, paper_config_rel: str = "config/pa
 
     config = get_ops_config(project_root, paper_config_rel)
     st.markdown(
-        f"""
-        <div style="
-            background: linear-gradient(90deg, {CYBER['panel']} 0%, {CYBER['bg']} 100%);
-            border: 1px solid {CYBER['cyan']};
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 0 20px rgba(0,240,255,0.15);
-        ">
-          <h2 style="margin:0;color:{CYBER['cyan']};font-family:Consolas,monospace;">
-            ◈ HISTORICO DEMO — {config.exchange.symbol} {config.exchange.timeframe}
-          </h2>
-          <p style="margin:6px 0 0;color:{CYBER['text']};opacity:0.85;">
-            Trades reais executados na Binance Demo · estrategia <code>{config.strategy.name}</code>
-          </p>
-        </div>
-        """,
+        cyber_page_header(
+            "HISTORICO DEMO",
+            f"{config.exchange.symbol} {config.exchange.timeframe} · {config.strategy.name}",
+        ),
         unsafe_allow_html=True,
     )
 

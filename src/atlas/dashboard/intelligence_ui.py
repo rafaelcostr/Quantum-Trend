@@ -8,6 +8,7 @@ import streamlit as st
 
 from atlas.dashboard.actions import run_compare, run_export_all_reports
 from atlas.dashboard.download_ui import download_bytes_button, save_report_markdown, show_export_result
+from atlas.dashboard.theme import cyber_metric_card, cyber_page_header, cyber_section_title
 from atlas.intelligence.analyzer import analyze_path
 from atlas.intelligence.models import StrategyAnalysis
 from atlas.intelligence.report import render_ai_report
@@ -41,13 +42,7 @@ def _render_level1_tab(analysis: StrategyAnalysis) -> None:
             continue
         with cols[i % 4]:
             st.markdown(
-                f"""
-                <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;margin-bottom:8px;">
-                  <div style="color:#8b949e;font-size:12px;">{m.label}</div>
-                  <div style="font-size:22px;font-weight:600;">{m.display}</div>
-                  <div style="font-size:13px;">{m.emoji} {m.status_text}</div>
-                </div>
-                """,
+                cyber_metric_card(m.label, m.display, m.status_text, m.emoji),
                 unsafe_allow_html=True,
             )
 
@@ -200,9 +195,9 @@ def render_intelligence_page(project_root: Path) -> None:
     reports_dir = project_root / "data" / "reports"
     options = report_select_options(reports_dir)
 
-    st.markdown("## ATLAS Intelligence")
-    st.caption(
-        "Analise individual ou **relatorio comparativo** com todos os backtests de uma vez."
+    st.markdown(
+        cyber_page_header("ATLAS INTELLIGENCE", "Analise individual ou comparativo de todos os backtests"),
+        unsafe_allow_html=True,
     )
 
     if not options:

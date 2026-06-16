@@ -11,21 +11,37 @@ from atlas.dashboard.actions import run_paper_once, run_trade_check, run_backtes
 from atlas.dashboard.bot_manager import bot_status, start_bot, stop_bot, tail_log
 from atlas.dashboard.demo_balance_ui import render_demo_balance_panel
 from atlas.dashboard.ops_context import get_ops_config, set_ops_config
-from atlas.dashboard.strategy_config import save_active_config
+from atlas.dashboard.theme import (
+    cyber_page_header,
+    cyber_status_bar,
+)
 
 
 def render_paper(project_root: Path, paper_config_rel: str) -> None:
     config = get_ops_config(project_root, paper_config_rel)
-    st.markdown("## Paper Trading")
-    st.caption(
-        f"Binance Demo — `{config.strategy.name}` · {config.exchange.symbol} "
-        f"{config.exchange.timeframe}"
+    st.markdown(
+        cyber_page_header(
+            "PAPER TRADING",
+            f"Binance Demo — {config.strategy.name} · {config.exchange.symbol} {config.exchange.timeframe}",
+        ),
+        unsafe_allow_html=True,
+    )
+
+    status = bot_status()
+    st.markdown(
+        cyber_status_bar(
+            [
+                ("Par", config.exchange.symbol, ""),
+                ("Bot", "RUNNING" if status.get("running") else "STOPPED", "ok" if status.get("running") else "warn"),
+                ("PID", str(status.get("pid") or "—"), ""),
+            ]
+        ),
+        unsafe_allow_html=True,
     )
 
     render_demo_balance_panel(project_root, paper_config_rel, config=config)
     st.divider()
 
-    status = bot_status()
     c1, c2, c3 = st.columns(3)
     with c1:
         if status.get("running"):

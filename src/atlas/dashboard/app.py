@@ -26,8 +26,14 @@ import atlas.dashboard.research_ui as _research_ui_mod
 import atlas.dashboard.download_ui as _download_ui_mod
 import atlas.dashboard.intelligence_ui as _intelligence_ui_mod
 import atlas.intelligence.compare_report as _compare_report_mod
+import atlas.dashboard.theme as _theme_mod
+import atlas.dashboard.cyber_charts as _cyber_charts_mod
+import atlas.dashboard.home_data as _home_data_mod
 
 importlib.reload(_symbols_mod)
+importlib.reload(_theme_mod)
+importlib.reload(_cyber_charts_mod)
+importlib.reload(_home_data_mod)
 importlib.reload(_compare_report_mod)
 importlib.reload(_download_ui_mod)
 importlib.reload(_report_metadata_mod)
@@ -36,6 +42,10 @@ importlib.reload(_actions_mod)
 importlib.reload(_research_ui_mod)
 importlib.reload(_intelligence_ui_mod)
 
+import atlas.dashboard.home_ui as _home_ui_mod
+
+importlib.reload(_home_ui_mod)
+
 from atlas.core.env import find_project_root, load_project_env  # noqa: E402
 
 PROJECT_ROOT = find_project_root(PROJECT_ROOT)
@@ -43,13 +53,16 @@ load_project_env(PROJECT_ROOT)
 
 from atlas.core.config import load_config  # noqa: E402
 from atlas.core.models import TradingMode  # noqa: E402
-from atlas.dashboard.charts_plotly import build_performance_charts, build_price_chart  # noqa: E402
+from atlas.dashboard.charts_plotly import build_price_chart  # noqa: E402
+from atlas.dashboard.cyber_charts import build_drawdown_chart, build_equity_curve
+from atlas.dashboard.theme import CYBER, cyber_indicator_pills, cyber_page_header, cyber_kpi_row, cyber_section_title
 from atlas.dashboard.charts_tv import render_tradingview_chart  # noqa: E402
 from atlas.dashboard.charts_tv_live import render_tradingview_live_chart  # noqa: E402
 from atlas.dashboard.demo_balance_ui import render_demo_balance_panel  # noqa: E402
-from atlas.dashboard.home_ui import render_home  # noqa: E402
+from atlas.dashboard.theme import inject_cyber_css  # noqa: E402
 from atlas.dashboard.paper_ui import render_paper  # noqa: E402
 from atlas.dashboard.performance import compute_performance, extract_trade_markers  # noqa: E402
+render_home = _home_ui_mod.render_home
 render_research = _research_ui_mod.render_research
 render_intelligence_page = _intelligence_ui_mod.render_intelligence_page
 from atlas.dashboard.service import DashboardService, fetch_demo_balances, load_journal_events  # noqa: E402
@@ -171,12 +184,11 @@ def _render_trading_panels(
     tab_perf, tab_journal = st.tabs(["PnL & Drawdown", "Journal"])
 
     with tab_perf:
-        eq_fig, dd_fig = build_performance_charts(perf)
         p1, p2 = st.columns(2)
         with p1:
-            st.plotly_chart(eq_fig, use_container_width=True)
+            st.plotly_chart(build_equity_curve(perf, height=300), use_container_width=True)
         with p2:
-            st.plotly_chart(dd_fig, use_container_width=True)
+            st.plotly_chart(build_drawdown_chart(perf, height=300), use_container_width=True)
 
     with tab_journal:
         if events:
@@ -203,15 +215,16 @@ def _render_trading_panels(
 
 
 def _render_trading_metrics(state, perf, *, balance_unavailable: bool = False) -> None:
-    st.markdown("### Carteira & performance")
+    st.markdown(cyber_section_title("CARTEIRA & PERFORMANCE"), unsafe_allow_html=True)
 
     quote_label = "Quote livre"
     if balance_unavailable:
-        pnl_txt, pnl_delta = "N/A", None
+        pnl_txt, pnl_delta = "N/A", ""
         eq_txt = "N/A"
         usdt_txt = "N/A"
         btc_txt = "N/A"
         dd_txt = "N/A"
+        pnl_color = CYBER["muted"]
     else:
         pnl_txt = f"${perf.net_pnl:,.2f}"
         pnl_delta = f"{perf.net_pnl_pct:.2%}"
@@ -220,41 +233,53 @@ def _render_trading_metrics(state, perf, *, balance_unavailable: bool = False) -
         usdt_txt = f"${state.quote_free:,.2f}"
         btc_txt = f"{state.btc_total:.6f}"
         dd_txt = f"{perf.max_drawdown_pct:.2%}"
+        pnl_color = CYBER["green"] if perf.net_pnl >= 0 else CYBER["red"]
 
-    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
-    c1.metric(quote_label, usdt_txt)
-    c2.metric("BTC", btc_txt)
-    c3.metric("Equity", eq_txt)
-    c4.metric("PnL", pnl_txt, pnl_delta, delta_color="off")
-    c5.metric("Max DD", dd_txt)
-    c6.metric("Preco", f"${state.last_close:,.2f}")
-    c7.metric("Sinal", state.signal.replace("_", " ").upper(), state.reason[:30], delta_color="off")
+    st.markdown(
+        cyber_kpi_row(
+            [
+                (quote_label, usdt_txt, "", CYBER["cyan"]),
+                ("BTC", btc_txt, "", CYBER["text"]),
+                ("Equity", eq_txt, "", CYBER["purple"]),
+                ("PnL", pnl_txt, pnl_delta, pnl_color),
+                ("Max DD", dd_txt, "", CYBER["red"]),
+                ("Preco", f"${state.last_close:,.2f}" if not balance_unavailable else "N/A", "", CYBER["text"]),
+                ("Sinal", state.signal.replace("_", " ").upper() if not balance_unavailable else "N/A", "", CYBER["magenta"]),
+            ]
+        ),
+        unsafe_allow_html=True,
+    )
+
+    if balance_unavailable:
+        return
 
     mm200_txt = f"{state.mm200:,.2f}" if state.mm200 is not None else "—"
     rsi_txt = f"{state.rsi:.1f}" if state.rsi is not None else "—"
     adx_txt = f"{state.adx:.1f}" if state.adx is not None else "—"
+    sig_color = _signal_color(state.signal)
     st.markdown(
-        f"""
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-          <span style="background:#21262d;padding:5px 10px;border-radius:6px;">MM200: <b>{mm200_txt}</b></span>
-          <span style="background:#21262d;padding:5px 10px;border-radius:6px;">RSI: <b>{rsi_txt}</b></span>
-          <span style="background:#21262d;padding:5px 10px;border-radius:6px;">ADX: <b>{adx_txt}</b></span>
-          <span style="background:#21262d;padding:5px 10px;border-radius:6px;color:{_signal_color(state.signal)};">
-            {'LONG BTC' if state.in_position else 'FLAT'}
-          </span>
-          <span style="background:#21262d;padding:5px 10px;border-radius:6px;">
-            Trades: <b>{perf.trade_count}</b>
-          </span>
-          <span style="background:#21262d;padding:5px 10px;border-radius:6px;">
-            {state.last_time.strftime('%Y-%m-%d %H:%M UTC')}
-          </span>
-        </div>
-        """,
+        cyber_indicator_pills(
+            [
+                ("MM200", mm200_txt, None),
+                ("RSI", rsi_txt, None),
+                ("ADX", adx_txt, None),
+                ("Posicao", "LONG BTC" if state.in_position else "FLAT", sig_color),
+                ("Trades", str(perf.trade_count), None),
+                ("Candle", state.last_time.strftime("%Y-%m-%d %H:%M UTC"), None),
+            ]
+        ),
         unsafe_allow_html=True,
     )
 
 
 def _render_trading(config, service, paper_config_rel, refresh, bars, chart_engine, auto) -> None:
+    st.markdown(
+        cyber_page_header(
+            "TRADING AO VIVO",
+            f"{config.exchange.symbol} {config.exchange.timeframe} · {config.strategy.name}",
+        ),
+        unsafe_allow_html=True,
+    )
     live_ws = chart_engine == CHART_LIVE
 
     try:
@@ -322,12 +347,11 @@ def _render_trading(config, service, paper_config_rel, refresh, bars, chart_engi
             st.plotly_chart(build_price_chart(df, markers, bars=bars), use_container_width=True)
 
     with tab_perf:
-        eq_fig, dd_fig = build_performance_charts(perf)
         p1, p2 = st.columns(2)
         with p1:
-            st.plotly_chart(eq_fig, use_container_width=True)
+            st.plotly_chart(build_equity_curve(perf, height=300), use_container_width=True)
         with p2:
-            st.plotly_chart(dd_fig, use_container_width=True)
+            st.plotly_chart(build_drawdown_chart(perf, height=300), use_container_width=True)
 
     with tab_journal:
         if events:
@@ -371,14 +395,7 @@ def main() -> None:
         initial_sidebar_state="expanded",
     )
 
-    st.markdown(
-        """
-        <style>
-        .block-container { padding-top: 1rem; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown(inject_cyber_css(), unsafe_allow_html=True)
 
     with st.sidebar:
         st.title("ATLAS QUANT")
