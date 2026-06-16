@@ -20,7 +20,7 @@ def render_demo_balance_panel(project_root: Path, paper_config_rel: str, *, comp
     if not env_path.is_file():
         st.error(f"Arquivo `.env` nao encontrado em: `{env_path}`")
         st.code("copy .env.example .env", language="powershell")
-        st.stop()
+        return
 
     if not has_keys:
         st.warning(
@@ -29,8 +29,11 @@ def render_demo_balance_panel(project_root: Path, paper_config_rel: str, *, comp
             "`BINANCE_DEMO_API_SECRET=...`\n\n"
             "Crie as chaves em **demo.binance.com** (nao e binance.com)."
         )
+    elif st.session_state.get("demo_balance_result") is None:
+        with st.spinner("Buscando saldo demo..."):
+            st.session_state["demo_balance_result"] = run_trade_check(project_root, paper_config_rel)
 
-    if st.button("Ver saldo Demo agora", type="primary", key=f"demo_bal_{compact}"):
+    if st.button("Atualizar saldo Demo", type="primary", key=f"demo_bal_{compact}"):
         with st.spinner("Conectando na Binance Demo..."):
             res = run_trade_check(project_root, paper_config_rel)
         st.session_state["demo_balance_result"] = res

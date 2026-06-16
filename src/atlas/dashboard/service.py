@@ -12,7 +12,8 @@ from sqlalchemy import create_engine, text
 from atlas.brokers.binance import BinanceDemoBroker, BinanceLiveBroker, credentials_configured, fetch_public_candles
 from atlas.core.config import AtlasConfig
 from atlas.core.indicators import add_indicators, row_to_indicator_snapshot
-from atlas.core.models import Candle, IndicatorSnapshot, Position, TradingMode
+from atlas.core.models import Candle, IndicatorSnapshot, Position, Side, TradingMode
+from atlas.research.collector import cache_path, load_or_download, load_parquet
 from atlas.strategies.registry import build_strategy_from_config
 
 
@@ -51,31 +52,9 @@ class DashboardService:
         else:
             self.broker = BinanceDemoBroker(config.exchange.symbol)
 
-    def fetch_candles_df(self, limit: int = 350) -> pd.DataFrame:
-        try:
-            candles = self.broker.fetch_candles(
-                self.config.exchange.symbol,
-                self.config.exchange.timeframe,
-                limit=limit,
-            )
-        except Exception:
-            candles = fetch_public_candles(
-                self.config.exchange.symbol,
-                self.config.exchange.timeframe,
-                limit=limit,
-            )
-        df = pd.DataFrame(
-            {
-                "open": [c.open for c in candles],
-                "high": [c.high for c in candles],
-                "low": [c.low for c in candles],
-                "close": [c.close for c in candles],
-                "volume": [c.volume for c in candles],
-            },
-            index=pd.DatetimeIndex([c.timestamp for c in candles]),
-        )
+    def _add_indicators(self, raw: pd.DataFrame) -> pd.DataFrame:
         return add_indicators(
-            df,
+            raw,
             bb_period=int(self.params.get("bb_period", 20)),
             bb_std=float(self.params.get("bb_std", 2.0)),
             rsi_period=int(self.params.get("rsi_period", 14)),
@@ -90,6 +69,70 @@ class DashboardService:
             daily_mm_period=int(self.params.get("daily_mm_period", 200)),
         )
 
+    def _load_raw_ohlcv(self, need_bars: int) -> pd.DataFrame:
+        """Prefer local Parquet cache (instant); fallback to public API."""
+        cache = cache_path(self.config)
+        if cache.is_file():
+            try:
+                raw = load_parquet(cache)
+                if not raw.empty:
+                    return raw.tail(need_bars)
+            except Exception:
+                pass
+
+        try:
+            df = load_or_download(self.config, force=False)
+            if not df.empty:
+                return df.tail(need_bars)
+        except Exception:
+            pass
+
+        candles = fetch_public_candles(
+            self.config.exchange.symbol,
+            self.config.exchange.timeframe,
+            limit=min(need_bars, 500),
+        )
+        if not candles:
+            return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+        return pd.DataFrame(
+            {
+                "open": [c.open for c in candles],
+                "high": [c.high for c in candles],
+                "low": [c.low for c in candles],
+                "close": [c.close for c in candles],
+                "volume": [c.volume for c in candles],
+            },
+            index=pd.DatetimeIndex([c.timestamp for c in candles]),
+        )
+
+    def fetch_candles_df(self, limit: int = 350) -> pd.DataFrame:
+        need = limit + self.warmup + 10
+        raw = self._load_raw_ohlcv(need)
+        if raw.empty:
+            return raw
+        return self._add_indicators(raw).tail(limit)
+
+    def fetch_chart_bootstrap_df(self, bars: int = 120) -> pd.DataFrame:
+        """OHLCV rapido para o grafico ao vivo (MM recalculado no browser)."""
+        need = bars + self.warmup + 10
+        raw = self._load_raw_ohlcv(min(need, 500))
+        if raw.empty:
+            return raw
+        return self._add_indicators(raw).tail(bars)
+
+    def fetch_demo_balances(self) -> tuple[dict[str, float] | None, str | None]:
+        """Saldo demo/live automatico quando as chaves existem no .env."""
+        live = self.config.mode == TradingMode.LIVE
+        if not credentials_configured(live=live):
+            return None, (
+                "Chaves API ausentes no .env — preencha BINANCE_DEMO_API_KEY e "
+                "BINANCE_DEMO_API_SECRET (demo.binance.com)."
+            )
+        try:
+            return self.broker.get_account_balances(), None
+        except Exception as exc:
+            return None, str(exc)
+
     def _snapshot(self, ind_df: pd.DataFrame, idx: int, closes: pd.Series) -> IndicatorSnapshot:
         snap = row_to_indicator_snapshot(ind_df.iloc[idx])
         if idx > 0:
@@ -98,8 +141,29 @@ class DashboardService:
             snap["prev_close"] = float(closes.iloc[idx - 1])
         return IndicatorSnapshot(timestamp=ind_df.index[idx].to_pydatetime(), **snap)
 
-    def get_live_state(self, position: Position | None = None) -> LiveState:
-        ind_df = self.fetch_candles_df()
+    def _position_from_balances(self, balances: dict[str, float]) -> Position | None:
+        qty = balances.get("btc_total", 0.0)
+        if qty <= 0.0001:
+            return None
+        return Position(
+            symbol=self.config.exchange.symbol,
+            side=Side.BUY,
+            quantity=qty,
+            entry_price=0.0,
+            entry_time=datetime.now(timezone.utc),
+            metadata={"source": "exchange_balance"},
+        )
+
+    def get_live_state(
+        self,
+        position: Position | None = None,
+        *,
+        ind_df: pd.DataFrame | None = None,
+        balances: dict[str, float] | None = None,
+        balance_error: str | None = None,
+    ) -> LiveState:
+        if ind_df is None:
+            ind_df = self.fetch_candles_df()
         idx = len(ind_df) - 2
         candle = Candle(
             timestamp=ind_df.index[idx].to_pydatetime(),
@@ -110,26 +174,22 @@ class DashboardService:
             volume=float(ind_df.iloc[idx]["volume"]),
         )
         indicators = self._snapshot(ind_df, idx, ind_df["close"])
-        signal = self.strategy.evaluate(candle, indicators, position)
 
-        balances = {
-            "usdt_free": 0.0,
-            "usdt_total": 0.0,
-            "btc_free": 0.0,
-            "btc_total": 0.0,
-        }
-        balance_error: str | None = None
-        live = self.config.mode == TradingMode.LIVE
-        if credentials_configured(live=live):
-            try:
-                balances = self.broker.get_account_balances()
-            except Exception as exc:
-                balance_error = str(exc)
-        else:
-            balance_error = (
-                "Chaves API ausentes no .env — grafico OK, saldo indisponivel. "
-                "Va em Paper Trading > Validar API."
-            )
+        if balances is None and balance_error is None:
+            balances, balance_error = self.fetch_demo_balances()
+
+        if balances is None:
+            balances = {
+                "usdt_free": 0.0,
+                "usdt_total": 0.0,
+                "btc_free": 0.0,
+                "btc_total": 0.0,
+            }
+
+        if position is None:
+            position = self._position_from_balances(balances)
+
+        signal = self.strategy.evaluate(candle, indicators, position)
 
         mark = candle.close
         equity = balances["usdt_total"] + balances["btc_total"] * mark
@@ -152,6 +212,11 @@ class DashboardService:
             updated_at=datetime.now(timezone.utc),
             balance_error=balance_error,
         )
+
+
+def fetch_demo_balances(config: AtlasConfig) -> tuple[dict[str, float] | None, str | None]:
+    """Helper de modulo para o dashboard."""
+    return DashboardService(config).fetch_demo_balances()
 
 
 def load_journal_events(

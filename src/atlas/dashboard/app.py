@@ -10,16 +10,17 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+_APP_PATH = Path(__file__).resolve()
+SRC_ROOT = _APP_PATH.parents[2]
+PROJECT_ROOT = _APP_PATH.parents[3]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 from atlas.core.env import find_project_root, load_project_env  # noqa: E402
 
 PROJECT_ROOT = find_project_root(PROJECT_ROOT)
 load_project_env(PROJECT_ROOT)
 
-from atlas.brokers.binance import credentials_configured  # noqa: E402
 from atlas.core.config import load_config  # noqa: E402
 from atlas.core.models import TradingMode  # noqa: E402
 from atlas.dashboard.charts_plotly import build_performance_charts, build_price_chart  # noqa: E402
@@ -31,7 +32,7 @@ from atlas.dashboard.intelligence_ui import render_intelligence  # noqa: E402
 from atlas.dashboard.paper_ui import render_paper  # noqa: E402
 from atlas.dashboard.performance import compute_performance, extract_trade_markers  # noqa: E402
 from atlas.dashboard.research_ui import render_research  # noqa: E402
-from atlas.dashboard.service import DashboardService, load_journal_events  # noqa: E402
+from atlas.dashboard.service import DashboardService, fetch_demo_balances, load_journal_events  # noqa: E402
 from atlas.intelligence.analyzer import analyze_path  # noqa: E402
 from atlas.intelligence.metrics import discover_reports  # noqa: E402
 from atlas.monitoring.alerts import TelegramAlerts  # noqa: E402
@@ -57,23 +58,101 @@ def _signal_color(signal: str) -> str:
     return "#8b949e"
 
 
-def _load_trading_snapshot(config, service):
-    position = None
-    if credentials_configured(live=config.mode == TradingMode.LIVE):
-        try:
-            position = service.broker.get_position(config.exchange.symbol)
-        except Exception:
-            position = None
-    state = service.get_live_state(position)
-    df = service.fetch_candles_df()
-    events = load_journal_events(config.database_url, config.mode.value, limit=500)
-    markers = extract_trade_markers(events)
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_candles_df(strategy: str, symbol: str, timeframe: str) -> pd.DataFrame:
+    config = load_config(PROJECT_ROOT / "config/paper.yaml")
+    service = DashboardService(config)
+    return service.fetch_candles_df(limit=280)
+
+
+@st.cache_data(ttl=90, show_spinner=False)
+def _cached_demo_balances() -> tuple[dict[str, float] | None, str | None]:
+    load_project_env(PROJECT_ROOT)
+    config = load_config(PROJECT_ROOT / "config/paper.yaml")
+    return fetch_demo_balances(config)
+
+
+def _load_trading_balance_state(config, service, ind_df, events):
+    balances, balance_error = _cached_demo_balances()
+    state = service.get_live_state(
+        ind_df=ind_df,
+        balances=balances,
+        balance_error=balance_error,
+    )
     perf = compute_performance(
         events,
         initial_capital=config.risk.initial_capital,
         current_equity=state.equity_usdt,
     )
-    return state, df, events, markers, perf
+    return state, perf
+
+
+def _fetch_and_render_trading_balance(
+    config,
+    service,
+    ind_df,
+    events,
+    *,
+    paper_config_rel: str,
+) -> tuple | None:
+    with st.spinner("Carregando saldo demo..."):
+        try:
+            state, perf = _load_trading_balance_state(config, service, ind_df, events)
+        except Exception as exc:
+            st.error(f"Erro ao carregar saldo: {exc}")
+            return None
+
+    if state.balance_error:
+        st.warning(state.balance_error)
+        render_demo_balance_panel(PROJECT_ROOT, paper_config_rel, compact=True)
+        return None
+
+    _render_trading_metrics(state, perf, balance_unavailable=False)
+    return state, perf
+
+def _render_trading_panels(
+    state,
+    perf,
+    events,
+    *,
+    paper_config_rel: str,
+    balance_error: bool,
+) -> None:
+    if balance_error:
+        return
+
+    tab_perf, tab_journal = st.tabs(["PnL & Drawdown", "Journal"])
+
+    with tab_perf:
+        eq_fig, dd_fig = build_performance_charts(perf)
+        p1, p2 = st.columns(2)
+        with p1:
+            st.plotly_chart(eq_fig, use_container_width=True)
+        with p2:
+            st.plotly_chart(dd_fig, use_container_width=True)
+
+    with tab_journal:
+        if events:
+            rows = []
+            for ev in events:
+                payload = ev.get("payload") or {}
+                detail = (
+                    payload.get("signal")
+                    or payload.get("reason")
+                    or payload.get("error")
+                    or payload.get("action")
+                    or ""
+                )
+                if payload.get("equity"):
+                    detail = f"{detail} | equity=${float(payload['equity']):,.2f}"
+                rows.append(
+                    {"hora": ev.get("ts"), "evento": ev.get("event"), "detalhe": str(detail)[:100]}
+                )
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Sem eventos ainda. Inicie o bot em **Paper Trading**.")
+
+    st.caption(f"Atualizado: {state.updated_at.strftime('%H:%M:%S UTC')}")
 
 
 def _render_trading_metrics(state, perf, *, balance_unavailable: bool = False) -> None:
@@ -130,89 +209,64 @@ def _render_trading(config, service, paper_config_rel, refresh, bars, chart_engi
     live_ws = chart_engine == CHART_LIVE
 
     try:
-        state, df, events, markers, perf = _load_trading_snapshot(config, service)
+        events = load_journal_events(config.database_url, config.mode.value, limit=500)
+        markers = extract_trade_markers(events)
+        ind_df = _cached_candles_df(config.strategy.name, config.exchange.symbol, config.exchange.timeframe)
+        chart_df = ind_df.tail(bars) if len(ind_df) > bars else ind_df
     except Exception as exc:
-        st.error(f"Erro ao carregar dados: {exc}")
-        env_path = PROJECT_ROOT / ".env"
-        if not env_path.is_file():
-            st.warning(f"Arquivo `.env` nao encontrado em: `{env_path}`")
-        else:
-            st.info("Verifique BINANCE_DEMO_API_KEY e BINANCE_DEMO_API_SECRET no .env")
+        st.error(f"Erro ao carregar grafico: {exc}")
         return
 
     if live_ws:
         render_tradingview_live_chart(
-            df,
+            chart_df,
             markers,
             symbol=config.exchange.symbol,
             timeframe=config.exchange.timeframe,
             bars=bars,
         )
-        st.caption(
-            "Preco e vela atual via **WebSocket Binance** (tempo real). "
-            "Saldo, sinal e journal atualizam abaixo sem recarregar o grafico."
-        )
+        st.caption("Preco em tempo real via WebSocket Binance.")
 
-        fragment_every = timedelta(seconds=refresh) if auto and refresh > 0 else None
+        run_every = timedelta(seconds=refresh) if auto and refresh > 0 else None
 
-        @st.fragment(run_every=fragment_every)
-        def _live_panels() -> None:
-            try:
-                state, _df, events, _markers, perf = _load_trading_snapshot(config, service)
-            except Exception as exc:
-                st.error(f"Erro ao atualizar paineis: {exc}")
+        @st.fragment(run_every=run_every)
+        def _live_balance_panel() -> None:
+            result = _fetch_and_render_trading_balance(
+                config,
+                service,
+                ind_df,
+                events,
+                paper_config_rel=paper_config_rel,
+            )
+            if result is None:
                 return
+            state, perf = result
+            _render_trading_panels(
+                state,
+                perf,
+                events,
+                paper_config_rel=paper_config_rel,
+                balance_error=False,
+            )
 
-            if state.balance_error:
-                render_demo_balance_panel(PROJECT_ROOT, paper_config_rel, compact=True)
-            else:
-                _render_trading_metrics(state, perf, balance_unavailable=False)
-
-            tab_perf, tab_journal = st.tabs(["PnL & Drawdown", "Journal"])
-
-            with tab_perf:
-                eq_fig, dd_fig = build_performance_charts(perf)
-                p1, p2 = st.columns(2)
-                with p1:
-                    st.plotly_chart(eq_fig, use_container_width=True)
-                with p2:
-                    st.plotly_chart(dd_fig, use_container_width=True)
-
-            with tab_journal:
-                if events:
-                    rows = []
-                    for ev in events:
-                        payload = ev.get("payload") or {}
-                        detail = (
-                            payload.get("signal")
-                            or payload.get("reason")
-                            or payload.get("error")
-                            or payload.get("action")
-                            or ""
-                        )
-                        if payload.get("equity"):
-                            detail = f"{detail} | equity=${float(payload['equity']):,.2f}"
-                        rows.append(
-                            {"hora": ev.get("ts"), "evento": ev.get("event"), "detalhe": str(detail)[:100]}
-                        )
-                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-                else:
-                    st.info("Sem eventos ainda. Inicie o bot em **Paper Trading**.")
-
-            st.caption(f"Saldo/sinal/journal: {state.updated_at.strftime('%H:%M:%S UTC')}")
-
-        _live_panels()
+        _live_balance_panel()
         return
 
-    # Modo estatico (refresh da pagina inteira)
-    if state.balance_error:
-        render_demo_balance_panel(PROJECT_ROOT, paper_config_rel, compact=True)
-    else:
-        _render_trading_metrics(state, perf, balance_unavailable=False)
+    result = _fetch_and_render_trading_balance(
+        config,
+        service,
+        ind_df,
+        events,
+        paper_config_rel=paper_config_rel,
+    )
+    if result is None:
+        return
+    state, perf = result
 
-    tab_chart, tab_perf, tab_journal = st.tabs(["Grafico ao vivo", "PnL & Drawdown", "Journal"])
+    tab_chart, tab_perf, tab_journal = st.tabs(["Grafico", "PnL & Drawdown", "Journal"])
 
     with tab_chart:
+        df = chart_df if not chart_df.empty else ind_df
         if chart_engine == CHART_STATIC:
             render_tradingview_chart(df, markers, bars=bars)
         else:
@@ -302,13 +356,13 @@ def main() -> None:
             if chart_engine == CHART_LIVE:
                 refresh = st.slider(
                     "Atualizar saldo/journal (seg)",
-                    15,
+                    30,
                     300,
                     60,
                     15,
-                    help="O grafico nao recarrega — so saldo, sinal e journal.",
+                    help="Saldo demo carrega automaticamente. Grafico ao vivo via WebSocket.",
                 )
-                auto = st.toggle("Auto-atualizar paineis", value=True)
+                auto = st.toggle("Auto-atualizar saldo/journal", value=True)
             else:
                 refresh = st.slider("Atualizar pagina (seg)", 15, 300, 60, 15)
                 auto = st.toggle("Auto-refresh", value=True)
