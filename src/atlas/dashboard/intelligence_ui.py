@@ -93,10 +93,7 @@ def _render_level3_tab(analysis: StrategyAnalysis) -> None:
         st.metric("Walk-forward", wf)
 
     if not l3.has_walkforward:
-        st.info(
-            "Execute walk-forward para métricas OOS:\n\n"
-            "`atlas research walkforward --config config/backtest_mm200_v2.yaml`"
-        )
+        st.info("Execute walk-forward na secao **Pesquisa** para metricas OOS.")
 
     st.markdown("### Research Interpreter")
     st.success(l3.diagnosis)

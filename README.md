@@ -95,29 +95,25 @@ Se já tiver Postgres na máquina, aponte `DATABASE_URL` para ele e rode `databa
 ## Início rápido
 
 ```powershell
-# 1. Baixar dados históricos BTC/USDT 4H
-atlas research download
+# 1. Instalar (uma vez)
+pip install -e ".[dev]"
+copy .env.example .env   # preencher chaves Binance Demo
 
-# 2. Rodar backtest (estratégia padrão)
-atlas research backtest
-
-# 3. Comparar todas as estratégias (Atlas Score)
-atlas research compare
-
-# 3b. Walk-forward (IS/OOS) para Nível 3
-atlas research walkforward --config config/backtest_v2_2.yaml
-
-# 4. Validar API Binance Demo
-atlas trade check
-
-# 5. Paper trading (um tick)
-atlas trade paper --once
-
-# 6. Dashboard web
+# 2. Abrir o dashboard — tudo fica aqui
 atlas dashboard
 ```
 
-Abra **http://localhost:8501** → sidebar → **ATLAS Intelligence**.
+Abra **http://localhost:8501** e use o menu lateral:
+
+| Seção | O que faz |
+|-------|-----------|
+| **Início** | Visão geral e fluxo recomendado |
+| **Pesquisa** | Baixar dados, backtest, comparar, walk-forward |
+| **Paper Trading** | Validar API, iniciar/parar bot, tick único |
+| **Trading ao Vivo** | Gráficos, PnL, journal |
+| **ATLAS Intelligence** | Score, diagnóstico L2/L3, relatório IA |
+
+O CLI (`atlas research ...`, `atlas trade ...`) continua disponível para automação, mas **não é necessário** no uso diário.
 
 ---
 

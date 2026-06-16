@@ -311,8 +311,8 @@ def dashboard_cmd(config_path: str, port: int) -> None:
     app_path = Path(__file__).resolve().parent / "dashboard" / "app.py"
     env = os.environ.copy()
     env["ATLAS_CONFIG"] = str(PROJECT_ROOT / config_path)
-    click.echo(f"Dashboard ATLAS QUANT → http://localhost:{port}")
-    click.echo("Ctrl+C para parar. Rode 'atlas trade paper' em outro terminal para operar.")
+    click.echo(f"Dashboard ATLAS QUANT -> http://localhost:{port}")
+    click.echo("Tudo pelo dashboard: pesquisa, paper, trading e intelligence.")
     subprocess.run(
         [
             sys.executable,
