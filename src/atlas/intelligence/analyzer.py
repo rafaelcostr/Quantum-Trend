@@ -142,16 +142,17 @@ def analyze_report(
     )
 
     return StrategyAnalysis(
-        strategy=bundle.strategy,
+        strategy=str(bundle.metadata.get("strategy") or bundle.strategy),
         source=source,
-        market=market,
-        timeframe=timeframe,
+        market=str(bundle.metadata.get("market") or market),
+        timeframe=str(bundle.metadata.get("timeframe") or timeframe),
         period_start=start,
         period_end=end,
         level1=level1,
         level2=level2,
         level3=level3,
         raw=values,
+        metadata=dict(bundle.metadata),
     )
 
 

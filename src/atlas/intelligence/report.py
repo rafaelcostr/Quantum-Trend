@@ -1,6 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from atlas.intelligence.models import StrategyAnalysis
+
+
+def _pct(val: float | None) -> str:
+    if val is None:
+        return "N/A"
+    return f"{val:.2%}"
 
 
 def _l2_line(analysis: StrategyAnalysis, key: str) -> str:
@@ -26,6 +34,8 @@ def _l3_line(analysis: StrategyAnalysis, key: str) -> str:
 def render_ai_report(analysis: StrategyAnalysis) -> str:
     l1 = analysis.level1
     raw = analysis.raw
+    meta = analysis.metadata
+    tf = str(meta.get("timeframe") or analysis.timeframe).upper()
 
     def m(key: str) -> str:
         for item in l1.metrics:
@@ -58,11 +68,25 @@ def render_ai_report(analysis: StrategyAnalysis) -> str:
 
     return f"""# ATLAS QUANT REPORT
 
-**Strategy:** {analysis.strategy}
-**Market:** {analysis.market}
-**Timeframe:** {analysis.timeframe}
+## Identificacao do teste
+
+**Strategy:** {meta.get('strategy', analysis.strategy)}
+**Strategy Version:** {meta.get('strategy_version', 'N/A')}
+**Strategy Type:** {meta.get('strategy_type', 'N/A')}
+
+**Market:** {meta.get('market', analysis.market)}
+**Timeframe:** {tf}
 **Period:** {analysis.period_start or '?'} → {analysis.period_end or '?'}
-**Source:** {analysis.source}
+
+**Config File:** `{meta.get('config_file', 'N/A')}`
+**Mode:** {meta.get('mode', analysis.source)}
+**Risk Model:** {meta.get('risk_model', 'N/A')}
+**Position Size:** {meta.get('position_size', 'N/A')}
+**Fee:** {_pct(meta.get('fee_rate'))}  
+**Slippage:** {_pct(meta.get('slippage_rate'))}  
+**Initial Capital:** ${meta.get('initial_capital', 0):,.0f}
+
+**Report File:** `{Path(str(meta.get('source_path') or '')).name or meta.get('report_name', 'N/A')}`
 
 ---
 

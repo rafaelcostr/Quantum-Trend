@@ -1,6 +1,7 @@
 """Metadados das estrategias — tipo, versao e classificacao."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 STRATEGY_METADATA: dict[str, dict[str, str]] = {
@@ -64,3 +65,14 @@ def position_size_label(sizing_mode: str, risk_per_trade: float) -> str:
     if sizing_mode == "full_equity":
         return "100% equity"
     return f"{risk_per_trade:.1%} per trade ({sizing_mode})"
+
+
+def report_display_label(path: Path) -> str:
+    """Rotulo legivel para dropdowns (estrategia, timeframe, tipo)."""
+    strategy, tf = parse_strategy_from_report_name(path.stem)
+    meta = get_strategy_metadata(strategy)
+    base = f"{strategy} ({tf})" if tf else strategy
+    stype = meta.get("type", "Unknown")
+    if stype != "Unknown":
+        return f"{base} — {stype}"
+    return base

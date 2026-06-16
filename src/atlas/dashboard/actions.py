@@ -83,7 +83,12 @@ def run_backtest_dashboard(
         timeframe=timeframe,
         quote=quote,
     )
-    return run_backtest_config(project_root, config, output_dir=output_dir)
+    return run_backtest_config(
+        project_root,
+        config,
+        output_dir=output_dir,
+        config_file=config_rel,
+    )
 
 
 # Alias legado — evita quebrar imports antigos
@@ -94,6 +99,8 @@ def run_backtest_config(
     project_root: Path,
     config: AtlasConfig,
     output_dir: str = "data/reports",
+    *,
+    config_file: str | None = None,
 ) -> dict[str, Any]:
     df = load_or_download(config)
     if df.empty:
@@ -104,7 +111,15 @@ def run_backtest_config(
     warmup = int(config.strategy.params.get("warmup_bars", 205))
     bh_return = compute_buy_hold_return(df, warmup, config.risk.initial_capital)
     report_name = f"{config.strategy.name}_{config.exchange.timeframe}_report"
-    path = save_report(result_bt, report, project_root / output_dir, name=report_name)
+    path = save_report(
+        result_bt,
+        report,
+        project_root / output_dir,
+        name=report_name,
+        config=config,
+        config_file=config_file,
+        buy_hold_pct=bh_return,
+    )
 
     return {
         "ok": True,

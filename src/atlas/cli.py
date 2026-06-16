@@ -59,8 +59,16 @@ def backtest_cmd(config_path: str, output_dir: str) -> None:
     report = compute_statistics(result)
     warmup = int(config.strategy.params.get("warmup_bars", 205))
     bh_return = compute_buy_hold_return(df, warmup, config.risk.initial_capital)
-    report_name = f"{config.strategy.name}_report"
-    path = save_report(result, report, PROJECT_ROOT / output_dir, name=report_name)
+    report_name = f"{config.strategy.name}_{config.exchange.timeframe}_report"
+    path = save_report(
+        result,
+        report,
+        PROJECT_ROOT / output_dir,
+        name=report_name,
+        config=config,
+        config_file=config_path,
+        buy_hold_pct=bh_return,
+    )
 
     click.echo(f"\n--- Backtest Results ({config.strategy.name}) ---")
     click.echo(f"Net profit:      ${report.net_profit:,.2f} ({report.net_profit_pct:.2%})")

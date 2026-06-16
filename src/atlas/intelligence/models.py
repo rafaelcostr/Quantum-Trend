@@ -70,3 +70,4 @@ class StrategyAnalysis:
     level2: Level2Snapshot | None = None
     level3: Level3Snapshot | None = None
     raw: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)

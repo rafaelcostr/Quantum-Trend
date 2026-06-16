@@ -41,6 +41,7 @@ from atlas.dashboard.research_ui import render_research  # noqa: E402
 from atlas.dashboard.service import DashboardService, fetch_demo_balances, load_journal_events  # noqa: E402
 from atlas.intelligence.analyzer import analyze_path  # noqa: E402
 from atlas.intelligence.metrics import discover_reports  # noqa: E402
+from atlas.strategies.metadata import report_display_label  # noqa: E402
 from atlas.monitoring.alerts import TelegramAlerts  # noqa: E402
 
 from atlas.dashboard.ops_context import set_ops_config  # noqa: E402
@@ -378,6 +379,7 @@ def main() -> None:
         chart_engine = CHART_LIVE
         auto = True
         selected_strategy = None
+        selected_label = None
 
         base_config = load_config(PROJECT_ROOT / paper_config_rel)
         ops_config = base_config
@@ -448,9 +450,11 @@ def main() -> None:
                 auto = st.toggle("Auto-refresh", value=True)
         elif page == "ATLAS Intelligence":
             report_paths = discover_reports(PROJECT_ROOT / "data/reports")
-            report_labels = [p.stem.replace("_report", "") for p in report_paths]
-            selected_strategy = (
-                st.selectbox("Estrategia (backtest)", report_labels) if report_labels else None
+            report_labels = {report_display_label(p): p for p in report_paths}
+            selected_label = (
+                st.selectbox("Relatorio (backtest)", list(report_labels.keys()))
+                if report_labels
+                else None
             )
 
         st.divider()
@@ -476,11 +480,12 @@ def main() -> None:
         render_trades_history(PROJECT_ROOT, paper_config_rel)
     elif page == "ATLAS Intelligence":
         report_paths = discover_reports(PROJECT_ROOT / "data/reports")
-        if not report_paths or not selected_strategy:
+        if not report_paths or not selected_label:
             st.warning("Nenhum relatorio. Va em **Pesquisa** e rode um backtest.")
         else:
-            sel_path = next(p for p in report_paths if p.stem.replace("_report", "") == selected_strategy)
-            analysis = analyze_path(sel_path, market=config.exchange.symbol, timeframe=config.exchange.timeframe)
+            report_labels = {report_display_label(p): p for p in report_paths}
+            sel_path = report_labels[selected_label]
+            analysis = analyze_path(sel_path)
             render_intelligence(analysis)
     elif page == "Trading ao Vivo":
         _render_trading(config, service, paper_config_rel, refresh, bars, chart_engine, auto)

@@ -56,5 +56,7 @@ def test_ai_report_markdown():
     analysis = analyze_path(report)
     md = render_ai_report(analysis)
     assert "# ATLAS QUANT REPORT" in md
+    assert "Identificacao do teste" in md
+    assert "**Strategy Type:**" in md
     assert "NÍVEL 1" in md
     assert analysis.strategy in md

@@ -120,11 +120,22 @@ def _render_level3_tab(analysis: StrategyAnalysis) -> None:
 
 
 def render_intelligence(analysis: StrategyAnalysis) -> None:
+    meta = analysis.metadata
+    stype = meta.get("strategy_type", "")
+    version = meta.get("strategy_version", "")
+    tf = str(meta.get("timeframe") or analysis.timeframe).upper()
+    header = f"**{analysis.strategy}**"
+    if version:
+        header += f" v{version}"
+    if stype:
+        header += f" · {stype}"
     st.markdown("## ATLAS Intelligence")
     st.caption(
-        f"**{analysis.strategy}** · {analysis.market} {analysis.timeframe} · "
+        f"{header} · {meta.get('market', analysis.market)} {tf} · "
         f"{analysis.period_start or '?'} → {analysis.period_end or '?'}"
     )
+    if meta.get("config_file"):
+        st.caption(f"Config: `{meta['config_file']}` · Modo: {meta.get('mode', analysis.source)}")
 
     tab1, tab2, tab3 = st.tabs(["Nível 1 — Decisão Rápida", "Nível 2 — Diagnóstico", "Nível 3 — Research"])
 

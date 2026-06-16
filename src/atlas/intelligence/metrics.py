@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,18 +16,24 @@ class ReportBundle:
     trades: list[dict[str, Any]]
     equity_curve: list[dict[str, Any]]
     source_path: str
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 def load_report(path: str | Path) -> ReportBundle:
+    from atlas.research.report_metadata import metadata_from_report_path
+
     path = Path(path)
     raw = json.loads(path.read_text(encoding="utf-8"))
-    name = path.stem.replace("_report", "")
+    meta = metadata_from_report_path(path, raw)
+    meta["source_path"] = str(path)
+    strategy = str(meta.get("strategy") or path.stem.replace("_report", ""))
     return ReportBundle(
-        strategy=name,
+        strategy=strategy,
         statistics=raw.get("statistics", {}),
         trades=raw.get("trades", []),
         equity_curve=raw.get("equity_curve", []),
         source_path=str(path),
+        metadata=meta,
     )
 
 
