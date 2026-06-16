@@ -3,6 +3,16 @@ from __future__ import annotations
 from atlas.intelligence.models import StrategyAnalysis
 
 
+def _l2_line(analysis: StrategyAnalysis, key: str) -> str:
+    if not analysis.level2:
+        return "N/A"
+    for edu in analysis.level2.metrics:
+        if edu.reading.key == key:
+            r = edu.reading
+            return f"{r.emoji} {r.display} ({r.status_text})"
+    return "N/A"
+
+
 def render_ai_report(analysis: StrategyAnalysis) -> str:
     l1 = analysis.level1
     raw = analysis.raw
@@ -24,6 +34,8 @@ def render_ai_report(analysis: StrategyAnalysis) -> str:
 
     cagr = raw.get("cagr")
     cagr_txt = f"{cagr:.1%}" if cagr is not None else "N/A"
+
+    l2_diag = analysis.level2.diagnosis if analysis.level2 else "_Indisponível_"
 
     return f"""# ATLAS QUANT REPORT
 
@@ -67,7 +79,18 @@ def render_ai_report(analysis: StrategyAnalysis) -> str:
 ---
 
 ## NÍVEL 2 — Diagnóstico
-_Pendente (Sprint 2)_
+
+**Diagnóstico automático:** {l2_diag}
+
+| Métrica | Valor |
+|---------|-------|
+| Sortino | {_l2_line(analysis, 'sortino_ratio')} |
+| Recovery Factor | {_l2_line(analysis, 'recovery_factor')} |
+| Payoff Ratio | {_l2_line(analysis, 'payoff_ratio')} |
+| Calmar Ratio | {_l2_line(analysis, 'calmar_ratio')} |
+| Exposição Mercado | {_l2_line(analysis, 'market_exposure')} |
+| Seq. Ganhos | {_l2_line(analysis, 'max_win_streak')} |
+| Seq. Perdas | {_l2_line(analysis, 'max_loss_streak')} |
 
 ---
 

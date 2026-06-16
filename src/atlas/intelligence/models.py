@@ -33,6 +33,22 @@ class Level1Snapshot:
 
 
 @dataclass
+class EducationalMetric:
+    reading: MetricReading
+    what_is: str
+    why_matters: str
+    how_interpret: str
+    bands_text: str
+
+
+@dataclass
+class Level2Snapshot:
+    metrics: list[EducationalMetric]
+    diagnosis: str
+    values: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class StrategyAnalysis:
     strategy: str
     source: str
@@ -41,4 +57,5 @@ class StrategyAnalysis:
     period_start: str | None
     period_end: str | None
     level1: Level1Snapshot
+    level2: Level2Snapshot | None = None
     raw: dict[str, Any] = field(default_factory=dict)

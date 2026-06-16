@@ -19,7 +19,7 @@ from atlas.dashboard.charts_plotly import build_performance_charts, build_price_
 from atlas.dashboard.charts_tv import render_tradingview_chart  # noqa: E402
 from atlas.dashboard.performance import compute_performance, extract_trade_markers  # noqa: E402
 from atlas.dashboard.service import DashboardService, load_journal_events  # noqa: E402
-from atlas.dashboard.intelligence_ui import render_level1  # noqa: E402
+from atlas.dashboard.intelligence_ui import render_intelligence  # noqa: E402
 from atlas.intelligence.analyzer import analyze_path  # noqa: E402
 from atlas.intelligence.metrics import discover_reports  # noqa: E402
 from atlas.monitoring.alerts import TelegramAlerts  # noqa: E402
@@ -100,7 +100,7 @@ def main() -> None:
             st.stop()
         sel_path = next(p for p in report_paths if p.stem.replace("_report", "") == selected_strategy)
         analysis = analyze_path(sel_path, market=config.exchange.symbol, timeframe=config.exchange.timeframe)
-        render_level1(analysis)
+        render_intelligence(analysis)
         st.stop()
 
     # --- Trading ao Vivo ---

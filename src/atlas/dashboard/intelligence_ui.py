@@ -1,4 +1,4 @@
-"""ATLAS Intelligence — Level 1 UI components for Streamlit."""
+"""ATLAS Intelligence — dashboard UI (Níveis 1, 2 e 3)."""
 from __future__ import annotations
 
 import streamlit as st
@@ -7,15 +7,8 @@ from atlas.intelligence.models import StrategyAnalysis
 from atlas.intelligence.report import render_ai_report
 
 
-def render_level1(analysis: StrategyAnalysis) -> None:
+def _render_level1_tab(analysis: StrategyAnalysis) -> None:
     l1 = analysis.level1
-
-    st.markdown("## ATLAS Intelligence — Nível 1")
-    st.caption(
-        f"**{analysis.strategy}** · {analysis.market} {analysis.timeframe} · "
-        f"{analysis.period_start or '?'} → {analysis.period_end or '?'}"
-    )
-
     c1, c2, c3 = st.columns(3)
     with c1:
         st.metric("Atlas Score", f"{l1.atlas_score:.0f}", f"{l1.score_emoji} {l1.score_label}")
@@ -67,19 +60,70 @@ def render_level1(analysis: StrategyAnalysis) -> None:
         icon = "✅" if chk["ok"] else "❌"
         st.write(f"{icon} **{chk['label']}** — `{chk['value']}`")
 
+
+def _render_level2_tab(analysis: StrategyAnalysis) -> None:
+    l2 = analysis.level2
+    if l2 is None:
+        st.warning("Diagnóstico indisponível.")
+        return
+
+    st.markdown("### Diagnóstico automático")
+    st.success(l2.diagnosis)
+
+    for edu in l2.metrics:
+        r = edu.reading
+        with st.expander(f"{r.emoji} **{r.label}** — {r.display} ({r.status_text})", expanded=False):
+            st.markdown(f"**O que é:** {edu.what_is}")
+            st.markdown(f"**Por que importa:** {edu.why_matters}")
+            st.markdown(f"**Faixas:** {edu.bands_text}")
+            st.markdown(edu.how_interpret)
+
+
+def _render_level3_tab() -> None:
+    st.markdown("### Research Lab — em breve (Sprint 3)")
+    st.write(
+        "Métricas avançadas que exigem engines dedicados:\n\n"
+        "- Walk-forward analysis\n"
+        "- Monte Carlo bootstrap\n"
+        "- Out-of-sample (OOS)\n"
+        "- Kelly Criterion · Ulcer Index · Skewness/Kurtosis\n\n"
+        "Enquanto isso, use `atlas research compare` para ranking entre estratégias."
+    )
+
+
+def render_intelligence(analysis: StrategyAnalysis) -> None:
+    st.markdown("## ATLAS Intelligence")
+    st.caption(
+        f"**{analysis.strategy}** · {analysis.market} {analysis.timeframe} · "
+        f"{analysis.period_start or '?'} → {analysis.period_end or '?'}"
+    )
+
+    tab1, tab2, tab3 = st.tabs(["Nível 1 — Decisão Rápida", "Nível 2 — Diagnóstico", "Nível 3 — Research"])
+
+    with tab1:
+        _render_level1_tab(analysis)
+    with tab2:
+        _render_level2_tab(analysis)
+    with tab3:
+        _render_level3_tab()
+
     st.divider()
     report_md = render_ai_report(analysis)
-    st.download_button(
-        "📋 Baixar Relatório (.md)",
-        data=report_md,
-        file_name=f"atlas_{analysis.strategy}_report.md",
-        mime="text/markdown",
-    )
-    if st.button("📋 COPIAR RELATÓRIO PARA IA", use_container_width=True):
-        st.code(report_md, language="markdown")
-        st.success("Relatório exibido acima — selecione e copie (Ctrl+C).")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.download_button(
+            "📋 Baixar Relatório (.md)",
+            data=report_md,
+            file_name=f"atlas_{analysis.strategy}_report.md",
+            mime="text/markdown",
+            use_container_width=True,
+        )
+    with c2:
+        if st.button("📋 COPIAR RELATÓRIO PARA IA", use_container_width=True):
+            st.code(report_md, language="markdown")
+            st.success("Selecione o texto acima e copie (Ctrl+C).")
 
-    with st.expander("Nível 2 — Diagnóstico (em breve)"):
-        st.write("Sprint 2: Sortino, Recovery Factor, Payoff, Calmar, exposição, sequências.")
-    with st.expander("Nível 3 — Research Lab (em breve)"):
-        st.write("Sprint 3: Walk-forward, Monte Carlo, OOS, Kelly, Ulcer Index.")
+
+# retrocompat
+def render_level1(analysis: StrategyAnalysis) -> None:
+    render_intelligence(analysis)

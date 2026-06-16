@@ -15,7 +15,10 @@ from atlas.intelligence.metrics import (
     period_bounds,
     years_tested,
 )
-from atlas.intelligence.models import Level1Snapshot, MetricReading, StrategyAnalysis
+from atlas.intelligence.level2_diagnostics import build_level2_narrative
+from atlas.intelligence.level2_glossary import build_educational_metrics
+from atlas.intelligence.level2_metrics import build_level2_values
+from atlas.intelligence.models import Level1Snapshot, Level2Snapshot, MetricReading, StrategyAnalysis
 from atlas.intelligence.score import build_level1_metrics, compute_atlas_score, score_label
 
 
@@ -98,6 +101,15 @@ def analyze_report(
     )
 
     start, end = period_bounds(bundle.equity_curve)
+
+    l2_values = build_level2_values(bundle)
+    values.update(l2_values)
+    level2 = Level2Snapshot(
+        metrics=build_educational_metrics(l2_values),
+        diagnosis=build_level2_narrative(l2_values, values),
+        values=l2_values,
+    )
+
     return StrategyAnalysis(
         strategy=bundle.strategy,
         source=source,
@@ -106,6 +118,7 @@ def analyze_report(
         period_start=start,
         period_end=end,
         level1=level1,
+        level2=level2,
         raw=values,
     )
 
