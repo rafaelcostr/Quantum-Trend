@@ -309,6 +309,7 @@ def dashboard_cmd(config_path: str, port: int) -> None:
     import sys
 
     app_path = Path(__file__).resolve().parent / "dashboard" / "app.py"
+    load_project_env(PROJECT_ROOT)
     env = os.environ.copy()
     env["ATLAS_CONFIG"] = str(PROJECT_ROOT / config_path)
     click.echo(f"Dashboard ATLAS QUANT -> http://localhost:{port}")

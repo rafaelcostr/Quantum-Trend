@@ -8,11 +8,15 @@ import streamlit as st
 from atlas.core.config import load_config
 from atlas.dashboard.actions import run_paper_once, run_trade_check
 from atlas.dashboard.bot_manager import bot_status, start_bot, stop_bot, tail_log
+from atlas.dashboard.demo_balance_ui import render_demo_balance_panel
 
 
 def render_paper(project_root: Path, paper_config_rel: str) -> None:
     st.markdown("## Paper Trading")
     st.caption("Binance Demo — controle do bot e validacao da API.")
+
+    render_demo_balance_panel(project_root, paper_config_rel)
+    st.divider()
 
     status = bot_status()
     c1, c2, c3 = st.columns(3)

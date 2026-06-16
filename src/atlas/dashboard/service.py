@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-from atlas.brokers.binance import BinanceDemoBroker, BinanceLiveBroker
+from atlas.brokers.binance import BinanceDemoBroker, BinanceLiveBroker, credentials_configured, fetch_public_candles
 from atlas.core.config import AtlasConfig
 from atlas.core.indicators import add_indicators, row_to_indicator_snapshot
 from atlas.core.models import Candle, IndicatorSnapshot, Position, TradingMode
@@ -33,6 +33,7 @@ class LiveState:
     equity_usdt: float
     in_position: bool
     updated_at: datetime
+    balance_error: str | None = None
 
 
 class DashboardService:
@@ -51,11 +52,18 @@ class DashboardService:
             self.broker = BinanceDemoBroker(config.exchange.symbol)
 
     def fetch_candles_df(self, limit: int = 350) -> pd.DataFrame:
-        candles = self.broker.fetch_candles(
-            self.config.exchange.symbol,
-            self.config.exchange.timeframe,
-            limit=limit,
-        )
+        try:
+            candles = self.broker.fetch_candles(
+                self.config.exchange.symbol,
+                self.config.exchange.timeframe,
+                limit=limit,
+            )
+        except Exception:
+            candles = fetch_public_candles(
+                self.config.exchange.symbol,
+                self.config.exchange.timeframe,
+                limit=limit,
+            )
         df = pd.DataFrame(
             {
                 "open": [c.open for c in candles],
@@ -104,7 +112,25 @@ class DashboardService:
         indicators = self._snapshot(ind_df, idx, ind_df["close"])
         signal = self.strategy.evaluate(candle, indicators, position)
 
-        balances = self.broker.get_account_balances()
+        balances = {
+            "usdt_free": 0.0,
+            "usdt_total": 0.0,
+            "btc_free": 0.0,
+            "btc_total": 0.0,
+        }
+        balance_error: str | None = None
+        live = self.config.mode == TradingMode.LIVE
+        if credentials_configured(live=live):
+            try:
+                balances = self.broker.get_account_balances()
+            except Exception as exc:
+                balance_error = str(exc)
+        else:
+            balance_error = (
+                "Chaves API ausentes no .env — grafico OK, saldo indisponivel. "
+                "Va em Paper Trading > Validar API."
+            )
+
         mark = candle.close
         equity = balances["usdt_total"] + balances["btc_total"] * mark
 
@@ -124,6 +150,7 @@ class DashboardService:
             equity_usdt=equity,
             in_position=balances["btc_total"] > 0.0001,
             updated_at=datetime.now(timezone.utc),
+            balance_error=balance_error,
         )
 
 
