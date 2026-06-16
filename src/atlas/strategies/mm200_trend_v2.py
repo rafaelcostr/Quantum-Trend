@@ -24,9 +24,9 @@ class MM200TrendV2:
             bearish_cross = (
                 indicators.prev_close >= indicators.mm200 and candle.close < indicators.mm200
             )
-            if bearish_cross or candle.close < indicators.mm200:
+            if bearish_cross:
                 return Signal(action=SignalAction.EXIT_LONG, reason="bearish cross below mm200")
-            return Signal(action=SignalAction.HOLD, reason="holding above mm200")
+            return Signal(action=SignalAction.HOLD, reason="holding — no bearish cross")
 
         bullish_cross = (
             indicators.prev_close <= indicators.mm200 and candle.close > indicators.mm200

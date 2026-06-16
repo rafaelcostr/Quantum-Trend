@@ -24,6 +24,7 @@ from atlas.core.risk import RiskManager
 from atlas.monitoring.alerts import TelegramAlerts
 from atlas.monitoring.watchdog import AlertWatchdog
 from atlas.runtime.journal import Journal
+from atlas.runtime.reconciler import PositionReconciler
 from atlas.strategies.registry import build_strategy_from_config
 
 
@@ -52,7 +53,13 @@ class TradingEngine:
         else:
             self.broker = BinanceDemoBroker(config.exchange.symbol)
 
-        self._position: Position | None = None
+        self._reconciler = PositionReconciler(
+            journal=self.journal,
+            broker=self.broker,
+            symbol=config.exchange.symbol,
+        )
+        self._position, self._reconcile_meta = self._reconciler.reconcile_on_startup()
+        self._last_reconcile = time.monotonic()
 
     @staticmethod
     def _require_api_credentials(mode: TradingMode) -> None:
@@ -222,6 +229,8 @@ class TradingEngine:
                         signal=signal.reason,
                         fill=fill.model_dump(),
                         metadata=signal.metadata,
+                        stop_price=signal.stop_price,
+                        target_price=signal.target_price,
                     )
                     self.alerts.trade_entry(
                         self.config.exchange.symbol,
@@ -251,12 +260,24 @@ class TradingEngine:
         return result
 
     def run_forever(self) -> None:
-        self.journal.log("runner_start", self.config.exchange.symbol, strategy=self.strategy.name)
+        self.journal.log(
+            "runner_start",
+            self.config.exchange.symbol,
+            strategy=self.strategy.name,
+            reconcile=self._reconcile_meta,
+            restored_position=self._position.model_dump(mode="json") if self._position else None,
+        )
         if self.alerts.enabled:
+            pos_txt = (
+                f"Posição restaurada: {self._position.quantity:.6f} BTC"
+                if self._position
+                else "Posição: flat"
+            )
             self.alerts.send(
                 f"🚀 ATLAS {self.config.mode.value.upper()} iniciado\n"
                 f"Estratégia: {self.strategy.name}\n"
                 f"Par: {self.config.exchange.symbol} {self.config.exchange.timeframe}\n"
+                f"{pos_txt}\n"
                 f"Alertas sinal: {'ON' if self.config.runtime.alert_on_signal else 'OFF'}\n"
                 f"Alerta DD: {self.config.runtime.drawdown_alert_pct:.0%}"
             )
@@ -266,8 +287,19 @@ class TradingEngine:
         except Exception:
             self.watchdog.reset_peak(self.config.risk.initial_capital)
         poll = self.config.runtime.poll_seconds
+        reconcile_secs = self.config.runtime.reconcile_minutes * 60
         while True:
             try:
+                if time.monotonic() - self._last_reconcile >= reconcile_secs:
+                    self._position, periodic_meta = self._reconciler.reconcile_periodic(self._position)
+                    if periodic_meta.get("action") not in (None, "ok"):
+                        self.journal.log(
+                            "reconcile",
+                            self.config.exchange.symbol,
+                            **periodic_meta,
+                            position=self._position.model_dump(mode="json") if self._position else None,
+                        )
+                    self._last_reconcile = time.monotonic()
                 outcome = self.process_once()
                 self.journal.log("tick", self.config.exchange.symbol, **outcome)
             except Exception as exc:

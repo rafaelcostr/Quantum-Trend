@@ -89,3 +89,69 @@ class Journal:
         if self._file_path is not None:
             with self._file_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record) + "\n")
+
+    def fetch_events(
+        self,
+        *,
+        symbol: str | None = None,
+        limit: int = 2000,
+    ) -> list[dict[str, Any]]:
+        """Return journal events oldest-first for this mode."""
+        if self._engine is not None:
+            try:
+                with self._engine.connect() as conn:
+                    rows = conn.execute(
+                        text(
+                            """
+                            SELECT ts, event, symbol, payload
+                            FROM journal
+                            WHERE mode = :mode
+                              AND (:symbol IS NULL OR symbol = :symbol)
+                            ORDER BY ts ASC
+                            LIMIT :limit
+                            """
+                        ),
+                        {"mode": self.mode.value, "symbol": symbol, "limit": limit},
+                    ).mappings()
+                    return [
+                        {
+                            "ts": row["ts"].isoformat()
+                            if hasattr(row["ts"], "isoformat")
+                            else str(row["ts"]),
+                            "event": row["event"],
+                            "symbol": row["symbol"],
+                            "payload": row["payload"] or {},
+                        }
+                        for row in rows
+                    ]
+            except Exception:
+                pass
+
+        if self._file_path is None or not self._file_path.is_file():
+            return []
+
+        events: list[dict[str, Any]] = []
+        with self._file_path.open(encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if record.get("mode") != self.mode.value:
+                    continue
+                if symbol is not None and record.get("symbol") != symbol:
+                    continue
+                events.append(
+                    {
+                        "ts": record.get("ts"),
+                        "event": record.get("event"),
+                        "symbol": record.get("symbol"),
+                        "payload": record.get("payload") or {},
+                    }
+                )
+        if len(events) > limit:
+            events = events[-limit:]
+        return events

@@ -71,8 +71,20 @@ class BinanceDemoBroker:
         return result
 
     def get_position(self, symbol: str) -> Position | None:
-        # Spot: position inferred from base asset balance (simplified)
-        return None
+        base = symbol.split("/")[0].upper()
+        balance = self.exchange.fetch_balance()
+        asset = balance.get(base, {}) or {}
+        qty = float(asset.get("total", 0) or 0)
+        if qty <= 0.0001:
+            return None
+        return Position(
+            symbol=symbol,
+            side=Side.BUY,
+            quantity=qty,
+            entry_price=0.0,
+            entry_time=datetime.now(timezone.utc),
+            metadata={"source": "exchange_balance"},
+        )
 
     def place_order(self, order: Order) -> OrderResult:
         try:

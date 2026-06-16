@@ -141,6 +141,8 @@ Abra **http://localhost:8501** → sidebar → **ATLAS Intelligence**.
 | `atlas trade paper --once` | Um único ciclo de avaliação |
 | `atlas trade live` | Live (com confirmação — use só após gates) |
 
+**Restart seguro:** ao iniciar, o engine restaura posição aberta via journal + saldo BTC na exchange. Reconciliação periódica a cada `reconcile_minutes` (default 15 min em `config/paper.yaml`).
+
 ### Monitoramento
 
 | Comando | Descrição |
@@ -226,7 +228,7 @@ Salva `data/reports/{estrategia}_walkforward.json`; o dashboard e o relatório I
 | `bb_squeeze_v1` | Squeeze + breakout |
 | `regime_switching_v1` | Range + trend (trend opcional) |
 | `mm200_trend_v1` | Long acima da MM200 |
-| `mm200_trend_v2` | Crossover MM200 |
+| `mm200_trend_v2` | Crossover MM200 (entrada bullish / saída bearish cross) |
 | `mm200_daily_macro_v1` | Crossover + filtro macro diário |
 | `portfolio_macro_micro_v1` | Macro 70% + micro range 30% |
 
@@ -346,7 +348,8 @@ Cobertura: risk, backtester, estratégias, alerts, watchdog, intelligence L1/L2/
 | Intelligence Nível 1 | ✅ | Score, semáforos, relatório IA, compare |
 | Intelligence Nível 2 | ✅ | Sortino, Recovery, diagnóstico educacional |
 | Intelligence Nível 3 | ✅ | Walk-forward, Monte Carlo, OOS, Research Lab |
-| Produção | 🔜 | Persistência posição, reconciliação, CI/CD |
+| Paper restart + reconciliação | ✅ | Journal + saldo Binance, reconcile periódico |
+| Produção | 🔜 | OCO stops, kill switch Telegram, CI/CD |
 
 ---
 
