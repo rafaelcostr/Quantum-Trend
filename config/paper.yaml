@@ -1,0 +1,34 @@
+mode: paper
+
+exchange:
+  id: binance
+  symbol: BTC/USDT
+  timeframe: 4h
+  demo: true
+
+strategy:
+  name: mm200_trend_v2
+  params:
+    mm20_period: 20
+    mm200_period: 200
+    warmup_bars: 205
+    stop_below_mm200_pct: 0.02
+
+risk:
+  initial_capital: 10000.0
+  risk_per_trade: 0.01
+  sizing_mode: full_equity
+  max_open_positions: 1
+  max_daily_drawdown: 0.10
+  max_weekly_drawdown: 0.20
+
+execution:
+  fee_rate: 0.001
+  slippage_rate: 0.0005
+  entry_on_next_open: true
+
+runtime:
+  poll_seconds: 120
+  reconcile_minutes: 15
+  alert_on_signal: true
+  drawdown_alert_pct: 0.10

@@ -1,0 +1,45 @@
+mode: backtest
+
+exchange:
+  id: binance
+  symbol: BTC/USDT
+  timeframe: 4h
+
+strategy:
+  name: regime_switching_v1
+  params:
+    bb_period: 20
+    bb_std: 2.0
+    rsi_period: 14
+    adx_period: 14
+    mm20_period: 20
+    mm200_period: 200
+    warmup_bars: 205
+    sr_lookback: 100
+    sr_touch_pct: 0.01
+    range_adx_max: 25
+    trend_adx_min: 26
+    rsi_long_max: 38
+    rsi_pullback_min: 40
+    rsi_pullback_max: 65
+    stop_pct: 0.025
+    risk_reward: 2.5
+    pullback_mm20_pct: 0.01
+    enable_trend_entries: false
+    require_above_mm200_for_range: false
+
+risk:
+  initial_capital: 10000.0
+  risk_per_trade: 0.01
+  max_open_positions: 1
+  max_daily_drawdown: 0.03
+  max_weekly_drawdown: 0.08
+
+execution:
+  fee_rate: 0.001
+  slippage_rate: 0.0005
+  entry_on_next_open: true
+
+data:
+  years: 3
+  cache_dir: data/cache

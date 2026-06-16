@@ -1,0 +1,35 @@
+mode: backtest
+
+exchange:
+  id: binance
+  symbol: BTC/USDT
+  timeframe: 4h
+
+strategy:
+  name: bb_squeeze_v1
+  params:
+    bb_period: 20
+    bb_std: 2.0
+    adx_period: 14
+    sr_lookback: 100
+    sr_touch_pct: 0.01
+    squeeze_max: 0.04
+    stop_pct: 0.025
+    target_band_mult: 2.0
+    min_adx: 18
+
+risk:
+  initial_capital: 10000.0
+  risk_per_trade: 0.01
+  max_open_positions: 1
+  max_daily_drawdown: 0.03
+  max_weekly_drawdown: 0.08
+
+execution:
+  fee_rate: 0.001
+  slippage_rate: 0.0005
+  entry_on_next_open: true
+
+data:
+  years: 3
+  cache_dir: data/cache
