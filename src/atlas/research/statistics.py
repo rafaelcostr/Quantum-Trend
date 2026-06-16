@@ -7,8 +7,10 @@ from pathlib import Path
 import numpy as np
 
 from atlas.core.config import AtlasConfig
+from atlas.core.symbols import quote_from_symbol
 from atlas.research.backtester import BacktestResult
-from atlas.research.report_metadata import build_report_metadata
+from atlas.research.report_metadata import build_report_metadata, remove_stale_reports
+from atlas.core.symbols import parse_strategy_from_report_name, quote_from_symbol
 
 
 @dataclass
@@ -115,6 +117,26 @@ def save_report(
     buy_hold_pct: float | None = None,
 ) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    strategy_name: str | None = None
+    timeframe: str | None = None
+    quote: str | None = None
+    if config is not None:
+        strategy_name = config.strategy.name
+        timeframe = config.exchange.timeframe
+        quote = quote_from_symbol(config.exchange.symbol)
+    else:
+        strategy_name, timeframe, quote = parse_strategy_from_report_name(name)
+        quote = quote or "USDT"
+
+    if strategy_name and timeframe and quote and strategy_name != "unknown":
+        remove_stale_reports(
+            out_dir,
+            strategy=strategy_name,
+            timeframe=timeframe,
+            quote=quote,
+        )
+
     payload: dict = {
         "statistics": report.to_dict(),
         "trades": [

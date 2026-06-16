@@ -16,11 +16,25 @@ PROJECT_ROOT = _APP_PATH.parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-# Forca recarregar actions (Streamlit cacheia modulos antigos)
+# Forca recarregar modulos de pesquisa (Streamlit cacheia versoes antigas)
 import importlib
+import atlas.core.symbols as _symbols_mod
+import atlas.research.report_metadata as _report_metadata_mod
+import atlas.research.statistics as _statistics_mod
 import atlas.dashboard.actions as _actions_mod
+import atlas.dashboard.research_ui as _research_ui_mod
+import atlas.dashboard.download_ui as _download_ui_mod
+import atlas.dashboard.intelligence_ui as _intelligence_ui_mod
+import atlas.intelligence.compare_report as _compare_report_mod
 
+importlib.reload(_symbols_mod)
+importlib.reload(_compare_report_mod)
+importlib.reload(_download_ui_mod)
+importlib.reload(_report_metadata_mod)
+importlib.reload(_statistics_mod)
 importlib.reload(_actions_mod)
+importlib.reload(_research_ui_mod)
+importlib.reload(_intelligence_ui_mod)
 
 from atlas.core.env import find_project_root, load_project_env  # noqa: E402
 
@@ -34,16 +48,12 @@ from atlas.dashboard.charts_tv import render_tradingview_chart  # noqa: E402
 from atlas.dashboard.charts_tv_live import render_tradingview_live_chart  # noqa: E402
 from atlas.dashboard.demo_balance_ui import render_demo_balance_panel  # noqa: E402
 from atlas.dashboard.home_ui import render_home  # noqa: E402
-from atlas.dashboard.intelligence_ui import render_intelligence  # noqa: E402
 from atlas.dashboard.paper_ui import render_paper  # noqa: E402
 from atlas.dashboard.performance import compute_performance, extract_trade_markers  # noqa: E402
-from atlas.dashboard.research_ui import render_research  # noqa: E402
+render_research = _research_ui_mod.render_research
+render_intelligence_page = _intelligence_ui_mod.render_intelligence_page
 from atlas.dashboard.service import DashboardService, fetch_demo_balances, load_journal_events  # noqa: E402
-from atlas.intelligence.analyzer import analyze_path  # noqa: E402
-from atlas.intelligence.metrics import discover_reports  # noqa: E402
-from atlas.strategies.metadata import report_display_label  # noqa: E402
 from atlas.monitoring.alerts import TelegramAlerts  # noqa: E402
-
 from atlas.dashboard.ops_context import set_ops_config  # noqa: E402
 from atlas.dashboard.strategy_config import (  # noqa: E402
     QUOTE_ASSETS,
@@ -379,7 +389,6 @@ def main() -> None:
         chart_engine = CHART_LIVE
         auto = True
         selected_strategy = None
-        selected_label = None
 
         base_config = load_config(PROJECT_ROOT / paper_config_rel)
         ops_config = base_config
@@ -424,8 +433,14 @@ def main() -> None:
 
         config = ops_config
         service = DashboardService(config)
-        st.caption(f"**{config.mode.value}** · {config.exchange.symbol} {config.exchange.timeframe}")
-        st.write(f"Estrategia: `{config.strategy.name}`")
+
+        if page in OPS_PAGES:
+            st.caption(f"**{config.mode.value}** · {config.exchange.symbol} {config.exchange.timeframe}")
+            st.write(f"Estrategia operacional: `{config.strategy.name}`")
+        elif page == "Pesquisa":
+            st.caption("Backtest e comparacao de estrategias")
+        elif page == "ATLAS Intelligence":
+            st.caption("Analise de relatorios de backtest")
 
         if page == "Trading ao Vivo":
             chart_engine = st.radio(
@@ -448,14 +463,6 @@ def main() -> None:
             else:
                 refresh = st.slider("Atualizar pagina (seg)", 15, 300, 60, 15)
                 auto = st.toggle("Auto-refresh", value=True)
-        elif page == "ATLAS Intelligence":
-            report_paths = discover_reports(PROJECT_ROOT / "data/reports")
-            report_labels = {report_display_label(p): p for p in report_paths}
-            selected_label = (
-                st.selectbox("Relatorio (backtest)", list(report_labels.keys()))
-                if report_labels
-                else None
-            )
 
         st.divider()
         st.subheader("Telegram")
@@ -479,14 +486,7 @@ def main() -> None:
     elif page == "Historico Demo":
         render_trades_history(PROJECT_ROOT, paper_config_rel)
     elif page == "ATLAS Intelligence":
-        report_paths = discover_reports(PROJECT_ROOT / "data/reports")
-        if not report_paths or not selected_label:
-            st.warning("Nenhum relatorio. Va em **Pesquisa** e rode um backtest.")
-        else:
-            report_labels = {report_display_label(p): p for p in report_paths}
-            sel_path = report_labels[selected_label]
-            analysis = analyze_path(sel_path)
-            render_intelligence(analysis)
+        render_intelligence_page(PROJECT_ROOT)
     elif page == "Trading ao Vivo":
         _render_trading(config, service, paper_config_rel, refresh, bars, chart_engine, auto)
 

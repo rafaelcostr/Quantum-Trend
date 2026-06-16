@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from atlas.core.config import AtlasConfig
+from atlas.core.symbols import parse_strategy_from_report_name, quote_from_symbol, report_name_stem
 from atlas.strategies.metadata import (
     config_file_for_strategy,
     get_strategy_metadata,
-    parse_strategy_from_report_name,
     position_size_label,
 )
 
@@ -30,6 +30,7 @@ def build_report_metadata(
         "strategy_type": meta["type"],
         "config_file": cfg_path,
         "market": config.exchange.symbol,
+        "quote": quote_from_symbol(config.exchange.symbol),
         "timeframe": config.exchange.timeframe,
         "mode": config.mode.value,
         "risk_model": config.risk.sizing_mode,
@@ -44,12 +45,48 @@ def build_report_metadata(
     }
 
 
+def remove_stale_reports(
+    out_dir: Path,
+    *,
+    strategy: str,
+    timeframe: str,
+    quote: str,
+) -> list[str]:
+    """Apaga relatorios antigos da mesma estrategia, timeframe e quote (inclui nomes legados)."""
+    removed: list[str] = []
+    if not out_dir.is_dir() or not strategy or strategy == "unknown":
+        return removed
+
+    quote = quote.upper()
+    for path in list(out_dir.glob("*_report.json")):
+        file_strategy, file_tf, file_quote = parse_strategy_from_report_name(path.stem)
+        if file_strategy != strategy:
+            continue
+        if file_tf is not None and file_tf != timeframe:
+            continue
+
+        effective_quote = (file_quote or "USDT").upper()
+        if effective_quote != quote:
+            continue
+        # Relatorios legados sem quote contam como USDT
+        if file_quote is None and quote != "USDT":
+            continue
+
+        try:
+            path.unlink()
+            removed.append(path.name)
+        except OSError:
+            pass
+    return removed
+
+
 def metadata_from_report_path(path: Path, raw: dict[str, Any]) -> dict[str, Any]:
     """Metadados do JSON ou inferidos do nome do arquivo (relatorios antigos)."""
     if raw.get("metadata"):
         return dict(raw["metadata"])
 
-    strategy, tf = parse_strategy_from_report_name(path.stem)
+    strategy, tf, file_quote = parse_strategy_from_report_name(path.stem)
+    quote = file_quote or "USDT"
     meta = get_strategy_metadata(strategy)
     stats = raw.get("statistics", {})
     return {
@@ -57,7 +94,8 @@ def metadata_from_report_path(path: Path, raw: dict[str, Any]) -> dict[str, Any]
         "strategy_version": meta["version"],
         "strategy_type": meta["type"],
         "config_file": config_file_for_strategy(strategy),
-        "market": "BTC/USDT",
+        "market": f"BTC/{quote}",
+        "quote": quote,
         "timeframe": tf or "4h",
         "mode": "backtest",
         "risk_model": "unknown",

@@ -8,8 +8,9 @@ import yaml
 from atlas.core.config import AtlasConfig, load_config
 from atlas.strategies.registry import STRATEGY_BUILDERS
 
+from atlas.core.symbols import QUOTE_ASSETS, quote_from_symbol, report_name_stem
+
 ACTIVE_CONFIG_REL = "data/runtime/active_paper.yaml"
-QUOTE_ASSETS = ("USDT", "USDC")
 TIMEFRAMES = ("4h", "1d")
 
 

@@ -8,13 +8,19 @@ from atlas.intelligence.analyzer import analyze_path
 from atlas.intelligence.metrics import load_report
 from atlas.intelligence.report import render_ai_report
 from atlas.research.report_metadata import build_report_metadata, metadata_from_report_path
-from atlas.strategies.metadata import parse_strategy_from_report_name, report_display_label
+from atlas.core.symbols import parse_strategy_from_report_name
+from atlas.strategies.metadata import report_display_label
 
 
 def test_parse_strategy_from_report_name():
-    assert parse_strategy_from_report_name("range_hunter_v2_4h_report") == ("range_hunter_v2", "4h")
-    assert parse_strategy_from_report_name("mm200_trend_v1_report") == ("mm200_trend_v1", None)
-    assert parse_strategy_from_report_name("backtest_report") == ("unknown", None)
+    assert parse_strategy_from_report_name("range_hunter_v2_4h_usdt_report") == (
+        "range_hunter_v2",
+        "4h",
+        "USDT",
+    )
+    assert parse_strategy_from_report_name("range_hunter_v2_4h_report") == ("range_hunter_v2", "4h", None)
+    assert parse_strategy_from_report_name("mm200_trend_v1_report") == ("mm200_trend_v1", None, None)
+    assert parse_strategy_from_report_name("backtest_report") == ("unknown", None, None)
 
 
 def test_report_display_label():
@@ -22,6 +28,11 @@ def test_report_display_label():
     assert "range_hunter_v2" in label
     assert "4h" in label
     assert "Mean Reversion" in label
+
+
+def test_report_display_label_legacy():
+    label = report_display_label(Path("backtest_report.json"))
+    assert "antigo" in label or "backtest" in label
 
 
 def test_build_report_metadata_from_config():
@@ -72,3 +83,30 @@ def test_load_report_uses_metadata_strategy():
     assert bundle.strategy == "mm200_trend_v1"
     assert bundle.metadata.get("strategy_type") == "Trend Following"
     assert bundle.metadata.get("source_path")
+
+
+def test_remove_stale_reports_replaces_same_strategy_timeframe(tmp_path: Path):
+    from atlas.research.report_metadata import remove_stale_reports
+
+    old = tmp_path / "range_hunter_v2_4h_usdt_report.json"
+    legacy = tmp_path / "range_hunter_v2_4h_report.json"
+    other_quote = tmp_path / "range_hunter_v2_4h_usdc_report.json"
+    other_tf = tmp_path / "range_hunter_v2_1d_usdt_report.json"
+    other_strategy = tmp_path / "mm200_trend_v1_4h_usdt_report.json"
+    for p in (old, legacy, other_quote, other_tf, other_strategy):
+        p.write_text("{}", encoding="utf-8")
+
+    removed = remove_stale_reports(
+        tmp_path,
+        strategy="range_hunter_v2",
+        timeframe="4h",
+        quote="USDT",
+    )
+
+    assert "range_hunter_v2_4h_usdt_report.json" in removed
+    assert "range_hunter_v2_4h_report.json" in removed
+    assert other_quote.is_file()
+    assert other_tf.is_file()
+    assert other_strategy.is_file()
+    assert not old.is_file()
+    assert not legacy.is_file()

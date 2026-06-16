@@ -12,6 +12,7 @@ from atlas.core.config import load_config
 from atlas.core.models import TradingMode
 from atlas.research.backtester import run_backtest
 from atlas.research.collector import load_or_download, save_candles_to_db
+from atlas.core.symbols import quote_from_symbol, report_name_stem
 from atlas.research.statistics import compute_buy_hold_return, compute_statistics, save_report
 
 
@@ -33,9 +34,12 @@ def research() -> None:
 @click.option("--config", "config_path", default="config/backtest.yaml", show_default=True)
 @click.option("--force", is_flag=True, help="Re-download even if cache exists")
 @click.option("--to-db", is_flag=True, help="Persist candles to PostgreSQL")
-def download_data(config_path: str, force: bool, to_db: bool) -> None:
+@click.option("--quote", default=None, type=click.Choice(["USDT", "USDC"]), help="Quote do par")
+def download_data(config_path: str, force: bool, to_db: bool, quote: str | None) -> None:
     """Download historical OHLCV from exchange."""
     config = load_config(PROJECT_ROOT / config_path)
+    if quote:
+        config.exchange.symbol = f"BTC/{quote.upper()}"
     click.echo(f"Downloading {config.exchange.symbol} {config.exchange.timeframe} ({config.data.years}y)...")
     df = load_or_download(config, force=force)
     click.echo(f"Cached {len(df)} candles at {config.data.cache_dir}")
@@ -47,9 +51,12 @@ def download_data(config_path: str, force: bool, to_db: bool) -> None:
 @research.command("backtest")
 @click.option("--config", "config_path", default="config/backtest.yaml", show_default=True)
 @click.option("--output", "output_dir", default="data/reports", show_default=True)
-def backtest_cmd(config_path: str, output_dir: str) -> None:
+@click.option("--quote", default=None, type=click.Choice(["USDT", "USDC"]), help="Quote do par (default: do YAML)")
+def backtest_cmd(config_path: str, output_dir: str, quote: str | None) -> None:
     """Run event-driven backtest with Range Hunter v1."""
     config = load_config(PROJECT_ROOT / config_path)
+    if quote:
+        config.exchange.symbol = f"BTC/{quote.upper()}"
     df = load_or_download(config)
     if df.empty:
         raise click.ClickException("No data. Run: atlas research download")
@@ -59,7 +66,8 @@ def backtest_cmd(config_path: str, output_dir: str) -> None:
     report = compute_statistics(result)
     warmup = int(config.strategy.params.get("warmup_bars", 205))
     bh_return = compute_buy_hold_return(df, warmup, config.risk.initial_capital)
-    report_name = f"{config.strategy.name}_{config.exchange.timeframe}_report"
+    q = quote_from_symbol(config.exchange.symbol)
+    report_name = report_name_stem(config.strategy.name, config.exchange.timeframe, q)
     path = save_report(
         result,
         report,

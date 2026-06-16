@@ -9,10 +9,12 @@ from atlas.brokers.binance import BinanceDemoBroker
 from atlas.core.config import AtlasConfig, load_config
 from atlas.core.models import TradingMode
 from atlas.intelligence.analyzer import analyze_path
+from atlas.intelligence.compare_report import export_all_reports
 from atlas.intelligence.metrics import discover_reports
 from atlas.intelligence.research_store import save_walkforward
 from atlas.research.backtester import run_backtest as run_backtest_engine
 from atlas.research.collector import cache_path, load_or_download, save_candles_to_db
+from atlas.core.symbols import quote_from_symbol, report_name_stem
 from atlas.research.statistics import compute_buy_hold_return, compute_statistics, save_report
 from atlas.research.walkforward import run_walk_forward
 from atlas.runtime.runner import TradingRunner
@@ -110,7 +112,8 @@ def run_backtest_config(
     report = compute_statistics(result_bt)
     warmup = int(config.strategy.params.get("warmup_bars", 205))
     bh_return = compute_buy_hold_return(df, warmup, config.risk.initial_capital)
-    report_name = f"{config.strategy.name}_{config.exchange.timeframe}_report"
+    quote = quote_from_symbol(config.exchange.symbol)
+    report_name = report_name_stem(config.strategy.name, config.exchange.timeframe, quote)
     path = save_report(
         result_bt,
         report,
@@ -204,6 +207,7 @@ def run_compare(project_root: Path, reports_dir: str = "data/reports", top: int 
             rows.append(
                 {
                     "Estrategia": a.strategy,
+                    "Par": a.metadata.get("market") or a.market,
                     "Score": a.level1.atlas_score,
                     "Classificacao": a.level1.score_label,
                     "Retorno": raw["net_profit_pct"],
@@ -219,6 +223,27 @@ def run_compare(project_root: Path, reports_dir: str = "data/reports", top: int 
 
     rows.sort(key=lambda r: r.get("Score") or 0, reverse=True)
     return {"ok": True, "rows": rows[:top], "total": len(rows)}
+
+
+def run_comparison_report(
+    project_root: Path,
+    reports_dir: str = "data/reports",
+    *,
+    include_full: bool = True,
+) -> dict[str, Any]:
+    """Gera Markdown comparando todos os backtests e salva em disco."""
+    return run_export_all_reports(project_root, reports_dir=reports_dir, include_full=include_full)
+
+
+def run_export_all_reports(
+    project_root: Path,
+    reports_dir: str = "data/reports",
+    *,
+    include_full: bool = True,
+) -> dict[str, Any]:
+    """Comparativo + cada relatorio .md + ZIP."""
+    out_dir = project_root / reports_dir
+    return export_all_reports(out_dir, include_full_consolidated=include_full)
 
 
 def run_walkforward(
