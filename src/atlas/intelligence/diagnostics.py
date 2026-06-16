@@ -125,11 +125,27 @@ def build_diagnostics(
     return strengths, weaknesses, risks, summary
 
 
-def promotion_checklist_backtest_paper(values: dict[str, Any]) -> list[dict[str, Any]]:
+def promotion_checklist_backtest_paper(
+    values: dict[str, Any],
+    *,
+    level3_values: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     pf = values["profit_factor"]
     dd = values["max_drawdown_pct"]
     sharpe = values.get("sharpe_ratio")
     trades = int(values["total_trades"])
+
+    l3 = level3_values or {}
+    oos_ret = l3.get("oos_return")
+    oos_pf = l3.get("oos_profit_factor")
+    if oos_ret is not None:
+        wf_ok = oos_ret > 0 and (oos_pf is None or oos_pf >= 1.0)
+        wf_value = f"OOS {oos_ret:.1%}"
+        if oos_pf is not None:
+            wf_value += f", PF {oos_pf:.2f}"
+    else:
+        wf_ok = False
+        wf_value = "Pendente — rode atlas research walkforward"
 
     return [
         {"label": "Profit Factor >= 1.3", "ok": pf >= 1.3, "value": f"{pf:.2f}"},
@@ -140,5 +156,5 @@ def promotion_checklist_backtest_paper(values: dict[str, Any]) -> list[dict[str,
             "value": f"{sharpe:.2f}" if sharpe else "N/A",
         },
         {"label": "Trades >= 50", "ok": trades >= 50, "value": str(trades)},
-        {"label": "Walk-forward OOS", "ok": False, "value": "Pendente (Nível 3)"},
+        {"label": "Walk-forward OOS positivo", "ok": wf_ok, "value": wf_value},
     ]

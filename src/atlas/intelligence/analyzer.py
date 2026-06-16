@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from atlas.intelligence.confidence import confidence_level
 from atlas.intelligence.diagnostics import (
@@ -18,7 +19,17 @@ from atlas.intelligence.metrics import (
 from atlas.intelligence.level2_diagnostics import build_level2_narrative
 from atlas.intelligence.level2_glossary import build_educational_metrics
 from atlas.intelligence.level2_metrics import build_level2_values
-from atlas.intelligence.models import Level1Snapshot, Level2Snapshot, MetricReading, StrategyAnalysis
+from atlas.intelligence.level3_diagnostics import build_level3_narrative, overfitting_risk_l3
+from atlas.intelligence.level3_glossary import build_level3_educational_metrics
+from atlas.intelligence.level3_metrics import build_level3_values
+from atlas.intelligence.models import (
+    Level1Snapshot,
+    Level2Snapshot,
+    Level3Snapshot,
+    MetricReading,
+    StrategyAnalysis,
+)
+from atlas.intelligence.research_store import load_walkforward
 from atlas.intelligence.score import build_level1_metrics, compute_atlas_score, score_label
 
 
@@ -29,6 +40,7 @@ def analyze_report(
     timeframe: str = "4h",
     source: str = "backtest",
     buy_hold_pct: float | None = None,
+    walkforward: dict[str, Any] | None = None,
 ) -> StrategyAnalysis:
     metrics, values = build_level1_metrics(bundle)
     cagr = compute_cagr(bundle.equity_curve, values["net_profit_pct"])
@@ -63,7 +75,6 @@ def analyze_report(
     )
 
     strengths, weaknesses, risks, summary = build_diagnostics(values, buy_hold_pct=buy_hold_pct)
-    promotion = promotion_checklist_backtest_paper(values)
 
     score_metric = MetricReading(
         key="atlas_score",
@@ -84,6 +95,26 @@ def analyze_report(
         status_text=conf_label,
     )
 
+    start, end = period_bounds(bundle.equity_curve)
+
+    l2_values = build_level2_values(bundle)
+    values.update(l2_values)
+    level2 = Level2Snapshot(
+        metrics=build_educational_metrics(l2_values),
+        diagnosis=build_level2_narrative(l2_values, values),
+        values=l2_values,
+    )
+
+    l3_values = build_level3_values(
+        bundle,
+        walkforward,
+        payoff_ratio=l2_values.get("payoff_ratio"),
+        win_rate=float(values.get("win_rate", 0)),
+    )
+    values.update(l3_values)
+
+    promotion = promotion_checklist_backtest_paper(values, level3_values=l3_values)
+
     level1 = Level1Snapshot(
         atlas_score=atlas_score,
         score_label=score_lbl,
@@ -100,14 +131,14 @@ def analyze_report(
         promotion_backtest_paper=promotion,
     )
 
-    start, end = period_bounds(bundle.equity_curve)
-
-    l2_values = build_level2_values(bundle)
-    values.update(l2_values)
-    level2 = Level2Snapshot(
-        metrics=build_educational_metrics(l2_values),
-        diagnosis=build_level2_narrative(l2_values, values),
-        values=l2_values,
+    of3_label, of3_emoji = overfitting_risk_l3(l3_values)
+    level3 = Level3Snapshot(
+        metrics=build_level3_educational_metrics(l3_values),
+        diagnosis=build_level3_narrative(l3_values),
+        overfitting_risk=of3_label,
+        overfitting_emoji=of3_emoji,
+        values=l3_values,
+        has_walkforward=walkforward is not None,
     )
 
     return StrategyAnalysis(
@@ -119,6 +150,7 @@ def analyze_report(
         period_end=end,
         level1=level1,
         level2=level2,
+        level3=level3,
         raw=values,
     )
 
@@ -129,6 +161,16 @@ def analyze_path(
     buy_hold_pct: float | None = None,
     market: str = "BTC/USDT",
     timeframe: str = "4h",
+    reports_dir: str | Path | None = None,
 ) -> StrategyAnalysis:
+    path = Path(path)
     bundle = load_report(path)
-    return analyze_report(bundle, buy_hold_pct=buy_hold_pct, market=market, timeframe=timeframe)
+    reports_dir = Path(reports_dir) if reports_dir else path.parent
+    walkforward = load_walkforward(reports_dir, bundle.strategy)
+    return analyze_report(
+        bundle,
+        buy_hold_pct=buy_hold_pct,
+        market=market,
+        timeframe=timeframe,
+        walkforward=walkforward,
+    )

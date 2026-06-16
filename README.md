@@ -104,6 +104,9 @@ atlas research backtest
 # 3. Comparar todas as estratégias (Atlas Score)
 atlas research compare
 
+# 3b. Walk-forward (IS/OOS) para Nível 3
+atlas research walkforward --config config/backtest_v2_2.yaml
+
 # 4. Validar API Binance Demo
 atlas trade check
 
@@ -127,6 +130,7 @@ Abra **http://localhost:8501** → sidebar → **ATLAS Intelligence**.
 | `atlas research download` | Baixa OHLCV via CCXT, cache Parquet |
 | `atlas research backtest --config config/backtest_mm200_v2.yaml` | Backtest event-driven |
 | `atlas research compare` | Ranking de estratégias por **Atlas Score** |
+| `atlas research walkforward --config config/backtest_v2_2.yaml` | Walk-forward 70/30 IS/OOS + JSON para Nível 3 |
 
 ### Operação (`atlas trade`)
 
@@ -193,10 +197,23 @@ Métricas intermediárias com explicação educacional:
 
 Cada métrica inclui: *O que é · Por que importa · Faixas · Semáforo*
 
-### Nível 3 — Research Lab (Sprint 3 — planejado)
+### Nível 3 — Research Lab (Sprint 3 ✅)
 
-Walk-forward, Monte Carlo, OOS, Kelly, Ulcer Index, etc.  
-A UI já existe; engines avançados serão adicionados sem placeholders falsos.
+Engines de robustez estatística:
+
+- **Walk-forward** — split 70% in-sample / 30% out-of-sample
+- **Monte Carlo** — bootstrap de trades (P5 retorno, P95 drawdown)
+- **OOS** — retorno, Sharpe e Profit Factor fora da amostra
+- **Kelly**, **Ulcer Index**, **Skewness/Kurtosis**
+- **Research Interpreter** — diagnóstico automático IS vs OOS
+- **Detector de overfitting** completo (L3)
+
+```powershell
+atlas research walkforward --config config/backtest_v2_2.yaml
+atlas dashboard   # aba Nível 3 — Research
+```
+
+Salva `data/reports/{estrategia}_walkforward.json`; o dashboard e o relatório IA carregam automaticamente.
 
 ---
 
@@ -316,7 +333,7 @@ O checklist aparece automaticamente no **Nível 1** do Intelligence.
 pytest tests -q
 ```
 
-Cobertura: risk, backtester, estratégias, alerts, watchdog, intelligence L1/L2.
+Cobertura: risk, backtester, estratégias, alerts, watchdog, intelligence L1/L2/L3.
 
 ---
 
@@ -328,7 +345,7 @@ Cobertura: risk, backtester, estratégias, alerts, watchdog, intelligence L1/L2.
 | Dashboard ao vivo | ✅ | TradingView, PnL, marcadores |
 | Intelligence Nível 1 | ✅ | Score, semáforos, relatório IA, compare |
 | Intelligence Nível 2 | ✅ | Sortino, Recovery, diagnóstico educacional |
-| Intelligence Nível 3 | 🔜 | Walk-forward, Monte Carlo, OOS |
+| Intelligence Nível 3 | ✅ | Walk-forward, Monte Carlo, OOS, Research Lab |
 | Produção | 🔜 | Persistência posição, reconciliação, CI/CD |
 
 ---

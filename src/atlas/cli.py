@@ -120,6 +120,46 @@ def research_compare(reports_dir: str, top: int) -> None:
     click.echo(f"Summary: {best.level1.summary}")
 
 
+@research.command("walkforward")
+@click.option("--config", "config_path", default="config/backtest.yaml", show_default=True)
+@click.option("--output", "output_dir", default="data/reports", show_default=True)
+@click.option("--train-pct", default=0.70, show_default=True, help="In-sample fraction (0–1)")
+def research_walkforward(config_path: str, output_dir: str, train_pct: float) -> None:
+    """Walk-forward analysis: IS/OOS split + save research JSON."""
+    from atlas.intelligence.research_store import save_walkforward
+    from atlas.research.walkforward import run_walk_forward
+
+    if not 0.5 <= train_pct <= 0.9:
+        raise click.ClickException("train-pct deve estar entre 0.5 e 0.9")
+
+    config = load_config(PROJECT_ROOT / config_path)
+    df = load_or_download(config)
+    if df.empty:
+        raise click.ClickException("No data. Run: atlas research download")
+
+    click.echo(
+        f"Walk-forward [{config.strategy.name}] — IS {train_pct:.0%} / OOS {1 - train_pct:.0%} "
+        f"({len(df)} candles)..."
+    )
+    wf = run_walk_forward(config, df, train_pct=train_pct)
+    path = save_walkforward(wf, PROJECT_ROOT / output_dir)
+
+    is_s = wf.in_sample
+    oos_s = wf.out_of_sample
+    wfe_txt = f"{wf.walk_forward_efficiency:.0%}" if wf.walk_forward_efficiency is not None else "N/A"
+
+    click.echo(f"\n--- Walk-Forward ({config.strategy.name}) ---")
+    click.echo(f"Split em:        {wf.split_timestamp}")
+    click.echo(f"IS retorno:      {is_s.net_profit_pct:.2%} ({wf.is_trades} trades)")
+    click.echo(f"OOS retorno:     {oos_s.net_profit_pct:.2%} ({wf.oos_trades} trades)")
+    click.echo(f"OOS PF:          {oos_s.profit_factor:.2f}")
+    if oos_s.sharpe_ratio is not None:
+        click.echo(f"OOS Sharpe:      {oos_s.sharpe_ratio:.2f}")
+    click.echo(f"WFE:             {wfe_txt}")
+    click.echo(f"\nSalvo: {path}")
+    click.echo("Abra o dashboard Intelligence -> Nivel 3 para ver o diagnostico completo.")
+
+
 @main.group()
 def alerts() -> None:
     """Telegram and monitoring alerts."""

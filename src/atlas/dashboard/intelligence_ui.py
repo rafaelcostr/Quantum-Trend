@@ -79,16 +79,47 @@ def _render_level2_tab(analysis: StrategyAnalysis) -> None:
             st.markdown(edu.how_interpret)
 
 
-def _render_level3_tab() -> None:
-    st.markdown("### Research Lab — em breve (Sprint 3)")
-    st.write(
-        "Métricas avançadas que exigem engines dedicados:\n\n"
-        "- Walk-forward analysis\n"
-        "- Monte Carlo bootstrap\n"
-        "- Out-of-sample (OOS)\n"
-        "- Kelly Criterion · Ulcer Index · Skewness/Kurtosis\n\n"
-        "Enquanto isso, use `atlas research compare` para ranking entre estratégias."
-    )
+def _render_level3_tab(analysis: StrategyAnalysis) -> None:
+    l3 = analysis.level3
+    if l3 is None:
+        st.warning("Research Lab indisponível.")
+        return
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("Overfitting (L3)", l3.overfitting_risk, l3.overfitting_emoji)
+    with c2:
+        wf = "✅ Sim" if l3.has_walkforward else "⏳ Pendente"
+        st.metric("Walk-forward", wf)
+
+    if not l3.has_walkforward:
+        st.info(
+            "Execute walk-forward para métricas OOS:\n\n"
+            "`atlas research walkforward --config config/backtest_mm200_v2.yaml`"
+        )
+
+    st.markdown("### Research Interpreter")
+    st.success(l3.diagnosis)
+
+    mc_cols = st.columns(3)
+    vals = l3.values
+    with mc_cols[0]:
+        v = vals.get("mc_return_median")
+        st.metric("MC Retorno Mediano", f"{v:.1%}" if v is not None else "N/A")
+    with mc_cols[1]:
+        v = vals.get("mc_return_worst")
+        st.metric("MC Pior Retorno (P5)", f"{v:.1%}" if v is not None else "N/A")
+    with mc_cols[2]:
+        v = vals.get("mc_dd_worst")
+        st.metric("MC Pior DD (P95)", f"{v:.1%}" if v is not None else "N/A")
+
+    for edu in l3.metrics:
+        r = edu.reading
+        with st.expander(f"{r.emoji} **{r.label}** — {r.display} ({r.status_text})", expanded=False):
+            st.markdown(f"**O que é:** {edu.what_is}")
+            st.markdown(f"**Por que importa:** {edu.why_matters}")
+            st.markdown(f"**Faixas:** {edu.bands_text}")
+            st.markdown(edu.how_interpret)
 
 
 def render_intelligence(analysis: StrategyAnalysis) -> None:
@@ -105,7 +136,7 @@ def render_intelligence(analysis: StrategyAnalysis) -> None:
     with tab2:
         _render_level2_tab(analysis)
     with tab3:
-        _render_level3_tab()
+        _render_level3_tab(analysis)
 
     st.divider()
     report_md = render_ai_report(analysis)

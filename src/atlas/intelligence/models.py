@@ -49,6 +49,16 @@ class Level2Snapshot:
 
 
 @dataclass
+class Level3Snapshot:
+    metrics: list[EducationalMetric]
+    diagnosis: str
+    overfitting_risk: str
+    overfitting_emoji: str
+    values: dict[str, Any] = field(default_factory=dict)
+    has_walkforward: bool = False
+
+
+@dataclass
 class StrategyAnalysis:
     strategy: str
     source: str
@@ -58,4 +68,5 @@ class StrategyAnalysis:
     period_end: str | None
     level1: Level1Snapshot
     level2: Level2Snapshot | None = None
+    level3: Level3Snapshot | None = None
     raw: dict[str, Any] = field(default_factory=dict)

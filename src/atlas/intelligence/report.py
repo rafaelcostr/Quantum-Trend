@@ -13,6 +13,16 @@ def _l2_line(analysis: StrategyAnalysis, key: str) -> str:
     return "N/A"
 
 
+def _l3_line(analysis: StrategyAnalysis, key: str) -> str:
+    if not analysis.level3:
+        return "N/A"
+    for edu in analysis.level3.metrics:
+        if edu.reading.key == key:
+            r = edu.reading
+            return f"{r.emoji} {r.display} ({r.status_text})"
+    return "N/A"
+
+
 def render_ai_report(analysis: StrategyAnalysis) -> str:
     l1 = analysis.level1
     raw = analysis.raw
@@ -36,6 +46,15 @@ def render_ai_report(analysis: StrategyAnalysis) -> str:
     cagr_txt = f"{cagr:.1%}" if cagr is not None else "N/A"
 
     l2_diag = analysis.level2.diagnosis if analysis.level2 else "_Indisponível_"
+    l3 = analysis.level3
+    l3_diag = l3.diagnosis if l3 else "_Indisponível_"
+    l3_of = f"{l3.overfitting_emoji} {l3.overfitting_risk}" if l3 else "N/A"
+
+    boot_low = analysis.raw.get("bootstrap_ci_low")
+    boot_high = analysis.raw.get("bootstrap_ci_high")
+    boot_txt = "N/A"
+    if boot_low is not None and boot_high is not None:
+        boot_txt = f"${boot_low:.2f} — ${boot_high:.2f} (95%)"
 
     return f"""# ATLAS QUANT REPORT
 
@@ -94,8 +113,25 @@ def render_ai_report(analysis: StrategyAnalysis) -> str:
 
 ---
 
-## NÍVEL 3 — Research
-_Pendente (Sprint 3 — walk-forward, Monte Carlo, OOS)_
+## NÍVEL 3 — Research Lab
+
+**Research Interpreter:** {l3_diag}
+
+**Overfitting (IS vs OOS):** {l3_of}
+
+| Métrica | Valor |
+|---------|-------|
+| Retorno OOS | {_l3_line(analysis, 'oos_return')} |
+| Profit Factor OOS | {_l3_line(analysis, 'oos_profit_factor')} |
+| Walk-Forward Efficiency | {_l3_line(analysis, 'walk_forward_efficiency')} |
+| Monte Carlo P5 Retorno | {_l3_line(analysis, 'mc_return_worst')} |
+| Monte Carlo P95 DD | {_l3_line(analysis, 'mc_dd_worst')} |
+| Kelly Criterion | {_l3_line(analysis, 'kelly_fraction')} |
+| Ulcer Index | {_l3_line(analysis, 'ulcer_index')} |
+| Skewness | {_l3_line(analysis, 'skewness')} |
+| Kurtosis | {_l3_line(analysis, 'kurtosis')} |
+
+**Bootstrap PnL médio (95% CI):** {boot_txt}
 
 ---
 
