@@ -16,6 +16,12 @@ PROJECT_ROOT = _APP_PATH.parents[3]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+# Forca recarregar actions (Streamlit cacheia modulos antigos)
+import importlib
+import atlas.dashboard.actions as _actions_mod
+
+importlib.reload(_actions_mod)
+
 from atlas.core.env import find_project_root, load_project_env  # noqa: E402
 
 PROJECT_ROOT = find_project_root(PROJECT_ROOT)
@@ -37,13 +43,26 @@ from atlas.intelligence.analyzer import analyze_path  # noqa: E402
 from atlas.intelligence.metrics import discover_reports  # noqa: E402
 from atlas.monitoring.alerts import TelegramAlerts  # noqa: E402
 
+from atlas.dashboard.ops_context import set_ops_config  # noqa: E402
+from atlas.dashboard.strategy_config import (  # noqa: E402
+    QUOTE_ASSETS,
+    TIMEFRAMES,
+    build_operational_config,
+    list_strategy_names,
+    save_active_config,
+)
+from atlas.dashboard.trades_history_ui import render_trades_history  # noqa: E402
+
 PAGES = [
     "Inicio",
     "Pesquisa",
     "Paper Trading",
     "Trading ao Vivo",
+    "Historico Demo",
     "ATLAS Intelligence",
 ]
+
+OPS_PAGES = {"Paper Trading", "Trading ao Vivo", "Historico Demo"}
 
 CHART_LIVE = "Ao vivo (WebSocket)"
 CHART_STATIC = "Estatico (refresh)"
@@ -60,20 +79,37 @@ def _signal_color(signal: str) -> str:
 
 @st.cache_data(ttl=120, show_spinner=False)
 def _cached_candles_df(strategy: str, symbol: str, timeframe: str) -> pd.DataFrame:
-    config = load_config(PROJECT_ROOT / "config/paper.yaml")
+    quote = symbol.split("/")[-1].upper()
+    config = build_operational_config(
+        PROJECT_ROOT,
+        strategy_name=strategy,
+        quote_asset=quote,
+        timeframe=timeframe,
+    )
     service = DashboardService(config)
-    return service.fetch_candles_df(limit=280)
+    limit = 400 if timeframe == "1d" else 280
+    return service.fetch_candles_df(limit=limit)
 
 
 @st.cache_data(ttl=90, show_spinner=False)
-def _cached_demo_balances() -> tuple[dict[str, float] | None, str | None]:
+def _cached_demo_balances(strategy: str, symbol: str, timeframe: str) -> tuple[dict[str, float] | None, str | None]:
     load_project_env(PROJECT_ROOT)
-    config = load_config(PROJECT_ROOT / "config/paper.yaml")
+    quote = symbol.split("/")[-1].upper()
+    config = build_operational_config(
+        PROJECT_ROOT,
+        strategy_name=strategy,
+        quote_asset=quote,
+        timeframe=timeframe,
+    )
     return fetch_demo_balances(config)
 
 
 def _load_trading_balance_state(config, service, ind_df, events):
-    balances, balance_error = _cached_demo_balances()
+    balances, balance_error = _cached_demo_balances(
+        config.strategy.name,
+        config.exchange.symbol,
+        config.exchange.timeframe,
+    )
     state = service.get_live_state(
         ind_df=ind_df,
         balances=balances,
@@ -104,7 +140,7 @@ def _fetch_and_render_trading_balance(
 
     if state.balance_error:
         st.warning(state.balance_error)
-        render_demo_balance_panel(PROJECT_ROOT, paper_config_rel, compact=True)
+        render_demo_balance_panel(PROJECT_ROOT, paper_config_rel, compact=True, config=config)
         return None
 
     _render_trading_metrics(state, perf, balance_unavailable=False)
@@ -158,6 +194,7 @@ def _render_trading_panels(
 def _render_trading_metrics(state, perf, *, balance_unavailable: bool = False) -> None:
     st.markdown("### Carteira & performance")
 
+    quote_label = "Quote livre"
     if balance_unavailable:
         pnl_txt, pnl_delta = "N/A", None
         eq_txt = "N/A"
@@ -168,12 +205,13 @@ def _render_trading_metrics(state, perf, *, balance_unavailable: bool = False) -
         pnl_txt = f"${perf.net_pnl:,.2f}"
         pnl_delta = f"{perf.net_pnl_pct:.2%}"
         eq_txt = f"${state.equity_usdt:,.2f}"
-        usdt_txt = f"${state.usdt_free:,.2f}"
+        quote_label = f"{state.quote_asset} livre"
+        usdt_txt = f"${state.quote_free:,.2f}"
         btc_txt = f"{state.btc_total:.6f}"
         dd_txt = f"{perf.max_drawdown_pct:.2%}"
 
     c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
-    c1.metric("USDT livre", usdt_txt)
+    c1.metric(quote_label, usdt_txt)
     c2.metric("BTC", btc_txt)
     c3.metric("Equity", eq_txt)
     c4.metric("PnL", pnl_txt, pnl_delta, delta_color="off")
@@ -313,8 +351,6 @@ def main() -> None:
     if config_env:
         p = Path(config_env)
         paper_config_rel = str(p.relative_to(PROJECT_ROOT)) if p.is_relative_to(PROJECT_ROOT) else str(p)
-    config = load_config(PROJECT_ROOT / paper_config_rel)
-    service = DashboardService(config)
     alerts = TelegramAlerts()
 
     st.set_page_config(
@@ -336,14 +372,58 @@ def main() -> None:
     with st.sidebar:
         st.title("ATLAS QUANT")
         page = st.radio("Menu", PAGES, index=0)
-        st.caption(f"**{config.mode.value}** · {config.exchange.symbol} {config.exchange.timeframe}")
-        st.write(f"Estrategia: `{config.strategy.name}`")
 
         refresh = 60
         bars = 120
         chart_engine = CHART_LIVE
         auto = True
         selected_strategy = None
+
+        base_config = load_config(PROJECT_ROOT / paper_config_rel)
+        ops_config = base_config
+
+        if page in OPS_PAGES:
+            st.divider()
+            st.subheader("Operacoes")
+            strategies = list_strategy_names(PROJECT_ROOT)
+            prev = st.session_state.get("atlas_strategy", base_config.strategy.name)
+            strat_idx = strategies.index(prev) if prev in strategies else 0
+            op_strategy = st.selectbox("Estrategia", strategies, index=strat_idx, key="sb_strategy")
+            prev_quote = st.session_state.get("atlas_quote", "USDT")
+            op_quote = st.selectbox(
+                "Moeda demo",
+                QUOTE_ASSETS,
+                index=QUOTE_ASSETS.index(prev_quote) if prev_quote in QUOTE_ASSETS else 0,
+                key="sb_quote",
+            )
+            prev_tf = st.session_state.get("atlas_timeframe", base_config.exchange.timeframe)
+            op_tf = st.selectbox(
+                "Timeframe",
+                TIMEFRAMES,
+                index=TIMEFRAMES.index(prev_tf) if prev_tf in TIMEFRAMES else 0,
+                key="sb_timeframe",
+                help="4h = operacao padrao. 1d = graficos diarios.",
+            )
+            ops_config = build_operational_config(
+                PROJECT_ROOT,
+                strategy_name=op_strategy,
+                quote_asset=op_quote,
+                timeframe=op_tf,
+                base_config_rel=paper_config_rel,
+            )
+            st.session_state["atlas_strategy"] = op_strategy
+            st.session_state["atlas_quote"] = op_quote
+            st.session_state["atlas_timeframe"] = op_tf
+            set_ops_config(ops_config)
+
+            if st.button("Salvar config operacional", use_container_width=True, key="btn_save_ops"):
+                save_active_config(PROJECT_ROOT, ops_config)
+                st.success(f"Salvo: {op_strategy} · BTC/{op_quote} · {op_tf}")
+
+        config = ops_config
+        service = DashboardService(config)
+        st.caption(f"**{config.mode.value}** · {config.exchange.symbol} {config.exchange.timeframe}")
+        st.write(f"Estrategia: `{config.strategy.name}`")
 
         if page == "Trading ao Vivo":
             chart_engine = st.radio(
@@ -387,11 +467,13 @@ def main() -> None:
             st.rerun()
 
     if page == "Inicio":
-        render_home(PROJECT_ROOT, config)
+        render_home(PROJECT_ROOT, load_config(PROJECT_ROOT / paper_config_rel))
     elif page == "Pesquisa":
         render_research(PROJECT_ROOT)
     elif page == "Paper Trading":
         render_paper(PROJECT_ROOT, paper_config_rel)
+    elif page == "Historico Demo":
+        render_trades_history(PROJECT_ROOT, paper_config_rel)
     elif page == "ATLAS Intelligence":
         report_paths = discover_reports(PROJECT_ROOT / "data/reports")
         if not report_paths or not selected_strategy:

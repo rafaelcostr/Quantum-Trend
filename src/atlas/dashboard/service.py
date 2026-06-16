@@ -35,6 +35,9 @@ class LiveState:
     in_position: bool
     updated_at: datetime
     balance_error: str | None = None
+    quote_asset: str = "USDT"
+    quote_free: float = 0.0
+    quote_total: float = 0.0
 
 
 class DashboardService:
@@ -129,9 +132,19 @@ class DashboardService:
                 "BINANCE_DEMO_API_SECRET (demo.binance.com)."
             )
         try:
-            return self.broker.get_account_balances(), None
+            quote = self.config.exchange.symbol.split("/")[-1].upper()
+            return self.broker.get_account_balances(quote_asset=quote), None
         except Exception as exc:
             return None, str(exc)
+
+    def fetch_demo_trades(self, *, limit: int = 500) -> tuple[list[dict], str | None]:
+        live = self.config.mode == TradingMode.LIVE
+        if not credentials_configured(live=live):
+            return [], "Chaves API ausentes no .env"
+        try:
+            return self.broker.fetch_my_trades(limit=limit), None
+        except Exception as exc:
+            return [], str(exc)
 
     def _snapshot(self, ind_df: pd.DataFrame, idx: int, closes: pd.Series) -> IndicatorSnapshot:
         snap = row_to_indicator_snapshot(ind_df.iloc[idx])
@@ -179,7 +192,11 @@ class DashboardService:
             balances, balance_error = self.fetch_demo_balances()
 
         if balances is None:
+            quote = self.config.exchange.symbol.split("/")[-1].upper()
             balances = {
+                "quote_asset": quote,
+                "quote_free": 0.0,
+                "quote_total": 0.0,
                 "usdt_free": 0.0,
                 "usdt_total": 0.0,
                 "btc_free": 0.0,
@@ -192,7 +209,10 @@ class DashboardService:
         signal = self.strategy.evaluate(candle, indicators, position)
 
         mark = candle.close
-        equity = balances["usdt_total"] + balances["btc_total"] * mark
+        quote_asset = str(balances.get("quote_asset") or self.config.exchange.symbol.split("/")[-1]).upper()
+        quote_total = float(balances.get("quote_total") or balances.get("usdt_total", 0))
+        quote_free = float(balances.get("quote_free") or balances.get("usdt_free", 0))
+        equity = quote_total + balances["btc_total"] * mark
 
         return LiveState(
             signal=signal.action.value,
@@ -203,14 +223,17 @@ class DashboardService:
             mm20=indicators.mm20,
             rsi=indicators.rsi,
             adx=indicators.adx,
-            usdt_free=balances["usdt_free"],
-            usdt_total=balances["usdt_total"],
+            usdt_free=float(balances.get("usdt_free", quote_free if quote_asset == "USDT" else 0)),
+            usdt_total=float(balances.get("usdt_total", quote_total if quote_asset == "USDT" else 0)),
             btc_free=balances["btc_free"],
             btc_total=balances["btc_total"],
             equity_usdt=equity,
             in_position=balances["btc_total"] > 0.0001,
             updated_at=datetime.now(timezone.utc),
             balance_error=balance_error,
+            quote_asset=quote_asset,
+            quote_free=quote_free,
+            quote_total=quote_total,
         )
 
 

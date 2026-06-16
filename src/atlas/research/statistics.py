@@ -6,7 +6,9 @@ from pathlib import Path
 
 import numpy as np
 
+from atlas.core.config import AtlasConfig
 from atlas.research.backtester import BacktestResult
+from atlas.research.report_metadata import build_report_metadata
 
 
 @dataclass
@@ -107,9 +109,13 @@ def save_report(
     report: PerformanceReport,
     out_dir: Path,
     name: str = "backtest_report",
+    *,
+    config: AtlasConfig | None = None,
+    config_file: str | None = None,
+    buy_hold_pct: float | None = None,
 ) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
-    payload = {
+    payload: dict = {
         "statistics": report.to_dict(),
         "trades": [
             {
@@ -129,6 +135,13 @@ def save_report(
             {"timestamp": ts.isoformat(), "equity": eq} for ts, eq in result.equity_curve
         ],
     }
+    if config is not None:
+        payload["metadata"] = build_report_metadata(
+            config,
+            config_file=config_file,
+            buy_hold_pct=buy_hold_pct,
+            report_name=name,
+        )
     path = out_dir / f"{name}.json"
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path

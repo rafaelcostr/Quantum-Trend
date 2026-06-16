@@ -100,20 +100,61 @@ class BinanceDemoBroker:
                 pass
         return fetch_public_candles(symbol, timeframe, limit)
 
+    def get_account_balances(self, quote_asset: str | None = None) -> dict[str, float]:
+        quote = (quote_asset or self.symbol.split("/")[-1]).upper()
+        balance = self._exchange().fetch_balance()
+        quote_data = balance.get(quote, {}) or {}
+        btc = balance.get("BTC", {}) or {}
+        quote_free = float(quote_data.get("free", 0) or 0)
+        quote_total = float(quote_data.get("total", 0) or 0)
+        btc_free = float(btc.get("free", 0) or 0)
+        btc_total = float(btc.get("total", 0) or 0)
+        return {
+            "quote_asset": quote,
+            "quote_free": quote_free,
+            "quote_total": quote_total,
+            "usdt_free": quote_free if quote == "USDT" else float((balance.get("USDT", {}) or {}).get("free", 0) or 0),
+            "usdt_total": quote_total if quote == "USDT" else float((balance.get("USDT", {}) or {}).get("total", 0) or 0),
+            "usdc_free": quote_free if quote == "USDC" else float((balance.get("USDC", {}) or {}).get("free", 0) or 0),
+            "usdc_total": quote_total if quote == "USDC" else float((balance.get("USDC", {}) or {}).get("total", 0) or 0),
+            "btc_free": btc_free,
+            "btc_total": btc_total,
+        }
+
+    def fetch_my_trades(self, symbol: str | None = None, *, limit: int = 500) -> list[dict]:
+        """Historico de trades executados na conta demo/live."""
+        sym = symbol or self.symbol
+        ex = self._exchange()
+        try:
+            raw = ex.fetch_my_trades(sym, limit=limit)
+        except Exception:
+            return []
+        trades: list[dict] = []
+        for t in raw:
+            side = str(t.get("side", "")).lower()
+            cost = float(t.get("cost") or 0)
+            fee = t.get("fee") or {}
+            trades.append(
+                {
+                    "id": str(t.get("id", "")),
+                    "timestamp": t.get("datetime") or t.get("timestamp"),
+                    "ts_ms": int(t.get("timestamp") or 0),
+                    "side": side,
+                    "price": float(t.get("price") or 0),
+                    "amount": float(t.get("amount") or 0),
+                    "cost": cost,
+                    "fee": float(fee.get("cost") or 0) if isinstance(fee, dict) else 0.0,
+                    "fee_currency": fee.get("currency") if isinstance(fee, dict) else None,
+                    "symbol": t.get("symbol", sym),
+                }
+            )
+        trades.sort(key=lambda x: x.get("ts_ms", 0))
+        return trades
+
     def get_balance(self) -> float:
         balance = self._exchange().fetch_balance()
-        return float(balance.get("USDT", {}).get("free", 0))
-
-    def get_account_balances(self) -> dict[str, float]:
-        balance = self._exchange().fetch_balance()
-        usdt = balance.get("USDT", {}) or {}
-        btc = balance.get("BTC", {}) or {}
-        return {
-            "usdt_free": float(usdt.get("free", 0) or 0),
-            "usdt_total": float(usdt.get("total", 0) or 0),
-            "btc_free": float(btc.get("free", 0) or 0),
-            "btc_total": float(btc.get("total", 0) or 0),
-        }
+        quote = self.symbol.split("/")[-1].upper()
+        return float(balance.get(quote, {}).get("free", 0))
 
     def check_connection(self) -> dict:
         """Test public + private API access (for diagnostics)."""
@@ -134,7 +175,11 @@ class BinanceDemoBroker:
             result["demo_url"] = ex.urls.get("api")
             balance = ex.fetch_balance()
             result["balance"] = "ok"
+            quote = self.symbol.split("/")[-1].upper()
+            result["quote_asset"] = quote
+            result["quote_free"] = float(balance.get(quote, {}).get("free", 0))
             result["usdt_free"] = float(balance.get("USDT", {}).get("free", 0))
+            result["usdc_free"] = float(balance.get("USDC", {}).get("free", 0))
         except Exception as exc:
             result["balance"] = f"fail: {exc}"
         return result

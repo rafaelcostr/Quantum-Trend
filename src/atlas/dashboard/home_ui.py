@@ -31,8 +31,9 @@ def render_home(project_root: Path, config: AtlasConfig) -> None:
     steps = [
         ("1. Pesquisa", "Baixar dados → Backtest → Comparar estrategias", "Pesquisa"),
         ("2. Intelligence", "Ver Atlas Score, diagnostico L2/L3, walk-forward", "ATLAS Intelligence"),
-        ("3. Paper", "Validar API → Iniciar bot 24/7", "Paper Trading"),
-        ("4. Monitorar", "Graficos, PnL, journal ao vivo", "Trading ao Vivo"),
+        ("3. Paper", "Escolher estrategia + USDT/USDC → Iniciar bot 24/7", "Paper Trading"),
+        ("4. Monitorar", "Graficos 4h/1d, PnL, journal ao vivo", "Trading ao Vivo"),
+        ("5. Historico", "Todos os trades demo — graficos cyberpunk", "Historico Demo"),
     ]
     for title, desc, page in steps:
         st.markdown(f"**{title}** — {desc}  →  sidebar: *{page}*")

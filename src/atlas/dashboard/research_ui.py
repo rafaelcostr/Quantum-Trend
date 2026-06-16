@@ -8,65 +8,257 @@ import streamlit as st
 
 from atlas.dashboard.actions import (
     list_config_files,
-    run_backtest,
+    run_backtest_dashboard,
     run_compare,
     run_download,
     run_walkforward,
 )
+from atlas.dashboard.strategy_config import QUOTE_ASSETS
+
+
+def _research_opts() -> tuple[list[str], str]:
+    mode = st.session_state.get("research_tf_mode", "4h")
+    quote = st.session_state.get("research_quote", "USDT")
+    if mode == "both":
+        return ["4h", "1d"], quote
+    return [mode], quote
+
+
+def _run_batch_backtest(
+    project_root: Path,
+    configs: list[Path],
+    *,
+    timeframes: list[str] | None = None,
+    quote: str | None = None,
+) -> None:
+    tfs, q = _research_opts()
+    if timeframes:
+        tfs = timeframes
+    if quote:
+        q = quote
+    total_steps = len(configs) * len(tfs)
+    progress = st.progress(0, text="Iniciando...")
+    rows_acc: list[dict] = []
+    errors_acc: list[str] = []
+    step = 0
+    for tf in tfs:
+        for cfg_path in configs:
+            step += 1
+            progress.progress(
+                step / max(total_steps, 1),
+                text=f"{cfg_path.name} · {tf} · BTC/{q}",
+            )
+            res = run_backtest_dashboard(
+                project_root,
+                f"config/{cfg_path.name}",
+                timeframe=tf,
+                quote=q,
+            )
+            if res.get("ok"):
+                rows_acc.append(
+                    {
+                        "Config": cfg_path.name,
+                        "Estrategia": res["strategy"],
+                        "TF": res.get("timeframe", tf),
+                        "Par": res.get("symbol", f"BTC/{q}"),
+                        "Retorno": res["net_profit_pct"],
+                        "PF": res["profit_factor"],
+                        "Max DD": res["max_drawdown_pct"],
+                        "Trades": res["total_trades"],
+                        "Sharpe": res.get("sharpe_ratio"),
+                    }
+                )
+            else:
+                errors_acc.append(f"{cfg_path.name} ({tf}): {res.get('error', 'falha')}")
+    progress.progress(1.0, text="Concluido!")
+    st.session_state["backtest_all_rows"] = rows_acc
+    st.session_state["backtest_all_errors"] = errors_acc
+
+
+def _show_batch_results() -> None:
+    rows = st.session_state.get("backtest_all_rows")
+    if rows:
+        df = pd.DataFrame(rows).sort_values("Retorno", ascending=False)
+        fmt = df.copy()
+        if "TF" in fmt.columns:
+            fmt = fmt.sort_values(["TF", "Retorno"], ascending=[True, False])
+        fmt["Retorno"] = fmt["Retorno"].apply(lambda x: f"{x:.1%}")
+        fmt["Max DD"] = fmt["Max DD"].apply(lambda x: f"{x:.1%}")
+        st.dataframe(fmt, use_container_width=True, hide_index=True)
+        st.success(f"{len(rows)} estrategias testadas. Va em **ATLAS Intelligence** ou **Comparar**.")
+    errs = st.session_state.get("backtest_all_errors")
+    if errs:
+        for e in errs:
+            st.warning(e)
+
+
+def _show_download_result(res: dict, project_root: Path) -> None:
+    if not res.get("ok"):
+        st.error(res.get("error", "Falha no download"))
+        return
+    src = "cache local (ja existia)" if res.get("from_cache") else "Binance API (baixado agora)"
+    rel = Path(res["cache_file"]).relative_to(project_root) if res.get("cache_file") else res.get("cache_dir")
+    st.success(
+        f"**{res['candles']}** candles · {res['symbol']} {res['timeframe']} · fonte: {src}"
+    )
+    st.code(str(rel), language="text")
+    if res.get("db_rows"):
+        st.info(f"PostgreSQL: ate {res['db_rows']} linhas inseridas.")
+    st.caption("Pasta completa: `data/cache/` dentro do projeto Quantum Trend.")
 
 
 def render_research(project_root: Path) -> None:
     st.markdown("## Pesquisa")
-    st.caption("Backtest e analise de estrategias — tudo pelo dashboard, sem terminal.")
+    st.caption("Backtest e analise — escolha **4h**, **1d** ou **ambos**.")
 
     configs = list_config_files(project_root)
     if not configs:
         st.error("Nenhum config/backtest*.yaml encontrado.")
         return
 
+    st.markdown("### Configuracao dos testes")
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        st.radio(
+            "Timeframe do backtest",
+            options=["4h", "1d", "both"],
+            format_func=lambda x: {
+                "4h": "4 horas (4h)",
+                "1d": "1 dia (1d)",
+                "both": "4h e 1d (testar os dois)",
+            }[x],
+            horizontal=True,
+            key="research_tf_mode",
+            help="1d usa candles diarios. Em 'ambos', cada estrategia roda 2x.",
+        )
+    with c2:
+        st.selectbox("Par (quote)", QUOTE_ASSETS, index=0, key="research_quote")
+
+    tfs, quote = _research_opts()
+    tf_label = " + ".join(tfs) if len(tfs) > 1 else tfs[0]
+    st.info(
+        f"Testes em **BTC/{quote}** · timeframe(s): **{tf_label}**. "
+        f"Baixe os dados de cada TF em **Baixar dados** antes do backtest."
+    )
+
+    dl_c1, dl_c2 = st.columns(2)
+    with dl_c1:
+        if st.button("Baixar dados 4h", use_container_width=True, key="btn_dl_4h"):
+            with st.spinner("Baixando 4h..."):
+                res = run_download(
+                    project_root,
+                    "config/backtest.yaml",
+                    timeframe="4h",
+                    quote=quote,
+                )
+            st.session_state["last_download_result"] = res
+    with dl_c2:
+        if st.button("Baixar dados 1d", use_container_width=True, key="btn_dl_1d"):
+            with st.spinner("Baixando 1d..."):
+                res = run_download(
+                    project_root,
+                    "config/backtest.yaml",
+                    timeframe="1d",
+                    quote=quote,
+                )
+            st.session_state["last_download_result"] = res
+
+    last_dl = st.session_state.get("last_download_result")
+    if last_dl:
+        _show_download_result(last_dl, project_root)
+
+    st.markdown("### Arquivos de cache no disco")
+    cache_dir = project_root / "data" / "cache"
+    if cache_dir.is_dir():
+        files = sorted(cache_dir.glob("*.parquet"))
+        if files:
+            for f in files:
+                kb = f.stat().st_size / 1024
+                st.write(f"`{f.name}` — {kb:.0f} KB")
+        else:
+            st.caption("Nenhum arquivo em data/cache ainda.")
+    else:
+        st.caption("Pasta data/cache sera criada no primeiro download.")
+
+    st.markdown("### Teste em lote")
+    st.caption(f"{len(configs)} estrategias · {len(tfs)} timeframe(s) = ate {len(configs) * len(tfs)} backtests")
+    if st.button("Rodar TODAS as estrategias", type="primary", key="btn_bt_all_top"):
+        _run_batch_backtest(project_root, configs)
+        st.rerun()
+
+    _show_batch_results()
+    st.divider()
+
     config_labels = [c.name for c in configs]
     default_idx = next((i for i, c in enumerate(configs) if c.name == "backtest_mm200_v2.yaml"), 0)
 
-    tab_dl, tab_bt, tab_cmp, tab_wf = st.tabs(
-        ["Baixar dados", "Backtest", "Comparar", "Walk-forward"]
+    tab_dl, tab_bt, tab_all, tab_cmp, tab_wf = st.tabs(
+        ["Baixar dados", "Backtest", "Testar todas", "Comparar", "Walk-forward"]
     )
 
     with tab_dl:
         st.markdown("### Baixar candles historicos")
         cfg_dl = st.selectbox("Config de dados", config_labels, index=default_idx, key="dl_cfg")
+        tf_dl = st.radio(
+            "Timeframe download",
+            ["4h", "1d"],
+            horizontal=True,
+            key="dl_tf",
+        )
         force = st.checkbox("Forcar re-download", key="dl_force")
         to_db = st.checkbox("Salvar no PostgreSQL", key="dl_db")
         if st.button("Baixar dados", type="primary", key="btn_dl"):
-            with st.spinner("Baixando via CCXT..."):
-                res = run_download(project_root, f"config/{cfg_dl}", force=force, to_db=to_db)
-            if res.get("ok"):
-                st.success(f"{res['candles']} candles — {res['symbol']} {res['timeframe']}")
-                if res.get("db_rows"):
-                    st.info(f"PostgreSQL: ate {res['db_rows']} linhas")
-            else:
-                st.error(res.get("error", "Falha"))
+            with st.spinner(f"Baixando BTC/{quote} {tf_dl}..."):
+                res = run_download(
+                    project_root,
+                    f"config/{cfg_dl}",
+                    force=force,
+                    to_db=to_db,
+                    timeframe=tf_dl,
+                    quote=quote,
+                )
+            st.session_state["last_download_result"] = res
+        if st.session_state.get("last_download_result"):
+            _show_download_result(st.session_state["last_download_result"], project_root)
 
     with tab_bt:
         st.markdown("### Rodar backtest")
         cfg_bt = st.selectbox("Config backtest", config_labels, index=default_idx, key="bt_cfg")
+        tf_bt = st.radio("Timeframe", ["4h", "1d"], horizontal=True, key="bt_tf")
         if st.button("Executar backtest", type="primary", key="btn_bt"):
-            with st.spinner("Rodando backtest event-driven..."):
-                res = run_backtest(project_root, f"config/{cfg_bt}")
+            with st.spinner(f"Rodando backtest {tf_bt}..."):
+                res = run_backtest_dashboard(
+                    project_root,
+                    f"config/{cfg_bt}",
+                    timeframe=tf_bt,
+                    quote=quote,
+                )
             if res.get("ok"):
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Retorno", f"{res['net_profit_pct']:.1%}")
-                c2.metric("Profit Factor", f"{res['profit_factor']:.2f}")
-                c3.metric("Max DD", f"{res['max_drawdown_pct']:.1%}")
-                c4.metric("Trades", res["total_trades"])
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Retorno", f"{res['net_profit_pct']:.1%}")
+                m2.metric("Profit Factor", f"{res['profit_factor']:.2f}")
+                m3.metric("Max DD", f"{res['max_drawdown_pct']:.1%}")
+                m4.metric("Trades", res["total_trades"])
                 st.caption(
+                    f"{res['symbol']} {res['timeframe']} · "
                     f"Buy & Hold: {res['buy_hold_pct']:.1%} · "
                     f"Win rate: {res['win_rate']:.1%} · "
                     f"Sharpe: {res.get('sharpe_ratio') or 'N/A'}"
                 )
                 st.success(f"Relatorio salvo: `{res['report_path']}`")
-                st.info("Va em **ATLAS Intelligence** para analise completa.")
+                st.info("Va em **ATLAS Intelligence** ou **Paper Trading** para operar.")
             else:
                 st.error(res.get("error", "Falha"))
+
+    with tab_all:
+        st.markdown("### Testar todas as estrategias")
+        st.caption(
+            f"Usa o timeframe escolhido no topo: **{tf_label}** · BTC/{quote}"
+        )
+        if st.button("Rodar todas as estrategias", type="primary", key="btn_bt_all"):
+            _run_batch_backtest(project_root, configs)
+            st.rerun()
+        _show_batch_results()
 
     with tab_cmp:
         st.markdown("### Ranking Atlas Score")
@@ -91,19 +283,26 @@ def render_research(project_root: Path) -> None:
     with tab_wf:
         st.markdown("### Walk-forward (IS/OOS)")
         cfg_wf = st.selectbox("Config", config_labels, index=default_idx, key="wf_cfg")
+        tf_wf = st.radio("Timeframe", ["4h", "1d"], horizontal=True, key="wf_tf")
         train_pct = st.slider("In-sample %", 0.50, 0.90, 0.70, 0.05, key="wf_pct")
         if st.button("Executar walk-forward", type="primary", key="btn_wf"):
-            with st.spinner("Split 70/30 + backtests..."):
-                res = run_walkforward(project_root, f"config/{cfg_wf}", train_pct=train_pct)
+            with st.spinner(f"Walk-forward {tf_wf}..."):
+                res = run_walkforward(
+                    project_root,
+                    f"config/{cfg_wf}",
+                    train_pct=train_pct,
+                    timeframe=tf_wf,
+                    quote=quote,
+                )
             st.session_state["wf_result"] = res
 
         res = st.session_state.get("wf_result")
         if res and res.get("ok"):
-            c1, c2, c3 = st.columns(3)
-            c1.metric("IS retorno", f"{res['is_return']:.1%}")
-            c2.metric("OOS retorno", f"{res['oos_return']:.1%}")
+            w1, w2, w3 = st.columns(3)
+            w1.metric("IS retorno", f"{res['is_return']:.1%}")
+            w2.metric("OOS retorno", f"{res['oos_return']:.1%}")
             wfe = res.get("wfe")
-            c3.metric("WFE", f"{wfe:.0%}" if wfe is not None else "N/A")
+            w3.metric("WFE", f"{wfe:.0%}" if wfe is not None else "N/A")
             st.caption(
                 f"Split: {res['split_timestamp']} · "
                 f"OOS PF: {res['oos_pf']:.2f} · "
