@@ -1,25 +1,50 @@
 from __future__ import annotations
 
+import os
+from functools import lru_cache
 from pathlib import Path
 
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def load_project_env(project_root: Path | None = None) -> Path | None:
-    """Load `.env` from project root (if present). Returns path when loaded."""
-    root = project_root or Path.cwd()
-    env_file = root / ".env"
-    if env_file.is_file():
-        load_dotenv(env_file, override=True)
-        return env_file
-    load_dotenv(override=True)
-    return None
+def project_root() -> Path:
+    return Path(__file__).resolve().parents[3]
 
 
-def find_project_root(start: Path | None = None) -> Path:
-    """Walk up from start (or cwd) until pyproject.toml or .env is found."""
-    current = (start or Path.cwd()).resolve()
-    for path in [current, *current.parents]:
-        if (path / "pyproject.toml").is_file() or (path / ".env").is_file():
-            return path
-    return current
+load_dotenv(project_root() / ".env")
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    database_url: str | None = None
+    binance_demo_api_key: str | None = None
+    binance_demo_api_secret: str | None = None
+    binance_live_api_key: str | None = None
+    binance_live_api_secret: str | None = None
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    atlas_kill_switch: bool = False
+    atlas_api_host: str = "127.0.0.1"
+    atlas_api_port: int = 8000
+    atlas_cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
+
+    @property
+    def kill_switch_active(self) -> bool:
+        from atlas.runtime.system_store import get_runtime_system
+
+        runtime = get_runtime_system()
+        if runtime.kill_switch is not None:
+            return runtime.kill_switch
+        raw = os.getenv("ATLAS_KILL_SWITCH", "0")
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.atlas_cors_origins.split(",") if o.strip()]
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

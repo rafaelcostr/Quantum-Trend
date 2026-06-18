@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from atlas.core.config import load_config
-from atlas.research.backtester import run_backtest
+from atlas.research.engine_backtest import run_backtest_engine
 
 
 @pytest.fixture
@@ -28,24 +28,24 @@ def test_backtest_runs(sample_ohlcv, tmp_path):
         """
 mode: backtest
 exchange:
-  symbol: BTC/USDT
-  timeframe: 4h
+ symbol: BTC/USDT
+ timeframe: 4h
 strategy:
-  name: range_hunter_v1
-  params:
-    bb_period: 20
-    bb_std: 2.0
-    rsi_period: 14
-    adx_period: 14
+ name: range_hunter_v1
+ params:
+  bb_period: 20
+  bb_std: 2.0
+  rsi_period: 14
+  adx_period: 14
 risk:
-  initial_capital: 10000
+ initial_capital: 10000
 execution:
-  fee_rate: 0.001
-  slippage_rate: 0.0005
+ fee_rate: 0.001
+ slippage_rate: 0.0005
 """,
         encoding="utf-8",
     )
     config = load_config(config_path)
-    result = run_backtest(config, sample_ohlcv)
+    result = run_backtest_engine(config, sample_ohlcv)
     assert result.final_equity > 0
     assert isinstance(result.trades, list)

@@ -9,6 +9,12 @@ from atlas.intelligence.diagnostics import (
     overfitting_risk_l1,
     promotion_checklist_backtest_paper,
 )
+from atlas.intelligence.level2_diagnostics import build_level2_narrative
+from atlas.intelligence.level2_glossary import build_educational_metrics
+from atlas.intelligence.level2_metrics import build_level2_values
+from atlas.intelligence.level3_diagnostics import build_level3_narrative, overfitting_risk_l3
+from atlas.intelligence.level3_glossary import build_level3_educational_metrics
+from atlas.intelligence.level3_metrics import build_level3_values
 from atlas.intelligence.metrics import (
     ReportBundle,
     compute_cagr,
@@ -16,12 +22,6 @@ from atlas.intelligence.metrics import (
     period_bounds,
     years_tested,
 )
-from atlas.intelligence.level2_diagnostics import build_level2_narrative
-from atlas.intelligence.level2_glossary import build_educational_metrics
-from atlas.intelligence.level2_metrics import build_level2_values
-from atlas.intelligence.level3_diagnostics import build_level3_narrative, overfitting_risk_l3
-from atlas.intelligence.level3_glossary import build_level3_educational_metrics
-from atlas.intelligence.level3_metrics import build_level3_values
 from atlas.intelligence.models import (
     Level1Snapshot,
     Level2Snapshot,

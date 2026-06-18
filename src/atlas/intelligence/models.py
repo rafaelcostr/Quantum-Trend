@@ -10,9 +10,9 @@ class MetricReading:
     label: str
     value: float | int | str | None
     display: str
-    status: str  # excellent | good | acceptable | poor | na
-    emoji: str  # 🟢 🟡 🟠 🔴
-    status_text: str  # Excelente, Aceitável, etc.
+    status: str
+    emoji: str
+    status_text: str
 
 
 @dataclass

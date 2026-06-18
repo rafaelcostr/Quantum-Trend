@@ -9,7 +9,6 @@ def confidence_level(
     max_drawdown_pct: float,
     years_tested: float | None,
 ) -> tuple[str, str, float]:
-    """Returns label, emoji, subscore 0-100 for Atlas Score."""
     score = 50.0
 
     if total_trades >= 80:

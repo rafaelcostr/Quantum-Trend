@@ -6,8 +6,6 @@ from atlas.core.models import Candle, Order, OrderResult, Position
 
 
 class Broker(Protocol):
-    """Execution adapter — backtest, paper, or live."""
-
     def fetch_candles(self, symbol: str, timeframe: str, limit: int = 500) -> list[Candle]: ...
 
     def get_balance(self) -> float: ...

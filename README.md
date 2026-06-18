@@ -1,380 +1,145 @@
-# ATLAS QUANT
+# Quantum-Trend
 
-Plataforma modular de trading quantitativo em Python para **BTC/USDT spot (4H)**, com o mesmo núcleo de estratégia em três modos:
+Terminal quantitativo com **React + TanStack Start** no frontend e **Python Atlas + FastAPI** no backend.
 
-**Backtest → Paper → Live**
-
-O projeto inclui pesquisa quantitativa, paper trading na Binance Demo, dashboard ao vivo e o módulo **ATLAS Intelligence** — análise automática em 3 níveis (decisão rápida, diagnóstico e research).
-
----
-
-## Índice
-
-1. [Requisitos](#requisitos)
-2. [Instalação](#instalação)
-3. [Configuração](#configuração)
-4. [Início rápido](#início-rápido)
-5. [Comandos CLI](#comandos-cli)
-6. [ATLAS Intelligence](#atlas-intelligence)
-7. [Estratégias](#estratégias)
-8. [Arquitetura](#arquitetura)
-9. [Dashboard](#dashboard)
-10. [Alertas Telegram](#alertas-telegram)
-11. [Promoção Backtest → Paper → Live](#promoção-backtest--paper--live)
-12. [Testes](#testes)
-13. [Roadmap](#roadmap)
-
----
+Fluxo: **Backtest → Paper (Binance Demo) → Live**
 
 ## Requisitos
 
-- **Python 3.11+**
-- **Windows / Linux / macOS**
-- Conta **Binance Demo** para paper trading ([demo.binance.com](https://demo.binance.com))
-- **Docker** (opcional) para PostgreSQL e journal persistente
-- **Telegram** (opcional) para alertas
-
----
+- Node.js 20+
+- Python 3.11+
+- Chaves [Binance Demo](https://demo.binance.com) para paper trading
 
 ## Instalação
 
 ```powershell
-# Clone ou entre na pasta do projeto
-cd "C:\Users\CRIPTOCRATA\projects\Quantum Trend"
+cd "C:\Users\HUNTER\Documents\PROJETOS\Quantum-Trend"
 
-# Ambiente virtual
+npm install
+
 python -m venv .venv
 .\.venv\Scripts\activate
-
-# Instalar pacote + dependências de desenvolvimento
 pip install -e ".[dev]"
-```
 
----
-
-## Configuração
-
-### 1. Arquivo `.env`
-
-```powershell
 copy .env.example .env
+# Preencha BINANCE_DEMO_API_KEY / BINANCE_DEMO_API_SECRET
 ```
 
-Edite `.env`:
+## Desenvolvimento
 
-```env
-# PostgreSQL (Docker ATLAS usa porta 15432 no host)
-DATABASE_URL=postgresql://atlas:atlas@localhost:15432/atlas_quant
-
-# Binance Demo — paper trading
-BINANCE_DEMO_API_KEY=sua_chave
-BINANCE_DEMO_API_SECRET=seu_secret
-
-# Telegram (opcional)
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
-```
-
-**Importante:**
-- Crie as chaves em **https://demo.binance.com** (não na Binance real).
-- Habilite **Leitura + Trading Spot** e restrinja ao seu **IP público**.
-- Nunca coloque chaves reais em `.env.example` ou no Git.
-
-### 2. PostgreSQL (opcional)
+**Terminal 1 — API Python (porta 8000):**
 
 ```powershell
-docker compose up -d
+.\.venv\Scripts\activate
+python -m atlas.cli api
 ```
 
-O container `atlas_postgres` expõe a porta **15432** (evita conflito com Postgres local na 5432).
-
-Se já tiver Postgres na máquina, aponte `DATABASE_URL` para ele e rode `database/migrations/001_initial.sql`.
-
----
-
-## Início rápido
+**Terminal 2 — UI React (porta 3000 ou 3001):**
 
 ```powershell
-# 1. Instalar (uma vez)
-pip install -e ".[dev]"
-copy .env.example .env   # preencher chaves Binance Demo
-
-# 2. Abrir o dashboard — tudo fica aqui
-atlas dashboard
+npm.cmd run dev
 ```
 
-Abra **http://localhost:8501** e use o menu lateral:
-
-| Seção | O que faz |
-|-------|-----------|
-| **Início** | Visão geral e fluxo recomendado |
-| **Pesquisa** | Baixar dados, backtest, comparar, walk-forward |
-| **Paper Trading** | Validar API, iniciar/parar bot, tick único |
-| **Trading ao Vivo** | Gráficos, PnL, journal |
-| **ATLAS Intelligence** | Score, diagnóstico L2/L3, relatório IA |
-
-O CLI (`atlas research ...`, `atlas trade ...`) continua disponível para automação, mas **não é necessário** no uso diário.
-
----
-
-## Comandos CLI
-
-### Pesquisa (`atlas research`)
-
-| Comando | Descrição |
-|---------|-----------|
-| `atlas research download` | Baixa OHLCV via CCXT, cache Parquet |
-| `atlas research backtest --config config/backtest_mm200_v2.yaml` | Backtest event-driven |
-| `atlas research compare` | Ranking de estratégias por **Atlas Score** |
-| `atlas research walkforward --config config/backtest_v2_2.yaml` | Walk-forward 70/30 IS/OOS + JSON para Nível 3 |
-
-### Operação (`atlas trade`)
-
-| Comando | Descrição |
-|---------|-----------|
-| `atlas trade check` | Testa chave demo, IP, saldo |
-| `atlas trade paper` | Loop 24/7 na Binance Demo |
-| `atlas trade paper --once` | Um único ciclo de avaliação |
-| `atlas trade live` | Live (com confirmação — use só após gates) |
-
-**Restart seguro:** ao iniciar, o engine restaura posição aberta via journal + saldo BTC na exchange. Reconciliação periódica a cada `reconcile_minutes` (default 15 min em `config/paper.yaml`).
-
-### Monitoramento
-
-| Comando | Descrição |
-|---------|-----------|
-| `atlas alerts test` | Envia mensagem de teste no Telegram |
-| `atlas dashboard` | Dashboard Streamlit (trading + intelligence) |
-
----
-
-## ATLAS Intelligence
-
-Sistema de análise em **3 níveis** (funil: decisão rápida → diagnóstico → research).
-
-### Nível 1 — Decisão rápida (~10 segundos)
-
-- **Atlas Score** (0–100)
-- Drawdown, Profit Factor, Expectância, Sharpe, Retorno, Trades
-- Nível de confiança e risco de overfitting
-- Pontos fortes / fracos / riscos
-- Checklist BACKTEST → PAPER
-- Botão **Copiar Relatório para IA** (Markdown)
-
-**Pesos do Atlas Score:**
-
-| Componente | Peso |
-|------------|------|
-| Drawdown | 25% |
-| Profit Factor | 25% |
-| Expectância | 15% |
-| Sharpe | 15% |
-| Retorno | 10% |
-| Trades | 5% |
-| Confiança | 5% |
-
-| Score | Classificação |
-|-------|---------------|
-| 90–100 | Excelente |
-| 80–89 | Muito Bom |
-| 70–79 | Promissor |
-| 60–69 | Precisa Melhorar |
-| <60 | Rejeitado |
-
-### Nível 2 — Diagnóstico (Sprint 2 ✅)
-
-Métricas intermediárias com explicação educacional:
-
-- Sortino Ratio
-- Recovery Factor
-- Payoff Ratio
-- Calmar Ratio
-- Exposição ao mercado
-- Maior sequência de ganhos / perdas
-- **Diagnóstico automático** em linguagem natural
-
-Cada métrica inclui: *O que é · Por que importa · Faixas · Semáforo*
-
-### Nível 3 — Research Lab (Sprint 3 ✅)
-
-Engines de robustez estatística:
-
-- **Walk-forward** — split 70% in-sample / 30% out-of-sample
-- **Monte Carlo** — bootstrap de trades (P5 retorno, P95 drawdown)
-- **OOS** — retorno, Sharpe e Profit Factor fora da amostra
-- **Kelly**, **Ulcer Index**, **Skewness/Kurtosis**
-- **Research Interpreter** — diagnóstico automático IS vs OOS
-- **Detector de overfitting** completo (L3)
+**Atalho (abre API + UI em dois terminais):**
 
 ```powershell
-atlas research walkforward --config config/backtest_v2_2.yaml
-atlas dashboard   # aba Nível 3 — Research
+.\scripts\start.ps1
 ```
 
-Salva `data/reports/{estrategia}_walkforward.json`; o dashboard e o relatório IA carregam automaticamente.
+## Estratégias 1H, 4H e 1D
 
----
+1. **Backtests** — escolha estratégia + gráfico **1H**, **4H** ou **1D**
+2. **Estratégias** — até 3 slots paralelos (ex.: MM200 · 1H + MM200 · 4H + Range · 1D)
+3. **Dashboard** — Iniciar Paper usa os slots habilitados (poll ~15s em 1H, 30s em 4H, 3600s em 1D)
 
-## Estratégias
+Configs de backtest 1D: `config/backtest_mm200_v2_1d.yaml`, `config/backtest_daily_macro_1d.yaml`
 
-| Nome | Tipo |
-|------|------|
-| `range_hunter_v1` | Mean reversion (BB + RSI + ADX) |
-| `range_hunter_v2` | v1 + suporte/resistência |
-| `bb_squeeze_v1` | Squeeze + breakout |
-| `regime_switching_v1` | Range + trend (trend opcional) |
-| `mm200_trend_v1` | Long acima da MM200 |
-| `mm200_trend_v2` | Crossover MM200 (entrada bullish / saída bearish cross) |
-| `mm200_daily_macro_v1` | Crossover + filtro macro diário |
-| `portfolio_macro_micro_v1` | Macro 70% + micro range 30% |
+A UI usa proxy **`/atlas-api` → `http://127.0.0.1:8000/api`** (configurado em `vite.config.ts` e `src/server.ts`).
 
-Configs em `config/backtest_*.yaml` e `config/paper.yaml`.
+> Se aparecer `WinError 10048`, a porta 8000 está ocupada. Feche a API antiga (`Ctrl+C`) ou:
+> `netstat -ano | findstr :8000` → `Stop-Process -Id <PID> -Force`
 
-Registrar nova estratégia em `src/atlas/strategies/registry.py`.
-
----
-
-## Arquitetura
-
-```
-src/atlas/
-├── core/              # modelos, indicadores, risk, config YAML
-├── strategies/        # lógica de sinal (pura)
-├── brokers/           # simulado, Binance demo/live (CCXT)
-├── research/          # coleta, backtester, estatísticas
-├── intelligence/      # Atlas Score, diagnóstico L1/L2, relatório IA
-├── runtime/           # engine, runner, journal
-├── dashboard/         # Streamlit + TradingView + Intelligence UI
-├── monitoring/        # Telegram + watchdog (sinal/DD)
-└── cli.py
-```
-
-### Fluxo de dados
-
-```
-Estratégia → Backtester/Paper Engine → Journal / Reports JSON
-                                              ↓
-                                    ATLAS Intelligence
-                                              ↓
-                                    Dashboard + Relatório IA
-```
-
-### Indicadores disponíveis
-
-Bollinger Bands, RSI, ADX, ATR, MM20/200, suporte/resistência, macro diário (`macro_bull`).
-
-### Backtester
-
-- Event-driven, fees 0,1%, slippage 0,05%
-- Entrada no próximo open
-- Warmup ~205 barras
-- Relatórios em `data/reports/*_report.json`
-
----
-
-## Dashboard
+## Docker (só API)
 
 ```powershell
-atlas dashboard
+docker compose up --build
 ```
 
-**Trading ao Vivo:**
-- Gráfico TradingView ou Plotly (candles, MM20/200, BB)
-- Marcadores de entrada/saída
-- PnL, drawdown, journal
-- Auto-refresh
-
-**ATLAS Intelligence:**
-- Abas Nível 1 / 2 / 3
-- Seletor de estratégia (relatórios de backtest)
-- Download e cópia de relatório Markdown
-
----
-
-## Alertas Telegram
-
-Configure `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID` no `.env`.
+## CLI
 
 ```powershell
-atlas alerts test
+# Backtest (uma estratégia ou todas)
+python -m atlas.cli backtest --config config/backtest_mm200_v2.yaml
+python -m atlas.cli backtest-all   # 11 estratégias × 1H + 4H + 1D
+
+# Walk-forward (gate live)
+python -m atlas.cli research walkforward --config config/backtest_mm200_v2.yaml
+
+# Paper bot (via API POST /api/bot/start)
+python -m atlas.cli api
 ```
 
-O bot envia alertas para:
-- Início do runner
-- Entrada / saída executada
-- Sinal `enter_long` / `exit_long` **sem ordem**
-- Drawdown acima do limite (`drawdown_alert_pct` em `config/paper.yaml`)
-- Erros do loop
+## Variáveis `.env`
 
----
+| Variável | Uso |
+|----------|-----|
+| `BINANCE_DEMO_API_*` | Paper trading (obrigatório para dados reais) |
+| `BINANCE_LIVE_API_*` | Live (após gates) |
+| `ATLAS_ALLOW_LIVE=1` | Opt-in explícito para live |
+| `ATLAS_LIVE_MIN_PAPER_DAYS=7` | Dias mínimos em paper |
+| `ATLAS_KILL_SWITCH=1` | Bloqueia bot |
+| `TELEGRAM_*` | Alertas opcionais |
 
-## Promoção Backtest → Paper → Live
+## Endpoints principais
 
-Critérios documentados em `docs/promotion_gates.md`. Resumo:
+| Rota | Descrição |
+|------|-----------|
+| `GET /api/health` | Status |
+| `GET /api/dashboard` | Saldo demo real, equity, posições |
+| `GET /api/operations/feed` | Feed de ticks/sinais |
+| `GET /api/operations/stream` | SSE tempo real |
+| `POST /api/bot/start` | Iniciar paper |
+| `POST /api/bot/start-live` | Iniciar live (gates) |
+| `GET /api/live/gates` | Checklist promoção |
+| `POST /api/backtest` | Backtest |
+| `POST /api/research/walkforward` | Walk-forward |
+| `GET /api/validation` | Critérios demo |
+| `PUT /api/risk` | Risco (sincroniza com engine) |
 
-**Backtest → Paper**
-- PF ≥ 1,3 · DD ≤ 25% · Sharpe ≥ 1,0 · ≥ 50 trades
-- Walk-forward (futuro)
+## Estrutura
 
-**Paper → Live**
-- 90+ dias de paper estável
-- Reconciliação com exchange
-- Drawdown dentro do limite
-
-O checklist aparece automaticamente no **Nível 1** do Intelligence.
-
----
+```
+Quantum-Trend/
+├── src/                    # Frontend React (TanStack Start)
+├── src/atlas/              # Engine Python
+│   ├── api/                # FastAPI
+│   ├── runtime/            # Bot, journal, gates
+│   ├── services/           # Dashboard, demo, balance history
+│   └── strategies/         # 8 estratégias
+├── config/                 # paper.yaml, live.yaml, backtests
+├── data/                   # journal, snapshots, reports (gitignored)
+└── tests/                  # pytest
+```
 
 ## Testes
 
 ```powershell
-pytest tests -q
+python -m pytest tests/ -q
+npm run build
 ```
 
-Cobertura: risk, backtester, estratégias, alerts, watchdog, intelligence L1/L2/L3.
+## Dados operacionais vs pesquisa
 
----
+| Tela | Fonte de dados |
+|------|----------------|
+| Dashboard, Diário, Validação, Operações | **Binance Demo + journal** |
+| Backtests, Resultados, Relatórios, IA | **Relatórios de backtest** |
 
-## Roadmap
+## Live trading
 
-| Sprint | Status | Conteúdo |
-|--------|--------|----------|
-| Core + backtest + paper | ✅ | Engine, Binance Demo, journal |
-| Dashboard ao vivo | ✅ | TradingView, PnL, marcadores |
-| Intelligence Nível 1 | ✅ | Score, semáforos, relatório IA, compare |
-| Intelligence Nível 2 | ✅ | Sortino, Recovery, diagnóstico educacional |
-| Intelligence Nível 3 | ✅ | Walk-forward, Monte Carlo, OOS, Research Lab |
-| Paper restart + reconciliação | ✅ | Journal + saldo Binance, reconcile periódico |
-| Produção | 🔜 | OCO stops, kill switch Telegram, CI/CD |
+1. Backtest + walk-forward
+2. Paper ≥ 7 dias na demo
+3. `ATLAS_ALLOW_LIVE=1` + chaves live
+4. Todos os gates verdes em `/live`
 
----
-
-## Estrutura de pastas
-
-```
-Quantum Trend/
-├── config/           # YAML por estratégia e modo
-├── data/
-│   ├── cache/        # Parquet OHLCV
-│   └── reports/      # JSON de backtest
-├── database/         # Migrations SQL
-├── docs/             # Estratégia e promotion gates
-├── scripts/          # Utilitários (ex.: check_binance_demo.py)
-├── src/atlas/        # Código principal
-├── tests/
-├── docker-compose.yml
-├── pyproject.toml
-└── README.md
-```
-
----
-
-## Aviso legal
-
-Este software é para **educação e pesquisa quantitativa**. Trading envolve risco de perda total. Resultados de backtest **não garantem** performance futura. Use paper trading extensivo antes de considerar capital real. O autor não se responsabiliza por perdas financeiras.
-
----
-
-## Licença e contribuição
-
-Projeto em desenvolvimento ativo. Consulte `docs/strategy_v1.md` para a lógica da estratégia principal e `docs/promotion_gates.md` para critérios de promoção entre ambientes.
+Paper e live usam a mesma estratégia (`mm200_trend_v2`) em `config/paper.yaml` e `config/live.yaml`.

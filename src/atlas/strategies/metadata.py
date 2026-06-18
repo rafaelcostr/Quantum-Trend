@@ -1,38 +1,62 @@
-"""Metadados das estrategias — tipo, versao e classificacao."""
+"""Metadados das estratégias."""
 from __future__ import annotations
 
-import json
-from atlas.core.symbols import parse_strategy_from_report_name, quote_from_symbol
+from pathlib import Path
+
+PRIMARY_STRATEGIES = (
+    "quantum_trend_pro",
+)
+
+LEGACY_STRATEGIES = frozenset({
+    "range_hunter_v1",
+    "range_hunter_v2",
+    "bb_squeeze_v1",
+    "regime_switching_v1",
+    "mm200_trend_v1",
+    "mm200_trend_v2",
+    "mm200_daily_macro_v1",
+    "portfolio_macro_micro_v1",
+    "pullback_ema20_v1",
+    "breakout_high20_v1",
+    "supertrend_mm200_v1",
+})
 
 STRATEGY_METADATA: dict[str, dict[str, str]] = {
-    "range_hunter_v1": {"type": "Mean Reversion", "version": "1.0.0"},
-    "range_hunter_v2": {"type": "Mean Reversion", "version": "2.0.0"},
-    "bb_squeeze_v1": {"type": "Breakout", "version": "1.0.0"},
-    "regime_switching_v1": {"type": "Regime Switching", "version": "1.0.0"},
-    "mm200_trend_v1": {"type": "Trend Following", "version": "1.0.0"},
-    "mm200_trend_v2": {"type": "Trend Following", "version": "2.0.0"},
-    "mm200_daily_macro_v1": {"type": "Trend Following", "version": "1.0.0"},
-    "portfolio_macro_micro_v1": {"type": "Multi-Strategy", "version": "1.0.0"},
+    "quantum_trend_pro": {"type": "QuantumTrend Pro Core", "version": "1.0.0", "tier": "primary"},
+    "range_hunter_v1": {"type": "Mean Reversion", "version": "1.0.0", "tier": "legacy"},
+    "range_hunter_v2": {"type": "Mean Reversion", "version": "2.0.0", "tier": "legacy"},
+    "bb_squeeze_v1": {"type": "Breakout", "version": "1.0.0", "tier": "legacy"},
+    "regime_switching_v1": {"type": "Regime Switching", "version": "1.0.0", "tier": "legacy"},
+    "mm200_trend_v1": {"type": "Trend Following", "version": "1.0.0", "tier": "legacy"},
+    "mm200_trend_v2": {"type": "Trend Following", "version": "2.0.0", "tier": "legacy"},
+    "mm200_daily_macro_v1": {"type": "Trend Following", "version": "1.0.0", "tier": "legacy"},
+    "portfolio_macro_micro_v1": {"type": "Multi-Strategy", "version": "1.0.0", "tier": "legacy"},
+    "pullback_ema20_v1": {"type": "Trend Pullback", "version": "1.0.0", "tier": "legacy"},
+    "breakout_high20_v1": {"type": "Breakout", "version": "1.0.0", "tier": "legacy"},
+    "supertrend_mm200_v1": {"type": "Trend Following", "version": "1.0.0", "tier": "legacy"},
 }
 
 
+def is_legacy_strategy(name: str) -> bool:
+    return name in LEGACY_STRATEGIES
+
+
+def list_primary_strategies() -> list[str]:
+    return list(PRIMARY_STRATEGIES)
+
+
 def get_strategy_metadata(strategy_name: str) -> dict[str, str]:
-    return STRATEGY_METADATA.get(
-        strategy_name,
-        {"type": "Unknown", "version": "1.0.0"},
-    )
+    meta = STRATEGY_METADATA.get(strategy_name, {"type": "Unknown", "version": "1.0.0", "tier": "legacy"})
+    return meta
 
 
-def strategy_type_label(strategy_name: str) -> str:
-    return get_strategy_metadata(strategy_name)["type"]
-
-
-def strategy_version(strategy_name: str) -> str:
-    return get_strategy_metadata(strategy_name)["version"]
+def position_size_label(sizing_mode: str, risk_per_trade: float) -> str:
+    if sizing_mode == "full_equity":
+        return "100% equity"
+    return f"{risk_per_trade:.1%} per trade ({sizing_mode})"
 
 
 def config_file_for_strategy(strategy_name: str) -> str:
-    """Melhor palpite do YAML usado no backtest."""
     mapping = {
         "range_hunter_v1": "config/backtest.yaml",
         "range_hunter_v2": "config/backtest_v2.yaml",
@@ -42,59 +66,29 @@ def config_file_for_strategy(strategy_name: str) -> str:
         "mm200_trend_v2": "config/backtest_mm200_v2.yaml",
         "mm200_daily_macro_v1": "config/backtest_daily_macro.yaml",
         "portfolio_macro_micro_v1": "config/backtest_portfolio.yaml",
+        "pullback_ema20_v1": "config/backtest_pullback_ema20_v1.yaml",
+        "breakout_high20_v1": "config/backtest_breakout_high20_v1.yaml",
+        "supertrend_mm200_v1": "config/backtest_supertrend_mm200_v1.yaml",
+        "quantum_trend_pro": "config/backtest_quantum_trend_pro.yaml",
     }
     return mapping.get(strategy_name, f"config/backtest_{strategy_name}.yaml")
 
 
-def position_size_label(sizing_mode: str, risk_per_trade: float) -> str:
-    if sizing_mode == "full_equity":
-        return "100% equity"
-    return f"{risk_per_trade:.1%} per trade ({sizing_mode})"
-
-
 def report_display_label(path: Path) -> str:
-    """Rotulo legivel para dropdowns (estrategia, timeframe, tipo)."""
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        meta = raw.get("metadata") or {}
-        if meta.get("strategy"):
-            strategy = str(meta["strategy"])
-            tf = meta.get("timeframe")
-            market = str(meta.get("market") or "BTC/USDT")
-            quote = quote_from_symbol(market)
-            stype = meta.get("strategy_type") or get_strategy_metadata(strategy).get("type", "")
-            base = f"{strategy} ({tf}) BTC/{quote}" if tf else f"{strategy} BTC/{quote}"
-            if stype and stype != "Unknown":
-                return f"{base} — {stype}"
-            return base
-    except (OSError, json.JSONDecodeError, KeyError):
-        pass
+    from atlas.core.symbols import parse_strategy_from_report_name
 
     strategy, tf, quote = parse_strategy_from_report_name(path.stem)
     meta = get_strategy_metadata(strategy)
-    if strategy == "unknown":
-        return f"{path.stem} (antigo — rode backtest em Pesquisa)"
-    q = quote or "USDT"
-    base = f"{strategy} ({tf}) BTC/{q}" if tf else f"{strategy} BTC/{q}"
-    stype = meta.get("type", "Unknown")
-    if stype != "Unknown":
-        return f"{base} — {stype}"
-    return base
-
-
-def report_select_options(reports_dir: Path) -> list[tuple[str, Path]]:
-    """Lista (rotulo, path) unica para selectbox — evita colisao de nomes."""
-    from atlas.intelligence.metrics import discover_reports
-
-    paths = discover_reports(reports_dir)
-    seen: dict[str, int] = {}
-    options: list[tuple[str, Path]] = []
-    for path in paths:
-        label = report_display_label(path)
-        if label in seen:
-            seen[label] += 1
-            label = f"{label} · {path.name}"
-        else:
-            seen[label] = 1
-        options.append((label, path))
-    return options
+    parts = [strategy]
+    if tf:
+        parts.append(tf)
+    if quote:
+        parts.append(quote)
+    label = " · ".join(parts)
+    stype = meta.get("type")
+    if stype and stype != "Unknown":
+        label += f" ({stype})"
+    is_legacy = path.stem == "backtest_report" or strategy == "unknown"
+    if is_legacy:
+        label += " — backtest antigo"
+    return label

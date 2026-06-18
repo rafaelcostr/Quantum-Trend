@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from atlas.intelligence.glossary import metric_reading
-from atlas.intelligence.models import EducationalMetric, MetricReading
+from atlas.intelligence.models import EducationalMetric
 
 StatusFn = Callable[[float | None], tuple[str, str, str]]
 

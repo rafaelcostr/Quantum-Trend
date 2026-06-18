@@ -31,5 +31,5 @@ execution:
   entry_on_next_open: true
 
 data:
-  years: 3
+  years: 0  # historico completo BTC/USDT na Binance
   cache_dir: data/cache

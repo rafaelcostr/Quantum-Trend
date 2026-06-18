@@ -1,19 +1,32 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
-from atlas.monitoring.alerts import TelegramAlerts
 from atlas.monitoring.watchdog import AlertWatchdog
 
 
-class FakeAlerts(TelegramAlerts):
+class FakeAlerts:
     def __init__(self) -> None:
-        self.enabled = True
         self.messages: list[str] = []
 
-    def send(self, message: str, parse_mode: str | None = None) -> bool:
-        self.messages.append(message)
+    @property
+    def configured(self) -> bool:
         return True
+
+    def send_async(self, message: str) -> None:
+        self.messages.append(message)
+
+    def signal_change(self, symbol: str, signal: str, reason: str, mode: str) -> None:
+        self.messages.append(f"SINAL {signal} {symbol} {reason}")
+
+    def drawdown_alert(
+        self,
+        symbol: str,
+        drawdown: float,
+        equity: float,
+        peak: float,
+        mode: str,
+        threshold: float,
+    ) -> None:
+        self.messages.append(f"DRAWDOWN {drawdown:.1%} {symbol}")
 
 
 def test_signal_alert_on_change_only():
@@ -27,7 +40,6 @@ def test_signal_alert_on_change_only():
     assert len(alerts.messages) == 1
     assert "SINAL" in alerts.messages[0]
 
-    # same signal again — no spam
     wd.process(symbol="BTC/USDT", mode="paper", signal="enter_long", reason="cross", equity=5000)
     assert len(alerts.messages) == 1
 
@@ -59,11 +71,9 @@ def test_drawdown_alert_once_with_recovery():
     assert len(alerts.messages) == 1
     assert "DRAWDOWN" in alerts.messages[0]
 
-    # still in drawdown — no repeat
     wd.process(symbol="BTC/USDT", mode="paper", signal="hold", reason="", equity=4300)
     assert len(alerts.messages) == 1
 
-    # recover above 7.5% dd (75% of 10% threshold)
     wd.process(symbol="BTC/USDT", mode="paper", signal="hold", reason="", equity=4900)
     wd.process(symbol="BTC/USDT", mode="paper", signal="hold", reason="", equity=4400)
     assert len(alerts.messages) == 2

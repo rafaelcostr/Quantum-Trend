@@ -51,7 +51,7 @@ def build_level3_narrative(values: dict[str, Any]) -> str:
 
     if values.get("oos_return") is None:
         return (
-            "Walk-forward ainda não executado. Rode `atlas research walkforward --config <yaml>` "
+            "Walk-forward ainda não executado. Rode `python -m atlas.cli research walkforward --config <yaml>` "
             "para gerar métricas OOS e atualizar este diagnóstico."
         )
 

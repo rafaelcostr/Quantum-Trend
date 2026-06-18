@@ -3,11 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from atlas.intelligence.analyzer import analyze_path
-from atlas.intelligence.level2_metrics import (
-    compute_payoff_ratio,
-    compute_streaks,
-    compute_recovery_factor,
-)
+from atlas.intelligence.level2_metrics import compute_payoff_ratio, compute_recovery_factor, compute_streaks
 
 
 def test_level2_metrics_on_mm200():
@@ -40,6 +36,29 @@ def test_payoff_and_streaks():
 def test_recovery_factor():
     rf = compute_recovery_factor(net_profit=5000, max_dd_pct=0.25, initial_capital=10000)
     assert rf == 2.0
+
+
+def test_level2_mm200_v2_day_equity_curve():
+    root = Path(__file__).resolve().parents[1]
+    report = root / "data" / "reports" / "mm200_trend_v2_report.json"
+    if not report.is_file():
+        return
+    analysis = analyze_path(report)
+    assert analysis.level1 is not None
+    assert analysis.level2 is not None
+
+
+def test_market_exposure_without_timestamp():
+    from atlas.intelligence.level2_metrics import compute_market_exposure
+
+    trades = [
+        {"entry_time": "2024-01-01T00:00:00+00:00", "exit_time": "2024-01-02T00:00:00+00:00", "pnl": 10},
+        {"entry_time": "2024-01-05T00:00:00+00:00", "exit_time": "2024-01-06T00:00:00+00:00", "pnl": -5},
+    ]
+    equity = [{"day": "D1", "equity": 10000}, {"day": "D10", "equity": 10005}]
+    exposure = compute_market_exposure(trades, equity)
+    assert exposure is not None
+    assert 0 < exposure <= 1
 
 
 def test_ai_report_includes_level2():

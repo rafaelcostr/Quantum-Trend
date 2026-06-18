@@ -1,19 +1,26 @@
 # Python
 __pycache__/
 *.py[cod]
-*.egg-info/
-.eggs/
-dist/
-build/
 .venv/
 venv/
-.env
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
-# Data & cache
-data/
-*.parquet
-*.csv
-!config/
+# Node
+node_modules/
+dist/
+.vite/
+.output/
+
+# Dados locais
+.env
+.env.local
+data/cache/
+data/journal/
+data/runtime/
+data/reports/
 
 # IDE
 .idea/
@@ -23,7 +30,3 @@ data/
 # OS
 .DS_Store
 Thumbs.db
-
-# Logs
-logs/
-*.log

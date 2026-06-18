@@ -4,10 +4,7 @@ from atlas.core.models import Candle, IndicatorSnapshot, Position, Signal, Signa
 
 
 class BBSqueezeV1:
-    """
-    Bollinger squeeze breakout — long-only.
-    Enter when bandwidth was compressed and price closes above upper band.
-    """
+    """Bollinger squeeze breakout — long-only."""
 
     name = "bb_squeeze_v1"
 
@@ -61,10 +58,7 @@ class BBSqueezeV1:
 
         width = self._band_width(indicators) or 0.0
         band_range = (indicators.bb_upper - indicators.bb_lower) if width else 0.0
-        stop_price = max(
-            indicators.bb_lower,
-            candle.close * (1 - self.stop_pct),
-        )
+        stop_price = max(indicators.bb_lower, candle.close * (1 - self.stop_pct))
         target_price = candle.close + band_range * self.target_band_mult
 
         if indicators.resistance is not None and indicators.resistance > candle.close:

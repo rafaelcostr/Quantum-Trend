@@ -16,12 +16,12 @@ def test_paper_requires_api_keys(monkeypatch, tmp_path):
         """
 mode: paper
 exchange:
-  symbol: BTC/USDT
-  timeframe: 4h
+ symbol: BTC/USDT
+ timeframe: 4h
 strategy:
-  name: mm200_trend_v2
-  params:
-    warmup_bars: 205
+ name: mm200_trend_v2
+ params:
+  warmup_bars: 205
 """,
         encoding="utf-8",
     )
@@ -41,12 +41,12 @@ def test_paper_accepts_api_keys(monkeypatch, tmp_path):
         """
 mode: paper
 exchange:
-  symbol: BTC/USDT
-  timeframe: 4h
+ symbol: BTC/USDT
+ timeframe: 4h
 strategy:
-  name: mm200_trend_v2
-  params:
-    warmup_bars: 205
+ name: mm200_trend_v2
+ params:
+  warmup_bars: 205
 database_url: postgresql://invalid:5432/nodb
 """,
         encoding="utf-8",

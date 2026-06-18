@@ -1,40 +1,40 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
-name = "atlas-quant"
-version = "0.1.0"
-description = "ATLAS QUANT — modular crypto trading system (backtest → paper → live)"
+name = "quantum-trend"
+version = "0.2.0"
+description = "Quantum-Trend — terminal quantitativo com backtest, paper e live trading"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "ccxt>=4.4.0",
-    "click>=8.1.0",
-    "numpy>=1.26.0",
-    "pandas>=2.2.0",
-    "pyarrow>=15.0.0",
-    "psycopg2-binary>=2.9.9",
-    "pydantic>=2.6.0",
-    "pydantic-settings>=2.2.0",
-    "pyyaml>=6.0.1",
-    "python-dotenv>=1.0.0",
-    "sqlalchemy>=2.0.0",
-    "streamlit>=1.33.0",
-    "plotly>=5.20.0",
+  "ccxt>=4.4.0",
+  "click>=8.1.0",
+  "fastapi>=0.115.0",
+  "numpy>=2.0.0",
+  "pandas>=2.2.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.6.0",
+  "python-dotenv>=1.0.0",
+  "pyyaml>=6.0.0",
+  "uvicorn[standard]>=0.32.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
-    "ruff>=0.4.0",
+  "httpx>=0.28.0",
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "ruff>=0.8.0",
 ]
 
 [project.scripts]
 atlas = "atlas.cli:main"
+atlas-api = "atlas.api.main:run"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/atlas"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -43,6 +43,3 @@ pythonpath = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP"]

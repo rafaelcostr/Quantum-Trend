@@ -54,12 +54,24 @@ def compute_market_exposure(
     trades: list[dict[str, Any]],
     equity_curve: list[dict[str, Any]],
 ) -> float | None:
-    if not trades or len(equity_curve) < 2:
+    if not trades:
         return None
-    start = _parse_ts(equity_curve[0]["timestamp"])
-    end = _parse_ts(equity_curve[-1]["timestamp"])
+
+    start = end = None
+    if len(equity_curve) >= 2:
+        start = _parse_ts(str(equity_curve[0].get("timestamp", "")))
+        end = _parse_ts(str(equity_curve[-1].get("timestamp", "")))
+
     if not start or not end:
-        return None
+        entry_times = [_parse_ts(str(t.get("entry_time", ""))) for t in trades]
+        exit_times = [_parse_ts(str(t.get("exit_time", ""))) for t in trades]
+        entry_times = [t for t in entry_times if t]
+        exit_times = [t for t in exit_times if t]
+        if not entry_times or not exit_times:
+            return None
+        start = min(entry_times)
+        end = max(exit_times)
+
     total_seconds = (end - start).total_seconds()
     if total_seconds <= 0:
         return None

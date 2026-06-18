@@ -1,40 +1,42 @@
-# ATLAS LIVE — enable only after promotion_gates.md criteria are met.
 mode: live
-
 exchange:
   id: binance
   symbol: BTC/USDT
   timeframe: 4h
+  quote_asset: USDT
   demo: false
-
+  limit: 500
 strategy:
-  name: range_hunter_v1
+  name: mm200_trend_v2
   params:
-    bb_period: 20
-    bb_std: 2.0
-    rsi_period: 14
-    rsi_long_max: 38
-    adx_period: 14
-    adx_max: 25
-    sr_lookback: 100
-    sr_touch_pct: 0.01
-    stop_pct: 0.025
-
+    mm20_period: 20
+    mm200_period: 200
+    warmup_bars: 205
+    stop_below_mm200_pct: 0.02
 risk:
   initial_capital: 10000.0
-  risk_per_trade: 0.005
+  risk_per_trade: 0.01
   max_open_positions: 1
   max_daily_drawdown: 0.02
   max_weekly_drawdown: 0.05
-
+  sizing_mode: full_equity
+  max_drawdown_pct: 0.25
+  daily_loss_pct: 0.05
+  stop_loss_pct: 0.02
+  take_profit_pct: 0.04
 execution:
   fee_rate: 0.001
   slippage_rate: 0.0005
   entry_on_next_open: true
   use_exchange_stop: true
-
+  initial_capital: 10000.0
+  max_position_pct: 0.95
+data:
+  years: 3
+  cache_dir: data/cache
 runtime:
   poll_seconds: 30
   reconcile_minutes: 5
   alert_on_signal: true
   drawdown_alert_pct: 0.05
+database_url: postgresql://atlas:atlas@localhost:15432/atlas_quant

@@ -29,7 +29,7 @@ def load_report(path: str | Path) -> ReportBundle:
     strategy = str(meta.get("strategy") or path.stem.replace("_report", ""))
     return ReportBundle(
         strategy=strategy,
-        statistics=raw.get("statistics", {}),
+        statistics=raw.get("statistics", raw.get("metrics", {})),
         trades=raw.get("trades", []),
         equity_curve=raw.get("equity_curve", []),
         source_path=str(path),
@@ -45,7 +45,6 @@ def discover_reports(reports_dir: str | Path) -> list[Path]:
 
 
 def compute_expectancy(trades: list[dict[str, Any]], initial_capital: float) -> float:
-    """Expectancy as fraction of initial capital per trade."""
     if not trades or initial_capital <= 0:
         return 0.0
     pnls = [float(t.get("pnl", 0)) for t in trades]
@@ -73,9 +72,7 @@ def period_bounds(equity_curve: list[dict[str, Any]]) -> tuple[str | None, str |
     if not equity_curve:
         return None, None
     try:
-        start = equity_curve[0]["timestamp"][:10]
-        end = equity_curve[-1]["timestamp"][:10]
-        return start, end
+        return equity_curve[0]["timestamp"][:10], equity_curve[-1]["timestamp"][:10]
     except (KeyError, TypeError):
         return None, None
 

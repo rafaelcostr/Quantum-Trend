@@ -9,7 +9,11 @@ def test_range_regime_entry():
     signal = strategy.evaluate(
         Candle(
             timestamp=datetime(2024, 6, 1, tzinfo=timezone.utc),
-            open=94, high=96, low=93, close=95, volume=100,
+            open=94,
+            high=96,
+            low=93,
+            close=95,
+            volume=100,
         ),
         IndicatorSnapshot(
             timestamp=datetime(2024, 6, 1, tzinfo=timezone.utc),
@@ -31,7 +35,11 @@ def test_trend_regime_pullback_entry():
     signal = strategy.evaluate(
         Candle(
             timestamp=datetime(2024, 6, 1, tzinfo=timezone.utc),
-            open=49900, high=50300, low=49900, close=50100, volume=100,
+            open=49900,
+            high=50300,
+            low=49900,
+            close=50100,
+            volume=100,
         ),
         IndicatorSnapshot(
             timestamp=datetime(2024, 6, 1, tzinfo=timezone.utc),
@@ -53,7 +61,11 @@ def test_uncertain_regime_no_entry():
     signal = strategy.evaluate(
         Candle(
             timestamp=datetime(2024, 6, 1, tzinfo=timezone.utc),
-            open=100, high=101, low=99, close=100, volume=100,
+            open=100,
+            high=101,
+            low=99,
+            close=100,
+            volume=100,
         ),
         IndicatorSnapshot(
             timestamp=datetime(2024, 6, 1, tzinfo=timezone.utc),

@@ -8,9 +8,8 @@ import numpy as np
 
 from atlas.core.config import AtlasConfig
 from atlas.core.symbols import quote_from_symbol
-from atlas.research.backtester import BacktestResult
+from atlas.research.engine_backtest import BacktestResult
 from atlas.research.report_metadata import build_report_metadata, remove_stale_reports
-from atlas.core.symbols import parse_strategy_from_report_name, quote_from_symbol
 
 
 @dataclass
@@ -38,8 +37,7 @@ def _max_drawdown(equity: list[float]) -> float:
     for val in equity:
         peak = max(peak, val)
         if peak > 0:
-            dd = (peak - val) / peak
-            max_dd = max(max_dd, dd)
+            max_dd = max(max_dd, (peak - val) / peak)
     return max_dd
 
 
@@ -70,7 +68,6 @@ def compute_statistics(result: BacktestResult) -> PerformanceReport:
     gross_profit = sum(t.pnl for t in wins)
     gross_loss = abs(sum(t.pnl for t in losses))
     pf = gross_profit / gross_loss if gross_loss > 0 else float("inf")
-
     pnls_pct = [t.pnl_pct for t in trades]
     equity_vals = [e for _, e in result.equity_curve]
 
@@ -96,7 +93,6 @@ def compute_statistics(result: BacktestResult) -> PerformanceReport:
 
 
 def compute_buy_hold_return(df, warmup: int, initial_capital: float) -> float:
-    """Buy & hold return over the same backtest window."""
     if len(df) <= warmup:
         return 0.0
     start = float(df["close"].iloc[warmup])
@@ -116,11 +112,10 @@ def save_report(
     config_file: str | None = None,
     buy_hold_pct: float | None = None,
 ) -> Path:
-    out_dir.mkdir(parents=True, exist_ok=True)
+    from atlas.core.symbols import parse_strategy_from_report_name
 
-    strategy_name: str | None = None
-    timeframe: str | None = None
-    quote: str | None = None
+    out_dir.mkdir(parents=True, exist_ok=True)
+    strategy_name = timeframe = quote = None
     if config is not None:
         strategy_name = config.strategy.name
         timeframe = config.exchange.timeframe
@@ -130,12 +125,7 @@ def save_report(
         quote = quote or "USDT"
 
     if strategy_name and timeframe and quote and strategy_name != "unknown":
-        remove_stale_reports(
-            out_dir,
-            strategy=strategy_name,
-            timeframe=timeframe,
-            quote=quote,
-        )
+        remove_stale_reports(out_dir, strategy=strategy_name, timeframe=timeframe, quote=quote)
 
     payload: dict = {
         "statistics": report.to_dict(),
@@ -153,9 +143,7 @@ def save_report(
             }
             for t in result.trades
         ],
-        "equity_curve": [
-            {"timestamp": ts.isoformat(), "equity": eq} for ts, eq in result.equity_curve
-        ],
+        "equity_curve": [{"timestamp": ts.isoformat(), "equity": eq} for ts, eq in result.equity_curve],
     }
     if config is not None:
         payload["metadata"] = build_report_metadata(

@@ -1,0 +1,33 @@
+mode: backtest
+
+exchange:
+  id: binance
+  symbol: BTC/USDT
+  timeframe: 1h
+  demo: true
+
+strategy:
+  name: quantum_trend_pro
+  params:
+    entry_module: pullback
+    risk_profile: moderate
+    stop_atr: 1.0
+    target_atr: 2.0
+    warmup_bars: 250
+
+risk:
+  initial_capital: 10000.0
+  risk_per_trade: 0.01
+  sizing_mode: risk_based
+  max_open_positions: 5
+  max_daily_drawdown: 0.03
+  max_weekly_drawdown: 0.08
+
+execution:
+  fee_rate: 0.001
+  slippage_rate: 0.0005
+  entry_on_next_open: true
+
+data:
+  years: 0
+  cache_dir: data/cache

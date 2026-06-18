@@ -9,7 +9,7 @@ from typing import Any
 class TradeMarker:
     time: datetime
     price: float
-    side: str  # buy | sell
+    side: str
     label: str
 
 
@@ -37,12 +37,8 @@ def _parse_ts(value: Any) -> datetime | None:
 
 
 def extract_trade_markers(events: list[dict[str, Any]]) -> list[TradeMarker]:
-    """Build buy/sell markers from journal entry/exit events."""
     markers: list[TradeMarker] = []
-    chronological = sorted(
-        events,
-        key=lambda e: _parse_ts(e.get("ts")) or datetime.min,
-    )
+    chronological = sorted(events, key=lambda e: _parse_ts(e.get("ts")) or datetime.min)
     for ev in chronological:
         event = ev.get("event")
         if event not in {"entry", "exit"}:
@@ -66,11 +62,7 @@ def compute_performance(
     initial_capital: float,
     current_equity: float | None = None,
 ) -> PerformanceSnapshot:
-    """Equity curve + drawdown from journal tick snapshots and trades."""
-    chronological = sorted(
-        events,
-        key=lambda e: _parse_ts(e.get("ts")) or datetime.min,
-    )
+    chronological = sorted(events, key=lambda e: _parse_ts(e.get("ts")) or datetime.min)
 
     curve: list[dict[str, Any]] = []
     peak = initial_capital
@@ -99,9 +91,7 @@ def compute_performance(
             max_dd = max(max_dd, dd)
             curve.append({"ts": now, "equity": current_equity})
 
-    final_equity = current_equity if current_equity is not None else (
-        curve[-1]["equity"] if curve else initial_capital
-    )
+    final_equity = current_equity if current_equity is not None else (curve[-1]["equity"] if curve else initial_capital)
     net_pnl = final_equity - initial_capital
     net_pnl_pct = net_pnl / initial_capital if initial_capital else 0.0
 

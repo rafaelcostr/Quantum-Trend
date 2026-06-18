@@ -4,12 +4,7 @@ from atlas.core.models import Candle, IndicatorSnapshot, Position, Signal, Signa
 
 
 class RegimeSwitchingV1:
-    """
-    Regime-aware strategy for BTC 4H:
-    - RANGE (ADX < range_adx_max): mean reversion at support + BB lower (Range Hunter v2)
-    - TREND UP (ADX > trend_adx_min, close > MM200): pullback to MM20 / BB mid
-    - UNCERTAIN: no new entries
-    """
+    """Regime-aware: range mean-reversion vs trend pullback."""
 
     name = "regime_switching_v1"
 
@@ -70,23 +65,16 @@ class RegimeSwitchingV1:
             for v in (indicators.bb_lower, indicators.bb_mid, indicators.rsi, indicators.adx)
         ):
             return Signal(action=SignalAction.HOLD, reason="indicators not ready")
-
         if candle.close >= indicators.bb_lower:
             return Signal(action=SignalAction.HOLD, reason="price above lower band")
-
         if indicators.rsi >= self.rsi_long_max:
             return Signal(action=SignalAction.HOLD, reason=f"rsi not oversold ({indicators.rsi:.1f})")
-
         if self.require_above_mm200_for_range and indicators.mm200 is not None:
             if candle.close <= indicators.mm200:
                 return Signal(action=SignalAction.HOLD, reason="below mm200 — no range entry")
-
         if indicators.support is None:
             return Signal(action=SignalAction.HOLD, reason="no support confluence")
-
-        stop_price = candle.close * (1 - self.stop_pct)
-        stop_price = min(stop_price, indicators.support * 0.995)
-
+        stop_price = min(candle.close * (1 - self.stop_pct), indicators.support * 0.995)
         return Signal(
             action=SignalAction.ENTER_LONG,
             reason="range: bb lower + rsi + support",
@@ -101,13 +89,10 @@ class RegimeSwitchingV1:
             for v in (indicators.mm20, indicators.mm200, indicators.rsi, indicators.adx, indicators.atr)
         ):
             return Signal(action=SignalAction.HOLD, reason="indicators not ready")
-
         if candle.close <= indicators.mm200:
             return Signal(action=SignalAction.HOLD, reason="below mm200")
-
         if not (self.rsi_pullback_min <= indicators.rsi <= self.rsi_pullback_max):
             return Signal(action=SignalAction.HOLD, reason=f"rsi out of pullback band ({indicators.rsi:.1f})")
-
         touched_mm20 = candle.low <= indicators.mm20 * (1 + self.pullback_mm20_pct)
         touched_bb_mid = (
             indicators.bb_mid is not None
@@ -116,26 +101,17 @@ class RegimeSwitchingV1:
         )
         if not (touched_mm20 or touched_bb_mid):
             return Signal(action=SignalAction.HOLD, reason="no pullback to mm20/bb mid")
-
-        # Bounce confirmation: closed back above MM20 after touching it
         if touched_mm20 and candle.close < indicators.mm20:
             return Signal(action=SignalAction.HOLD, reason="no bounce above mm20")
-
         if candle.close <= candle.open:
             return Signal(action=SignalAction.HOLD, reason="not a bullish candle")
-
-        stop_price = min(
-            indicators.mm20 * (1 - self.stop_pct),
-            candle.close - 2 * indicators.atr,
-        )
+        stop_price = min(indicators.mm20 * (1 - self.stop_pct), candle.close - 2 * indicators.atr)
         risk = candle.close - stop_price
         if risk <= 0:
             return Signal(action=SignalAction.HOLD, reason="invalid stop distance")
-
         target_price = candle.close + risk * self.risk_reward
         if indicators.resistance is not None and indicators.resistance > candle.close:
             target_price = min(target_price, indicators.resistance)
-
         return Signal(
             action=SignalAction.ENTER_LONG,
             reason="trend: pullback to mm20/bb mid above mm200",
@@ -152,13 +128,10 @@ class RegimeSwitchingV1:
     ) -> Signal:
         if position.stop_price and candle.low <= position.stop_price:
             return Signal(action=SignalAction.EXIT_LONG, reason="stop loss hit")
-
         if position.target_price and candle.high >= position.target_price:
             return Signal(action=SignalAction.EXIT_LONG, reason="take profit hit")
-
         if indicators.mm200 is not None and candle.close < indicators.mm200:
             return Signal(action=SignalAction.EXIT_LONG, reason="close below mm200")
-
         if (
             indicators.mm20 is not None
             and indicators.adx is not None
@@ -166,10 +139,8 @@ class RegimeSwitchingV1:
             and candle.close < indicators.mm20
         ):
             return Signal(action=SignalAction.EXIT_LONG, reason="trend broken below mm20")
-
         if indicators.adx is not None and indicators.adx > self.trend_adx_min + 15:
             return Signal(action=SignalAction.EXIT_LONG, reason="adx extreme — take profit")
-
         return Signal(action=SignalAction.HOLD, reason="holding long")
 
 

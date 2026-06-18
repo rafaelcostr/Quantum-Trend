@@ -4,10 +4,7 @@ from atlas.core.models import Candle, IndicatorSnapshot, Position, Signal, Signa
 
 
 class RangeHunterV1:
-    """
-    Mean-reversion long-only strategy for ranging markets.
-    BB lower touch + RSI oversold + ADX range filter + optional S/R confluence.
-    """
+    """Mean-reversion long-only for ranging markets."""
 
     name = "range_hunter_v1"
 

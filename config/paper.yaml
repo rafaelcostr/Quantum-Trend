@@ -3,24 +3,26 @@ mode: paper
 exchange:
   id: binance
   symbol: BTC/USDT
-  timeframe: 4h
+  timeframe: 1h
   demo: true
+  limit: 500
 
 strategy:
-  name: mm200_trend_v2
+  name: quantum_trend_pro
   params:
-    mm20_period: 20
-    mm200_period: 200
-    warmup_bars: 205
-    stop_below_mm200_pct: 0.02
+    entry_module: auto
+    risk_profile: moderate
+    stop_atr: 1.0
+    target_atr: 2.0
+    warmup_bars: 250
 
 risk:
   initial_capital: 10000.0
   risk_per_trade: 0.01
-  sizing_mode: full_equity
-  max_open_positions: 1
-  max_daily_drawdown: 0.10
-  max_weekly_drawdown: 0.20
+  sizing_mode: risk_based
+  max_open_positions: 5
+  max_daily_drawdown: 0.03
+  max_weekly_drawdown: 0.08
 
 execution:
   fee_rate: 0.001
@@ -28,7 +30,9 @@ execution:
   entry_on_next_open: true
 
 runtime:
-  poll_seconds: 120
+  poll_seconds: 60
   reconcile_minutes: 15
   alert_on_signal: true
   drawdown_alert_pct: 0.10
+
+database_url: postgresql://atlas:atlas@localhost:15432/atlas_quant

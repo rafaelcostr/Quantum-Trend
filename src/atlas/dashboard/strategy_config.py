@@ -1,4 +1,4 @@
-"""Config operacional do dashboard — estrategia, par e timeframe."""
+"""Config operacional — estrategia, par e timeframe."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,12 +6,11 @@ from pathlib import Path
 import yaml
 
 from atlas.core.config import AtlasConfig, load_config
+from atlas.core.symbols import QUOTE_ASSETS, quote_from_symbol
 from atlas.strategies.registry import STRATEGY_BUILDERS
 
-from atlas.core.symbols import QUOTE_ASSETS, quote_from_symbol, report_name_stem
-
 ACTIVE_CONFIG_REL = "data/runtime/active_paper.yaml"
-TIMEFRAMES = ("4h", "1d")
+TIMEFRAMES = ("1h", "4h", "1d")
 
 
 def _config_dir(project_root: Path) -> Path:
@@ -19,7 +18,6 @@ def _config_dir(project_root: Path) -> Path:
 
 
 def discover_strategy_configs(project_root: Path) -> dict[str, Path]:
-    """Mapeia nome da estrategia -> arquivo backtest*.yaml."""
     mapping: dict[str, Path] = {}
     for path in sorted(_config_dir(project_root).glob("backtest*.yaml")):
         try:
@@ -45,7 +43,6 @@ def build_operational_config(
     timeframe: str = "4h",
     base_config_rel: str = "config/paper.yaml",
 ) -> AtlasConfig:
-    """Monta config paper com estrategia/par/timeframe escolhidos no dashboard."""
     base = load_config(project_root / base_config_rel)
     strategy_map = discover_strategy_configs(project_root)
 
@@ -63,7 +60,7 @@ def build_operational_config(
 
     tf = timeframe.lower()
     if tf not in TIMEFRAMES:
-        raise ValueError(f"Timeframe invalido: {tf}. Use 4h ou 1d.")
+        raise ValueError(f"Timeframe invalido: {tf}. Use 1h, 4h ou 1d.")
 
     base.exchange.symbol = f"BTC/{quote}"
     base.exchange.timeframe = tf
@@ -77,16 +74,3 @@ def save_config_yaml(path: Path, config: AtlasConfig) -> Path:
     with path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
     return path
-
-
-def save_active_config(project_root: Path, config: AtlasConfig) -> str:
-    rel = ACTIVE_CONFIG_REL
-    save_config_yaml(project_root / rel, config)
-    return rel
-
-
-def load_active_config(project_root: Path, base_config_rel: str = "config/paper.yaml") -> AtlasConfig:
-    active = project_root / ACTIVE_CONFIG_REL
-    if active.is_file():
-        return load_config(active)
-    return load_config(project_root / base_config_rel)

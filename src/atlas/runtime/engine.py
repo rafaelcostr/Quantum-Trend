@@ -9,7 +9,7 @@ import pandas as pd
 
 from atlas.brokers.binance import BinanceDemoBroker, BinanceLiveBroker
 from atlas.core.config import AtlasConfig
-from atlas.core.indicators import add_indicators, row_to_indicator_snapshot
+from atlas.core.indicators import add_indicators_from_params, row_to_indicator_snapshot
 from atlas.core.models import (
     Candle,
     IndicatorSnapshot,
@@ -23,13 +23,17 @@ from atlas.core.models import (
 from atlas.core.risk import RiskManager
 from atlas.monitoring.alerts import TelegramAlerts
 from atlas.monitoring.watchdog import AlertWatchdog
+from atlas.quantum.journal_enricher import build_trade_journal_payload
+from atlas.quantum.multi_timeframe import build_execution_dataset
+from atlas.quantum.runtime_store import update_runtime_snapshot
 from atlas.runtime.journal import Journal
 from atlas.runtime.reconciler import PositionReconciler
+from atlas.runtime.risk_store import is_trading_paused, record_trade_close, record_trade_open
 from atlas.strategies.registry import build_strategy_from_config
 
 
 class TradingEngine:
-    """Shared live/paper evaluation loop."""
+    """Loop paper/live compartilhado — reconciliação, risco e watchdog."""
 
     def __init__(self, config: AtlasConfig) -> None:
         self.config = config
@@ -38,7 +42,10 @@ class TradingEngine:
 
         params = config.strategy.params
         self.strategy = build_strategy_from_config(config.strategy.name, params)
+        self.multi_timeframe = getattr(self.strategy, "uses_multi_timeframe", False)
         self.risk = RiskManager(config.risk)
+        if os.getenv("ATLAS_KILL_SWITCH", "0").strip() in {"1", "true", "yes"}:
+            self.risk.activate_kill_switch("env")
         self.journal = Journal(config.database_url, config.mode)
         self.alerts = TelegramAlerts()
         self.watchdog = AlertWatchdog(
@@ -46,7 +53,7 @@ class TradingEngine:
             alert_on_signal=config.runtime.alert_on_signal,
             drawdown_alert_pct=config.runtime.drawdown_alert_pct,
         )
-        self.warmup = int(params.get("warmup_bars", 205))
+        self.warmup = int(params.get("warmup_bars", 250 if self.multi_timeframe else 205))
 
         if config.mode == TradingMode.LIVE:
             self.broker = BinanceLiveBroker(config.exchange.symbol)
@@ -58,8 +65,18 @@ class TradingEngine:
             broker=self.broker,
             symbol=config.exchange.symbol,
         )
-        self._position, self._reconcile_meta = self._reconciler.reconcile_on_startup()
+        from atlas.platform.orchestrator import platform_orchestrator
+
+        self._position, self._reconcile_meta = platform_orchestrator.startup_recovery(
+            self._reconciler,
+            symbol=config.exchange.symbol,
+            strategy=config.strategy.name,
+        )
         self._last_reconcile = time.monotonic()
+        self.last_tick_at: datetime | None = None
+        self.last_error: str | None = None
+        self.ticks = 0
+        self._last_context = None
 
     @staticmethod
     def _require_api_credentials(mode: TradingMode) -> None:
@@ -67,25 +84,18 @@ class TradingEngine:
             key = os.getenv("BINANCE_DEMO_API_KEY", "").strip()
             secret = os.getenv("BINANCE_DEMO_API_SECRET", "").strip()
             label = "BINANCE_DEMO_API_KEY / BINANCE_DEMO_API_SECRET"
-            help_url = "https://demo.binance.com"
         else:
             key = os.getenv("BINANCE_LIVE_API_KEY", "").strip()
             secret = os.getenv("BINANCE_LIVE_API_SECRET", "").strip()
             label = "BINANCE_LIVE_API_KEY / BINANCE_LIVE_API_SECRET"
-            help_url = "https://www.binance.com"
-
         if key and secret:
             return
-
         env_hint = (
-            "Copy .env.example to .env and fill in your keys."
+            "Copie .env.example para .env e preencha as chaves."
             if not (Path.cwd() / ".env").is_file()
-            else f"Keys in .env are empty — set {label}."
+            else f"Chaves vazias — configure {label}."
         )
-        raise RuntimeError(
-            f"API keys missing for {mode.value} mode. {env_hint} "
-            f"Demo keys: {help_url}"
-        )
+        raise RuntimeError(f"API keys missing for {mode.value} mode. {env_hint}")
 
     def _build_indicators(self, candles: list[Candle]) -> pd.DataFrame:
         df = pd.DataFrame(
@@ -98,22 +108,17 @@ class TradingEngine:
             },
             index=pd.DatetimeIndex([c.timestamp for c in candles]),
         )
-        params = self.config.strategy.params
-        return add_indicators(
-            df,
-            bb_period=int(params.get("bb_period", 20)),
-            bb_std=float(params.get("bb_std", 2.0)),
-            rsi_period=int(params.get("rsi_period", 14)),
-            adx_period=int(params.get("adx_period", 14)),
-            sr_lookback=int(params.get("sr_lookback", 100)),
-            sr_touch_pct=float(params.get("sr_touch_pct", 0.01)),
-            mm_periods=[
-                int(params.get("mm20_period", 20)),
-                int(params.get("mm200_period", 200)),
-            ],
-            include_daily_macro=bool(params.get("include_daily_macro", False)),
-            daily_mm_period=int(params.get("daily_mm_period", 200)),
+        return add_indicators_from_params(df, self.config.strategy.params)
+
+    def _execution_dataframe(self) -> pd.DataFrame:
+        if self.multi_timeframe:
+            return build_execution_dataset(self.config)
+        candles = self.broker.fetch_candles(
+            self.config.exchange.symbol,
+            self.config.exchange.timeframe,
+            limit=500,
         )
+        return self._build_indicators(candles)
 
     def _snapshot(self, ind_df: pd.DataFrame, idx: int, candles: list[Candle]) -> IndicatorSnapshot:
         snap = row_to_indicator_snapshot(ind_df.iloc[idx])
@@ -123,86 +128,131 @@ class TradingEngine:
             snap["prev_close"] = float(candles[idx - 1].close)
         return IndicatorSnapshot(timestamp=candles[idx].timestamp, **snap)
 
-    def process_once(self) -> dict:
-        """Evaluate latest closed candle and optionally trade."""
-        candles = self.broker.fetch_candles(
-            self.config.exchange.symbol,
-            self.config.exchange.timeframe,
-            limit=500,
+    def _evaluate_signal(self, ind_df: pd.DataFrame, idx: int, candle: Candle, position: Position | None):
+        row = ind_df.iloc[idx]
+        if self.multi_timeframe and hasattr(self.strategy, "evaluate_context"):
+            ctx = self.strategy.build_context(row, candle)
+            self._last_context = ctx
+            signal = self.strategy.evaluate_context(ctx, position)
+            update_runtime_snapshot(
+                alignment_score=ctx.alignment_score,
+                alignment_breakdown=ctx.alignment_breakdown,
+                regime=ctx.regime.value,
+                regime_label=ctx.meta.get("regime_label"),
+                bot_phase="operando" if position else "demo",
+                last_signal=signal.action.value,
+                last_reason=signal.reason,
+                strategy=self.strategy.name,
+            )
+            return signal, ctx
+        indicators = self._snapshot(ind_df, idx, [candle])
+        return self.strategy.evaluate(candle, indicators, position), None
+
+    def _log_trade(self, event: str, signal, candle: Candle, *, ctx=None, fill=None, position=None) -> None:
+        payload = build_trade_journal_payload(
+            event=event,
+            signal=signal,
+            candle=candle,
+            ctx=ctx,
+            position=position,
         )
-        if len(candles) < self.warmup + 2:
-            return {"status": "warming_up", "candles": len(candles)}
+        if fill is not None:
+            payload["fill"] = fill
+        self.journal.log(event, self.config.exchange.symbol, **payload)
 
-        ind_df = self._build_indicators(candles)
-        idx = len(candles) - 2  # last fully closed candle
-        candle = candles[idx]
-        indicators = self._snapshot(ind_df, idx, candles)
+    def process_once(self) -> dict:
+        from atlas.platform.orchestrator import platform_orchestrator
+
+        self.ticks += 1
+        self.last_tick_at = datetime.now(timezone.utc)
+        ind_df = self._execution_dataframe()
+        if len(ind_df) < self.warmup + 2:
+            update_runtime_snapshot(bot_phase="analisando", strategy=self.strategy.name)
+            return {"status": "warming_up", "candles": len(ind_df)}
+
+        dq = platform_orchestrator.assess_tick_data(self, ind_df)
+        can_trade, gate_reason = platform_orchestrator.gate_operations(self, data_ok=dq.get("ok", True))
+
+        idx = len(ind_df) - 2
+        row = ind_df.iloc[idx]
+        ts = ind_df.index[idx]
+        candle = Candle(
+            timestamp=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
+            open=float(row["open"]),
+            high=float(row["high"]),
+            low=float(row["low"]),
+            close=float(row["close"]),
+            volume=float(row.get("volume", 0)),
+        )
         position = self._position
-
-        signal = self.strategy.evaluate(candle, indicators, position)
+        signal, ctx = self._evaluate_signal(ind_df, idx, candle, position)
         result = {"status": "ok", "signal": signal.action.value, "reason": signal.reason}
 
         try:
             cash = self.broker.get_balance()
         except Exception as exc:
             cash = self.config.risk.initial_capital
-            result["balance_warning"] = (
-                f"Saldo demo indisponível ({exc}). "
-                "Usando capital simulado para avaliar sinal; ordens reais não serão enviadas."
-            )
+            result["balance_warning"] = str(exc)
+
         mark = candle.close
         equity = cash + (position.quantity * mark if position else 0)
         portfolio = PortfolioState(cash=cash, equity=equity, position=position)
         result["equity"] = equity
-        result["usdt_free"] = cash
-        result["btc_qty"] = position.quantity if position else 0.0
-        result["mark_price"] = mark
-
-        trade_executed = False
 
         if signal.action == SignalAction.EXIT_LONG and position:
-            order = Order(
-                symbol=self.config.exchange.symbol,
-                side=Side.SELL,
-                quantity=position.quantity,
-            )
-            fill = self.broker.place_order(order)
-            self.journal.log("exit", self.config.exchange.symbol, signal=signal.reason, fill=fill.model_dump())
-            self.alerts.trade_exit(
-                self.config.exchange.symbol,
-                fill.filled_price or mark,
-                position.quantity,
-                signal.reason,
-                self.config.mode.value,
-            )
-            self._position = None
-            result["action"] = "exit"
-            trade_executed = True
+            if not can_trade:
+                result["action"] = "blocked"
+                result["block_reason"] = gate_reason
+                platform_orchestrator.post_signal(self, signal=signal, ctx=ctx, outcome=result, candle=candle)
+                return result
+            decision = self.risk.approve_exit(signal, portfolio)
+            if decision.approved:
+                order = Order(symbol=self.config.exchange.symbol, side=Side.SELL, quantity=position.quantity)
+                fill = self.broker.place_order(order)
+                pnl = (fill.filled_price or mark - position.entry_price) * position.quantity if fill.success else 0
+                self._log_trade("exit", signal, candle, ctx=ctx, fill=fill.model_dump(), position=position)
+                if fill.success:
+                    record_trade_close(pnl=pnl)
+                self.alerts.trade_exit(
+                    self.config.exchange.symbol,
+                    position.entry_price,
+                    fill.filled_price or mark,
+                    position.quantity,
+                    signal.reason,
+                    self.config.mode.value,
+                )
+                self._position = None
+                result["action"] = "exit"
             alert_meta = self.watchdog.process(
                 symbol=self.config.exchange.symbol,
                 mode=self.config.mode.value,
                 signal=signal.action.value,
                 reason=signal.reason,
                 equity=equity,
-                trade_executed=True,
+                trade_executed=result.get("action") == "exit",
             )
             result.update(alert_meta)
+            platform_orchestrator.post_signal(self, signal=signal, ctx=ctx, outcome=result, candle=candle)
             return result
-
-        if signal.action == SignalAction.ENTER_LONG and position is None:
+            if not can_trade:
+                result["action"] = "blocked"
+                result["block_reason"] = gate_reason
+                platform_orchestrator.post_signal(self, signal=signal, ctx=ctx, outcome=result, candle=candle)
+                return result
+            ok_filter, filter_reason = platform_orchestrator.check_entry_filters(self, ind_df, idx)
+            if not ok_filter:
+                result["action"] = "blocked"
+                result["block_reason"] = filter_reason
+                platform_orchestrator.post_signal(self, signal=signal, ctx=ctx, outcome=result, candle=candle)
+                return result
+            paused, pause_reason = is_trading_paused()
+            if paused:
+                result["action"] = "paused"
+                result["block_reason"] = pause_reason
+                return result
             if "balance_warning" in result:
                 result["action"] = "skipped_no_balance"
-                alert_meta = self.watchdog.process(
-                    symbol=self.config.exchange.symbol,
-                    mode=self.config.mode.value,
-                    signal=signal.action.value,
-                    reason=signal.reason,
-                    equity=equity,
-                    trade_executed=False,
-                )
-                result.update(alert_meta)
                 return result
-
             decision = self.risk.approve_entry(signal, portfolio, candle.timestamp, candle.close)
             if decision.approved:
                 order = Order(
@@ -223,15 +273,8 @@ class TradingEngine:
                         target_price=signal.target_price,
                         metadata=signal.metadata,
                     )
-                    self.journal.log(
-                        "entry",
-                        self.config.exchange.symbol,
-                        signal=signal.reason,
-                        fill=fill.model_dump(),
-                        metadata=signal.metadata,
-                        stop_price=signal.stop_price,
-                        target_price=signal.target_price,
-                    )
+                    self._log_trade("entry", signal, candle, ctx=ctx, fill=fill.model_dump())
+                    record_trade_open()
                     self.alerts.trade_entry(
                         self.config.exchange.symbol,
                         fill.filled_price or candle.close,
@@ -240,7 +283,6 @@ class TradingEngine:
                         self.config.mode.value,
                     )
                     result["action"] = "entry"
-                    trade_executed = True
                 else:
                     result["action"] = "entry_failed"
                     result["error"] = fill.message
@@ -254,9 +296,10 @@ class TradingEngine:
             signal=signal.action.value,
             reason=signal.reason,
             equity=equity,
-            trade_executed=trade_executed,
+            trade_executed=result.get("action") in {"entry", "exit"},
         )
         result.update(alert_meta)
+        platform_orchestrator.post_signal(self, signal=signal, ctx=ctx, outcome=result, candle=candle)
         return result
 
     def run_forever(self) -> None:
@@ -265,25 +308,10 @@ class TradingEngine:
             self.config.exchange.symbol,
             strategy=self.strategy.name,
             reconcile=self._reconcile_meta,
-            restored_position=self._position.model_dump(mode="json") if self._position else None,
+            multi_timeframe=self.multi_timeframe,
         )
-        if self.alerts.enabled:
-            pos_txt = (
-                f"Posição restaurada: {self._position.quantity:.6f} BTC"
-                if self._position
-                else "Posição: flat"
-            )
-            self.alerts.send(
-                f"🚀 ATLAS {self.config.mode.value.upper()} iniciado\n"
-                f"Estratégia: {self.strategy.name}\n"
-                f"Par: {self.config.exchange.symbol} {self.config.exchange.timeframe}\n"
-                f"{pos_txt}\n"
-                f"Alertas sinal: {'ON' if self.config.runtime.alert_on_signal else 'OFF'}\n"
-                f"Alerta DD: {self.config.runtime.drawdown_alert_pct:.0%}"
-            )
         try:
-            cash = self.broker.get_balance()
-            self.watchdog.reset_peak(cash)
+            self.watchdog.reset_peak(self.broker.get_balance())
         except Exception:
             self.watchdog.reset_peak(self.config.risk.initial_capital)
         poll = self.config.runtime.poll_seconds
@@ -292,17 +320,13 @@ class TradingEngine:
             try:
                 if time.monotonic() - self._last_reconcile >= reconcile_secs:
                     self._position, periodic_meta = self._reconciler.reconcile_periodic(self._position)
-                    if periodic_meta.get("action") not in (None, "ok"):
-                        self.journal.log(
-                            "reconcile",
-                            self.config.exchange.symbol,
-                            **periodic_meta,
-                            position=self._position.model_dump(mode="json") if self._position else None,
-                        )
                     self._last_reconcile = time.monotonic()
+                    if periodic_meta.get("action") not in (None, "ok"):
+                        self.journal.log("reconcile", self.config.exchange.symbol, **periodic_meta)
                 outcome = self.process_once()
                 self.journal.log("tick", self.config.exchange.symbol, **outcome)
             except Exception as exc:
+                self.last_error = str(exc)
                 self.journal.log("error", self.config.exchange.symbol, error=str(exc))
                 self.alerts.error(self.config.exchange.symbol, str(exc), self.config.mode.value)
             time.sleep(poll)

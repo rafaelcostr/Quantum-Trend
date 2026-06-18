@@ -4,10 +4,7 @@ from atlas.core.models import Candle, IndicatorSnapshot, Position, Signal, Signa
 
 
 class MM200TrendV1:
-    """
-    Buy & Hold enhancer — long when close > MM200, flat when close < MM200.
-    Minimal trend filter to avoid holding through deep bear phases.
-    """
+    """Long when close > MM200, flat when close < MM200."""
 
     name = "mm200_trend_v1"
 
@@ -34,7 +31,6 @@ class MM200TrendV1:
                 action=SignalAction.ENTER_LONG,
                 reason="close above mm200",
                 stop_price=stop_price,
-                target_price=None,
                 metadata={"regime": "bull"},
             )
 
@@ -42,6 +38,4 @@ class MM200TrendV1:
 
 
 def build_mm200_trend_v1(params: dict) -> MM200TrendV1:
-    return MM200TrendV1(
-        stop_below_mm200_pct=float(params.get("stop_below_mm200_pct", 0.02)),
-    )
+    return MM200TrendV1(stop_below_mm200_pct=float(params.get("stop_below_mm200_pct", 0.02)))

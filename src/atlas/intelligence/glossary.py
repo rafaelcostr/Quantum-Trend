@@ -4,7 +4,7 @@ from typing import Callable
 
 from atlas.intelligence.models import MetricReading
 
-StatusFn = Callable[[float | None], tuple[str, str, str]]  # status, emoji, text
+StatusFn = Callable[[float | None], tuple[str, str, str]]
 
 
 def _band(

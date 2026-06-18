@@ -6,10 +6,7 @@ from atlas.strategies.range_hunter_v2 import RangeHunterV2
 
 
 class PortfolioMacroMicroV1:
-    """
-    Portfolio: daily macro gate + micro range trades (30%) + macro MM200 crossover (70%).
-    Only one position at a time; micro has priority when both signal.
-    """
+    """Daily macro gate + micro range (30%) + macro MM200 (70%)."""
 
     name = "portfolio_macro_micro_v1"
 
@@ -52,20 +49,12 @@ class PortfolioMacroMicroV1:
 
         micro = self.range.evaluate(candle, indicators, None)
         if micro.action == SignalAction.ENTER_LONG:
-            micro.metadata = {
-                **micro.metadata,
-                "sleeve": "micro",
-                "allocation_pct": self.micro_allocation,
-            }
+            micro.metadata = {**micro.metadata, "sleeve": "micro", "allocation_pct": self.micro_allocation}
             return micro
 
         macro = self.macro.evaluate(candle, indicators, None)
         if macro.action == SignalAction.ENTER_LONG:
-            macro.metadata = {
-                **macro.metadata,
-                "sleeve": "macro",
-                "allocation_pct": self.macro_allocation,
-            }
+            macro.metadata = {**macro.metadata, "sleeve": "macro", "allocation_pct": self.macro_allocation}
             return macro
 
         return Signal(action=SignalAction.HOLD, reason="no micro or macro setup")

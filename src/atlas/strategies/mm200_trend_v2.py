@@ -4,7 +4,7 @@ from atlas.core.models import Candle, IndicatorSnapshot, Position, Signal, Signa
 
 
 class MM200TrendV2:
-    """MM200 crossover — enter on bullish cross, exit on bearish cross (fewer whipsaws)."""
+    """MM200 crossover — enter on bullish cross, exit on bearish cross."""
 
     name = "mm200_trend_v2"
 
@@ -44,6 +44,24 @@ class MM200TrendV2:
 
 
 def build_mm200_trend_v2(params: dict) -> MM200TrendV2:
-    return MM200TrendV2(
-        stop_below_mm200_pct=float(params.get("stop_below_mm200_pct", 0.02)),
-    )
+    return MM200TrendV2(stop_below_mm200_pct=float(params.get("stop_below_mm200_pct", 0.02)))
+
+
+STRATEGY_LABELS = {
+    "mm200_trend_v2": "MM200 Trend v2",
+    "mm200_trend_v1": "MM200 Trend v1",
+    "range_hunter_v1": "Range Hunter v1",
+    "range_hunter_v2": "Range Hunter v2",
+    "bb_squeeze_v1": "BB Squeeze v1",
+    "regime_switching_v1": "Regime Switching v1",
+    "mm200_daily_macro_v1": "MM200 Daily Macro v1",
+    "portfolio_macro_micro_v1": "Portfolio Macro/Micro v1",
+    "pullback_ema20_v1": "Pullback EMA20 v1",
+    "breakout_high20_v1": "Breakout High20 v1",
+    "supertrend_mm200_v1": "Supertrend + EMA200 v1",
+    "quantum_trend_pro": "QuantumTrend Pro",
+}
+
+
+def strategy_display_name(name: str) -> str:
+    return STRATEGY_LABELS.get(name, name.replace("_", " ").title())

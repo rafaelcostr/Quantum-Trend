@@ -11,8 +11,8 @@ from atlas.intelligence.level3_metrics import (
     compute_skewness_kurtosis,
     compute_ulcer_index,
 )
+from atlas.intelligence.metrics import load_report
 from atlas.intelligence.monte_carlo import monte_carlo_bootstrap
-from atlas.intelligence.metrics import ReportBundle, load_report
 from atlas.intelligence.report import render_ai_report
 
 

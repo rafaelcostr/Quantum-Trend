@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 
-from atlas.brokers.base import Broker
-from atlas.core.config import ExecutionConfig
-from atlas.core.models import Candle, Order, OrderResult, Position, Side
+from atlas.core.models import Candle, ExecutionConfig, Order, OrderResult, Position, Side
 
 
 @dataclass
 class SimulatedBroker:
-    """Event-driven fill simulation for backtesting."""
-
     symbol: str
     execution: ExecutionConfig
     candles: list[Candle] = field(default_factory=list)
@@ -23,17 +18,6 @@ class SimulatedBroker:
     def set_candles(self, candles: list[Candle]) -> None:
         self.candles = candles
         self._cursor = 0
-
-    def advance(self) -> Candle | None:
-        if self._cursor >= len(self.candles):
-            return None
-        candle = self.candles[self._cursor]
-        self._cursor += 1
-        return candle
-
-    @property
-    def current_index(self) -> int:
-        return self._cursor
 
     def fetch_candles(self, symbol: str, timeframe: str, limit: int = 500) -> list[Candle]:
         end = self._cursor
@@ -72,12 +56,10 @@ class SimulatedBroker:
     def place_order(self, order: Order) -> OrderResult:
         if not self.candles or self._cursor == 0:
             return OrderResult(success=False, message="no candle context")
-
         candle = self.candles[self._cursor - 1]
         price = self._apply_slippage(candle.close, order.side)
         notional = price * order.quantity
         fee = self._fee(notional)
-
         if order.side == Side.BUY:
             cost = notional + fee
             if cost > self.cash:
@@ -99,10 +81,8 @@ class SimulatedBroker:
                 filled_quantity=order.quantity,
                 fee=fee,
             )
-
         if self.position is None:
             return OrderResult(success=False, message="no position to close")
-
         proceeds = notional - fee
         self.cash += proceeds
         self.position = None
@@ -137,13 +117,7 @@ class SimulatedBroker:
             target_price=pending["target"],
             metadata=pending.get("metadata", {}),
         )
-        return OrderResult(
-            success=True,
-            filled_price=price,
-            filled_quantity=qty,
-            fee=fee,
-            message="filled at next open",
-        )
+        return OrderResult(success=True, filled_price=price, filled_quantity=qty, fee=fee)
 
     def cancel_order(self, order_id: str) -> bool:
         return True

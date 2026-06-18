@@ -5,7 +5,6 @@ import pytest
 from atlas.dashboard.strategy_config import build_operational_config, discover_strategy_configs, list_strategy_names
 from atlas.dashboard.trades_history_ui import trades_to_dataframe
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 

@@ -6,12 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from atlas.core.config import AtlasConfig
-from atlas.core.symbols import parse_strategy_from_report_name, quote_from_symbol, report_name_stem
-from atlas.strategies.metadata import (
-    config_file_for_strategy,
-    get_strategy_metadata,
-    position_size_label,
-)
+from atlas.core.symbols import parse_strategy_from_report_name, quote_from_symbol
+from atlas.strategies.metadata import config_file_for_strategy, get_strategy_metadata, position_size_label
 
 
 def build_report_metadata(
@@ -52,11 +48,9 @@ def remove_stale_reports(
     timeframe: str,
     quote: str,
 ) -> list[str]:
-    """Apaga relatorios antigos da mesma estrategia, timeframe e quote (inclui nomes legados)."""
     removed: list[str] = []
     if not out_dir.is_dir() or not strategy or strategy == "unknown":
         return removed
-
     quote = quote.upper()
     for path in list(out_dir.glob("*_report.json")):
         file_strategy, file_tf, file_quote = parse_strategy_from_report_name(path.stem)
@@ -64,14 +58,11 @@ def remove_stale_reports(
             continue
         if file_tf is not None and file_tf != timeframe:
             continue
-
         effective_quote = (file_quote or "USDT").upper()
         if effective_quote != quote:
             continue
-        # Relatorios legados sem quote contam como USDT
         if file_quote is None and quote != "USDT":
             continue
-
         try:
             path.unlink()
             removed.append(path.name)
@@ -81,10 +72,8 @@ def remove_stale_reports(
 
 
 def metadata_from_report_path(path: Path, raw: dict[str, Any]) -> dict[str, Any]:
-    """Metadados do JSON ou inferidos do nome do arquivo (relatorios antigos)."""
     if raw.get("metadata"):
         return dict(raw["metadata"])
-
     strategy, tf, file_quote = parse_strategy_from_report_name(path.stem)
     quote = file_quote or "USDT"
     meta = get_strategy_metadata(strategy)

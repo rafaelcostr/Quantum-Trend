@@ -4,11 +4,11 @@ import json
 from pathlib import Path
 
 from atlas.core.config import load_config
+from atlas.core.symbols import parse_strategy_from_report_name
 from atlas.intelligence.analyzer import analyze_path
 from atlas.intelligence.metrics import load_report
 from atlas.intelligence.report import render_ai_report
 from atlas.research.report_metadata import build_report_metadata, metadata_from_report_path
-from atlas.core.symbols import parse_strategy_from_report_name
 from atlas.strategies.metadata import report_display_label
 
 

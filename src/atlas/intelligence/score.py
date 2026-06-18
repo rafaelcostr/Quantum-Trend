@@ -111,7 +111,7 @@ def compute_atlas_score(
     sharpe: float | None,
     net_profit_pct: float,
     total_trades: int,
-    confidence_subscore: float,
+    confidence_subscore: float = 50.0,
 ) -> float:
     raw = (
         _subscore_dd(max_drawdown_pct) * 0.25
@@ -131,14 +131,12 @@ def build_level1_metrics(bundle: ReportBundle) -> tuple[list[MetricReading], dic
     stats = bundle.statistics
     initial = infer_initial_capital(stats, bundle.trades, bundle.equity_curve)
     expectancy = compute_expectancy(bundle.trades, initial)
-
     pf = float(stats.get("profit_factor", 0))
     dd = float(stats.get("max_drawdown_pct", 0))
     sharpe = stats.get("sharpe_ratio")
     sharpe_f = float(sharpe) if sharpe is not None else None
     ret = float(stats.get("net_profit_pct", 0))
     trades = int(stats.get("total_trades", 0))
-
     metrics = [
         metric_reading("profit_factor", "Profit Factor", pf, f"{pf:.2f}", status_profit_factor),
         metric_reading("drawdown", "Drawdown Máx.", dd, f"{dd:.1%}", status_drawdown),
@@ -147,7 +145,6 @@ def build_level1_metrics(bundle: ReportBundle) -> tuple[list[MetricReading], dic
         metric_reading("return", "Retorno Total", ret, f"{ret:.1%}", status_return),
         metric_reading("trades", "Nº Trades", trades, str(trades), status_trades),
     ]
-
     values = {
         "profit_factor": pf,
         "max_drawdown_pct": dd,

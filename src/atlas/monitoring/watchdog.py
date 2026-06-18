@@ -4,8 +4,6 @@ from atlas.monitoring.alerts import TelegramAlerts
 
 
 class AlertWatchdog:
-    """Signal-change and drawdown threshold alerts (anti-spam)."""
-
     def __init__(
         self,
         alerts: TelegramAlerts,
@@ -33,14 +31,9 @@ class AlertWatchdog:
         equity: float,
         trade_executed: bool = False,
     ) -> dict:
-        """Evaluate alerts; returns metadata for journal/tick payload."""
         meta: dict = {"drawdown_pct": 0.0}
-
         self._peak_equity = max(self._peak_equity, equity)
-        if self._peak_equity > 0:
-            drawdown = (self._peak_equity - equity) / self._peak_equity
-        else:
-            drawdown = 0.0
+        drawdown = (self._peak_equity - equity) / self._peak_equity if self._peak_equity > 0 else 0.0
         meta["drawdown_pct"] = drawdown
         meta["peak_equity"] = self._peak_equity
 
@@ -52,7 +45,6 @@ class AlertWatchdog:
         ):
             self.alerts.signal_change(symbol, signal, reason, mode)
             meta["signal_alert"] = True
-
         self._last_signal = signal
 
         threshold = self.drawdown_alert_pct
@@ -60,10 +52,7 @@ class AlertWatchdog:
             self.alerts.drawdown_alert(symbol, drawdown, equity, self._peak_equity, mode, threshold)
             self._drawdown_alert_active = True
             meta["drawdown_alert"] = True
-
-        recover_level = threshold * 0.75
-        if self._drawdown_alert_active and drawdown < recover_level:
+        if self._drawdown_alert_active and drawdown < threshold * 0.75:
             self._drawdown_alert_active = False
             meta["drawdown_recovered"] = True
-
         return meta

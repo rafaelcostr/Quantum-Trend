@@ -1,4 +1,4 @@
-"""Simbolos de mercado e nomes de relatorios — sem dependencia do dashboard."""
+"""Simbolos de mercado e nomes de relatorios."""
 from __future__ import annotations
 
 QUOTE_ASSETS = ("USDT", "USDC")
@@ -12,12 +12,10 @@ def quote_from_symbol(symbol: str, default: str = "USDT") -> str:
 
 
 def report_name_stem(strategy: str, timeframe: str, quote: str) -> str:
-    """Nome do JSON: range_hunter_v2_4h_usdt_report"""
     return f"{strategy}_{timeframe.lower()}_{quote.lower()}_report"
 
 
 def parse_strategy_from_report_name(report_stem: str) -> tuple[str, str | None, str | None]:
-    """Extrai estrategia, timeframe e quote de nomes como range_hunter_v2_4h_usdt_report."""
     name = report_stem.removesuffix("_report") if report_stem.endswith("_report") else report_stem
     quote: str | None = None
     for q in REPORT_QUOTES:

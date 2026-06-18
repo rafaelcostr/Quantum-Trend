@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from atlas.core.config import RiskConfig
-from atlas.core.models import PortfolioState, Position, Side, Signal, SignalAction
+from atlas.core.models import PortfolioState, RiskConfig, Signal, SignalAction
 
 
 @dataclass
@@ -50,12 +49,7 @@ class RiskManager:
                 return f"weekly drawdown limit ({dd:.2%})"
         return None
 
-    def position_size(
-        self,
-        equity: float,
-        entry_price: float,
-        stop_price: float,
-    ) -> float:
+    def position_size(self, equity: float, entry_price: float, stop_price: float) -> float:
         if entry_price <= 0 or stop_price <= 0:
             return 0.0
         risk_amount = equity * self.config.risk_per_trade
@@ -96,7 +90,6 @@ class RiskManager:
             qty = self.position_size(portfolio.equity, entry_price, signal.stop_price)
         if qty <= 0:
             return RiskDecision(False, "position size is zero")
-
         return RiskDecision(True, "approved", quantity=qty)
 
     def approve_exit(self, signal: Signal, portfolio: PortfolioState) -> RiskDecision:
@@ -105,3 +98,19 @@ class RiskManager:
         if portfolio.position is None:
             return RiskDecision(False, "no open position")
         return RiskDecision(True, "approved", quantity=portfolio.position.quantity)
+
+    # compat legado risk_store
+    def update_peak(self, equity: float) -> None:
+        pass
+
+    def drawdown_pct(self, equity: float) -> float:
+        return 0.0
+
+    def allows_new_entry(self, equity: float) -> bool:
+        return not self.kill_switch
+
+    def stop_price(self, entry: float) -> float:
+        return entry * (1 - self.config.stop_loss_pct)
+
+    def target_price(self, entry: float) -> float:
+        return entry * (1 + self.config.take_profit_pct)

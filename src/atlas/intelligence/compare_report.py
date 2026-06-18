@@ -5,6 +5,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
 from atlas.intelligence.analyzer import analyze_path
 from atlas.intelligence.metrics import discover_reports
 from atlas.intelligence.models import StrategyAnalysis
@@ -33,8 +34,8 @@ def render_comparison_summary(analyses: list[StrategyAnalysis], errors: list[tup
     lines: list[str] = [
         "# ATLAS QUANT — RELATÓRIO COMPARATIVO",
         "",
-        f"**Gerado em:** {now}  ",
-        f"**Total analisado:** {len(analyses)} backtest(s)  ",
+        f"**Gerado em:** {now} ",
+        f"**Total analisado:** {len(analyses)} backtest(s) ",
         "",
         "---",
         "",
@@ -109,28 +110,28 @@ def render_comparison_summary(analyses: list[StrategyAnalysis], errors: list[tup
         if rejected:
             lines.append(f"**Rejeitadas (score < 60):** {len(rejected)}")
 
-        lines.extend(["", "---", "", "## Ficha por backtest", ""])
-        for a in analyses:
-            meta = a.metadata
-            l1 = a.level1
-            raw = a.raw
-            fname = Path(str(meta.get("source_path") or "")).name or meta.get("report_name", "N/A")
-            lines.extend(
-                [
-                    f"### {_row_label(a)}",
-                    "",
-                    f"- **Arquivo:** `{fname}`",
-                    f"- **Config:** `{meta.get('config_file', 'N/A')}`",
-                    f"- **Período:** {a.period_start or '?'} → {a.period_end or '?'}",
-                    f"- **Atlas Score:** {l1.atlas_score:.0f}/100 — {l1.score_emoji} {l1.score_label}",
-                    f"- **Retorno:** {_pct(raw.get('net_profit_pct'))} · "
-                    f"**PF:** {raw.get('profit_factor', 0):.2f} · "
-                    f"**DD:** {_pct(raw.get('max_drawdown_pct'))} · "
-                    f"**Trades:** {int(raw.get('total_trades', 0))}",
-                    f"- **Resumo:** {l1.summary}",
-                    "",
-                ]
-            )
+    lines.extend(["", "---", "", "## Ficha por backtest", ""])
+    for a in analyses:
+        meta = a.metadata
+        l1 = a.level1
+        raw = a.raw
+        fname = Path(str(meta.get("source_path") or "")).name or meta.get("report_name", "N/A")
+        lines.extend(
+            [
+                f"### {_row_label(a)}",
+                "",
+                f"- **Arquivo:** `{fname}`",
+                f"- **Config:** `{meta.get('config_file', 'N/A')}`",
+                f"- **Período:** {a.period_start or '?'} → {a.period_end or '?'}",
+                f"- **Atlas Score:** {l1.atlas_score:.0f}/100 — {l1.score_emoji} {l1.score_label}",
+                f"- **Retorno:** {_pct(raw.get('net_profit_pct'))} · "
+                f"**PF:** {raw.get('profit_factor', 0):.2f} · "
+                f"**DD:** {_pct(raw.get('max_drawdown_pct'))} · "
+                f"**Trades:** {int(raw.get('total_trades', 0))}",
+                f"- **Resumo:** {l1.summary}",
+                "",
+            ]
+        )
 
     return "\n".join(lines)
 
@@ -159,7 +160,7 @@ def render_unified_ai_report(
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     preamble = f"""# ATLAS QUANT — RELATÓRIO ÚNICO · TODAS AS ESTRATÉGIAS
 
-**Gerado em:** {now}  
+**Gerado em:** {now} 
 **Backtests incluídos:** {len(analyses)}
 
 ## Como usar com IA

@@ -1,11 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from atlas.core.config import load_config
 from atlas.dashboard.actions import run_backtest_dashboard
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 

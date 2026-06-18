@@ -1,30 +1,21 @@
-mode: backtest
-
-exchange:
-  id: binance
-  symbol: BTC/USDT
-  timeframe: 4h
-
 strategy:
   name: mm200_trend_v2
   params:
-    mm20_period: 20
-    mm200_period: 200
-    warmup_bars: 205
-    stop_below_mm200_pct: 0.02
+    ma_period: 200
+    ma_fast: 20
 
-risk:
-  initial_capital: 10000.0
-  sizing_mode: full_equity
-  max_open_positions: 1
-  max_daily_drawdown: 0.10
-  max_weekly_drawdown: 0.20
+exchange:
+  symbol: BTC/USDT
+  timeframe: 4h
+  quote_asset: USDT
+  limit: 2000
 
 execution:
   fee_rate: 0.001
   slippage_rate: 0.0005
-  entry_on_next_open: true
+  initial_capital: 10000
 
-data:
-  years: 3
-  cache_dir: data/cache
+risk:
+  max_drawdown_pct: 0.25
+
+mode: backtest

@@ -130,10 +130,10 @@ def promotion_checklist_backtest_paper(
     *,
     level3_values: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    pf = values["profit_factor"]
-    dd = values["max_drawdown_pct"]
-    sharpe = values.get("sharpe_ratio")
-    trades = int(values["total_trades"])
+    from atlas.quantum.gates import merge_promotion_checklists, promotion_checklist_backtest, promotion_checklist_paper
+
+    backtest_checks = promotion_checklist_backtest(values)
+    paper_checks = promotion_checklist_paper(values)
 
     l3 = level3_values or {}
     oos_ret = l3.get("oos_return")
@@ -145,16 +145,19 @@ def promotion_checklist_backtest_paper(
             wf_value += f", PF {oos_pf:.2f}"
     else:
         wf_ok = False
-        wf_value = "Pendente — rode atlas research walkforward"
+        wf_value = "Pendente — rode walk-forward"
 
-    return [
-        {"label": "Profit Factor >= 1.3", "ok": pf >= 1.3, "value": f"{pf:.2f}"},
-        {"label": "Drawdown <= 25%", "ok": dd <= 0.25, "value": f"{dd:.1%}"},
-        {
-            "label": "Sharpe >= 1.0",
-            "ok": sharpe is not None and sharpe >= 1.0,
-            "value": f"{sharpe:.2f}" if sharpe else "N/A",
-        },
-        {"label": "Trades >= 50", "ok": trades >= 50, "value": str(trades)},
-        {"label": "Walk-forward OOS positivo", "ok": wf_ok, "value": wf_value},
+    walkforward = [
+        {"label": "Walk-forward OOS positivo", "ok": wf_ok, "value": wf_value, "stage": "research"},
     ]
+    sharpe = values.get("sharpe_ratio")
+    if sharpe is not None:
+        walkforward.append(
+            {
+                "label": "Sharpe >= 1.0 (referência)",
+                "ok": sharpe >= 1.0,
+                "value": f"{sharpe:.2f}",
+                "stage": "research",
+            }
+        )
+    return merge_promotion_checklists(backtest_checks, paper_checks, walkforward)

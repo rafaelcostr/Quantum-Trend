@@ -82,8 +82,8 @@ def render_ai_report(analysis: StrategyAnalysis) -> str:
 **Mode:** {meta.get('mode', analysis.source)}
 **Risk Model:** {meta.get('risk_model', 'N/A')}
 **Position Size:** {meta.get('position_size', 'N/A')}
-**Fee:** {_pct(meta.get('fee_rate'))}  
-**Slippage:** {_pct(meta.get('slippage_rate'))}  
+**Fee:** {_pct(meta.get('fee_rate'))}
+**Slippage:** {_pct(meta.get('slippage_rate'))}
 **Initial Capital:** ${meta.get('initial_capital', 0):,.0f}
 
 **Report File:** `{Path(str(meta.get('source_path') or '')).name or meta.get('report_name', 'N/A')}`
