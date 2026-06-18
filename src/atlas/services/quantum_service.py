@@ -146,13 +146,17 @@ def get_portfolio_payload() -> dict:
     if report and report.get("equity_curve"):
         monthly = monthly_returns_from_equity(report["equity_curve"])
 
-    return {
+    base = {
         "portfolio": portfolio.__dict__,
         "open_positions": len([e for e in entries if float(e.get("pnl", 0)) == 0]),
         "stats_30d": stats,
         "monthly_returns": monthly[-12:],
         "risk": risk.to_dict(),
     }
+
+    from atlas.services.portfolio_analytics import get_enriched_portfolio_payload
+
+    return get_enriched_portfolio_payload(base)
 
 
 def compute_drawdown_curve(equity_curve: list[dict]) -> list[dict]:

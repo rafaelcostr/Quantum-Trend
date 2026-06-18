@@ -101,7 +101,7 @@ export const api = {
     request<HealthResponse>("/health"),
   dashboard: () => request<DashboardResponse>("/dashboard", { timeoutMs: 90_000 }),
   quantumStatus: () => request<QuantumStatus>("/quantum/status", { timeoutMs: 45_000 }),
-  portfolio: () => request<PortfolioResponse>("/portfolio", { timeoutMs: 45_000 }),
+  portfolio: () => request<PortfolioResponse>("/portfolio", { timeoutMs: 90_000 }),
   markets: () => request<{ items: MarketTicker[] }>("/markets", { timeoutMs: 45_000 }),
   positions: () => request<{ items: Position[] }>("/positions", { timeoutMs: 45_000 }),
   strategies: () => request<{ items: Strategy[] }>("/strategies"),
@@ -472,6 +472,44 @@ export type PortfolioResponse = {
   stats_30d: Record<string, number>;
   monthly_returns: { month: string; return_pct: number }[];
   risk: Record<string, unknown>;
+  equity_curve?: { day: string; equity: number }[];
+  drawdown_curve?: { day: string; drawdown_pct: number }[];
+  drawdown_summary?: { current_pct: number; max_pct: number };
+  strategy_performance?: {
+    strategy_id: string;
+    label: string;
+    timeframe: string;
+    pnl_pct: number;
+    trades: number;
+    win_rate_pct: number;
+    profit_factor: number;
+    source?: string;
+  }[];
+  allocation?: { label: string; strategy_id: string; pct: number }[];
+  open_positions_detail?: {
+    asset: string;
+    strategy: string;
+    entry: number;
+    current: number;
+    pnl_pct: number;
+    pnl: number;
+    side: string;
+  }[];
+  portfolio_stats?: {
+    win_rate_pct: number;
+    profit_factor: number;
+    total_return_pct: number;
+    sharpe_ratio: number;
+    max_drawdown_pct: number;
+    total_trades: number;
+  };
+  monthly_heatmap?: { month: string; return_pct: number; tone: "good" | "bad" | "neutral" }[];
+  health?: {
+    score: number;
+    state: string;
+    tone: "success" | "warning" | "danger";
+    components: Record<string, number>;
+  };
 };
 
 export type PlatformStatus = {

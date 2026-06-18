@@ -12,8 +12,13 @@ import type {
 } from "./api";
 
 export type StrategyVisualId = "pullback" | "breakout" | "supertrend";
+export type HealthTone = "healthy" | "attention" | "degraded";
+export type CardTone = "success" | "warning" | "danger";
 
 export type FilterChip = { label: string; ok: boolean };
+
+export type TfRow = { tf: string; ok: boolean | null; label: string };
+export type SetupStep = { label: string; ok: boolean | null };
 
 export type StrategyRuntimeView = {
   key: string;
@@ -22,15 +27,37 @@ export type StrategyRuntimeView = {
   visual: StrategyVisualId;
   status: "operando" | "monitorando" | "pausado";
   alignmentScore: number;
+  healthScore: number;
+  healthTone: HealthTone;
+  healthLabel: string;
+  statusEmoji: string;
+  cardTone: CardTone;
+  confidence: number;
   regime: string;
   signal: "compra" | "venda" | "aguardando";
   lastAnalysis: string | null;
   nextCandleSec: number | null;
   filters: FilterChip[];
+  timeframes: TfRow[];
+  setupProgress: number;
+  setupSteps: SetupStep[];
   decision: string;
   sparkline: number[];
   lastReason: string | null;
   inPosition: boolean;
+};
+
+export type DecisionMotive = { text: string; ok: boolean };
+
+export type DecisionView = {
+  regime: string;
+  alignmentScore: number;
+  entryProbability: number;
+  action: string;
+  strategyLabel?: string;
+  motives: DecisionMotive[];
+  timeframes: TfRow[];
+  summary: string;
 };
 
 export type TimelineEventView = {
@@ -43,6 +70,21 @@ export type TimelineEventView = {
   tag: string;
   tone: "success" | "danger" | "warning" | "info" | "neutral";
   icon: "signal" | "entry" | "exit" | "error" | "sync" | "hold" | "blocked";
+  symbol?: string;
+  strategyLabel?: string;
+  score?: number;
+  decision?: string;
+  timeframes?: TfRow[];
+  entryProbability?: number;
+};
+
+export type HeaderMetrics = {
+  capital: number;
+  positions: number;
+  exposurePct: number;
+  latencyMs: number | null;
+  uptime: string;
+  nextTickSec: number | null;
 };
 
 const STRATEGY_VISUAL: Record<string, StrategyVisualId> = {
@@ -51,46 +93,31 @@ const STRATEGY_VISUAL: Record<string, StrategyVisualId> = {
   supertrend_mm200_v1: "supertrend",
 };
 
-const DEFAULT_CARDS: Omit<StrategyRuntimeView, "key" | "lastAnalysis" | "nextCandleSec" | "sparkline">[] = [
-  {
-    title: "Pullback EMA20",
-    subtitle: "BTC/USDT",
-    visual: "pullback",
-    status: "monitorando",
-    alignmentScore: 0,
-    regime: "—",
-    signal: "aguardando",
-    filters: [],
-    decision: "Aguardando oportunidade",
-    lastReason: null,
-    inPosition: false,
-  },
-  {
-    title: "Breakout High20",
-    subtitle: "BTC/USDT",
-    visual: "breakout",
-    status: "monitorando",
-    alignmentScore: 0,
-    regime: "—",
-    signal: "aguardando",
-    filters: [],
-    decision: "Aguardando oportunidade",
-    lastReason: null,
-    inPosition: false,
-  },
-  {
-    title: "Supertrend + EMA200",
-    subtitle: "BTC/USDT",
-    visual: "supertrend",
-    status: "monitorando",
-    alignmentScore: 0,
-    regime: "—",
-    signal: "aguardando",
-    filters: [],
-    decision: "Aguardando oportunidade",
-    lastReason: null,
-    inPosition: false,
-  },
+const MODULE_KEYS: Record<string, string> = {
+  pullback_ema20_v1: "pullback_ema20",
+  breakout_high20_v1: "breakout_high20",
+  supertrend_mm200_v1: "supertrend_mm200",
+};
+
+const DEFAULT_CARD_BASE: Omit<
+  StrategyRuntimeView,
+  "key" | "lastAnalysis" | "nextCandleSec" | "sparkline" | "alignmentScore" | "healthScore" | "healthTone" | "healthLabel" | "statusEmoji" | "cardTone" | "confidence" | "timeframes" | "setupProgress" | "setupSteps" | "regime"
+> = {
+  title: "",
+  subtitle: "BTC/USDT",
+  visual: "pullback",
+  status: "monitorando",
+  signal: "aguardando",
+  filters: [],
+  decision: "Aguardando oportunidade",
+  lastReason: null,
+  inPosition: false,
+};
+
+const DEFAULT_CARDS_META: { title: string; visual: StrategyVisualId }[] = [
+  { title: "Pullback EMA20", visual: "pullback" },
+  { title: "Breakout High20", visual: "breakout" },
+  { title: "Supertrend + EMA200", visual: "supertrend" },
 ];
 
 export function fmtTime(ts: string | null | undefined): string {
@@ -111,6 +138,17 @@ export function fmtCountdown(totalSec: number | null | undefined): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+export function fmtUptime(startedAt: string | null | undefined): string {
+  if (!startedAt) return "—";
+  const ms = Date.now() - new Date(startedAt).getTime();
+  if (ms < 0 || Number.isNaN(ms)) return "—";
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m`;
+  return "<1m";
+}
+
 export function tvInterval(timeframe: string): string {
   const tf = timeframe.toLowerCase();
   if (tf === "1d" || tf === "d") return "D";
@@ -118,6 +156,30 @@ export function tvInterval(timeframe: string): string {
   if (tf === "1h") return "60";
   if (tf === "15m") return "15";
   return "240";
+}
+
+export function healthToneFromScore(score: number): HealthTone {
+  if (score >= 85) return "healthy";
+  if (score >= 60) return "attention";
+  return "degraded";
+}
+
+export function healthLabelFromTone(tone: HealthTone): string {
+  if (tone === "healthy") return "Saudável";
+  if (tone === "attention") return "Atenção";
+  return "Degradado";
+}
+
+export function statusEmojiFromHealth(score: number): string {
+  if (score >= 85) return "🟢";
+  if (score >= 60) return "🟡";
+  return "🔴";
+}
+
+export function cardToneFromHealth(score: number): CardTone {
+  if (score >= 85) return "success";
+  if (score >= 60) return "warning";
+  return "danger";
 }
 
 export function inferRegime(
@@ -188,6 +250,101 @@ function estimateAlignment(base: number, signal: string | null | undefined, reas
   return Math.max(20, Math.min(88, score - 5));
 }
 
+export function buildTimeframeRows(
+  reason: string | null | undefined,
+  signal: string | null | undefined,
+  visual: StrategyVisualId,
+): TfRow[] {
+  const r = (reason ?? "").toLowerCase();
+  const s = (signal ?? "hold").toLowerCase();
+  const enterReady = s.includes("enter");
+
+  const d1Ok = !r.includes("below ema200") && !r.includes("no uptrend");
+  const d1Label = d1Ok ? (visual === "supertrend" ? "Bull" : "Alta") : "Abaixo EMA200";
+
+  const h4Ok = d1Ok && !r.includes("adx too low") && !r.includes("supertrend not bullish");
+  let h4Label = "Neutro";
+  if (h4Ok) h4Label = visual === "breakout" ? "Breakout zone" : "Confirmado";
+  else if (r.includes("adx too low")) h4Label = "Tendência fraca";
+
+  const h1Ok =
+    enterReady ||
+    (!r.includes("no pullback") &&
+      !r.includes("no breakout") &&
+      !r.includes("no bullish bounce") &&
+      !r.includes("not ready") &&
+      !r.includes("warming"));
+  const h1Label = enterReady ? "Gatilho" : h1Ok ? "Pronto" : "Sem entrada";
+
+  return [
+    { tf: "1D", ok: d1Ok, label: d1Label },
+    { tf: "4H", ok: h4Ok, label: h4Label },
+    { tf: "1H", ok: h1Ok, label: h1Label },
+  ];
+}
+
+export function buildSetupSteps(timeframes: TfRow[], filters: FilterChip[]): SetupStep[] {
+  const steps: SetupStep[] = [
+    { label: "1D Trend", ok: timeframes[0]?.ok ?? null },
+    { label: "4H Confirm", ok: timeframes[1]?.ok ?? null },
+    { label: "1H Trigger", ok: timeframes[2]?.ok ?? null },
+  ];
+  for (const f of filters) {
+    if (["Volume", "ADX", "Supertrend", "Breakout", "EMA20"].includes(f.label)) {
+      steps.push({ label: f.label, ok: f.ok });
+    }
+  }
+  return steps;
+}
+
+export function computeSetupProgress(steps: SetupStep[]): number {
+  const valid = steps.filter((s) => s.ok != null);
+  if (!valid.length) return 0;
+  const ok = valid.filter((s) => s.ok).length;
+  return Math.round((ok / valid.length) * 100);
+}
+
+function strategyHealthScore(
+  inst: BotInstance,
+  alignment: number,
+  filters: FilterChip[],
+  setupProgress: number,
+  quantum?: QuantumStatus,
+): number {
+  if (inst.last_error) return 22;
+  if (inst.in_position) return Math.max(85, Math.min(97, alignment + 18));
+
+  const modKey = MODULE_KEYS[inst.strategy] ?? inst.strategy.replace("_v1", "");
+  const modHealth =
+    quantum?.module_health?.[modKey] ?? quantum?.module_backtest_stats?.[modKey]?.health_score;
+
+  const passCount = filters.filter((f) => f.ok).length;
+  const filterScore = filters.length ? (passCount / filters.length) * 100 : 55;
+  const runtimeScore = inst.alive ? 82 : inst.last_tick_at ? 48 : 35;
+
+  let score: number;
+  if (modHealth != null) {
+    score = modHealth * 0.45 + setupProgress * 0.25 + runtimeScore * 0.2 + filterScore * 0.1;
+  } else {
+    score = setupProgress * 0.35 + runtimeScore * 0.35 + Math.max(alignment, 35) * 0.3;
+  }
+
+  if (inst.ticks > 20 && !inst.last_error) score += 4;
+  return Math.round(Math.max(15, Math.min(100, score)));
+}
+
+export function entryProbability(
+  alignment: number,
+  setupProgress: number,
+  signal: string | null | undefined,
+  inPosition: boolean,
+): number {
+  const s = (signal ?? "hold").toLowerCase();
+  if (inPosition) return Math.min(97, alignment + 8);
+  if (s.includes("enter")) return Math.min(97, Math.max(alignment, 72) + 10);
+  return Math.round(Math.max(8, Math.min(88, alignment * 0.38 + setupProgress * 0.52)));
+}
+
 function matchTickForInstance(instance: BotInstance, items: OperationsFeedItem[]): OperationsFeedItem | undefined {
   if (!instance.last_tick_at) return undefined;
   const target = new Date(instance.last_tick_at).getTime();
@@ -202,6 +359,15 @@ function matchTickForInstance(instance: BotInstance, items: OperationsFeedItem[]
     }
   }
   return best;
+}
+
+function matchCardForTick(tick: OperationsFeedItem, cards: StrategyRuntimeView[]): StrategyRuntimeView | undefined {
+  if (!tick.ts) return undefined;
+  const target = new Date(tick.ts).getTime();
+  return cards.find((c) => {
+    if (!c.lastAnalysis) return false;
+    return Math.abs(new Date(c.lastAnalysis).getTime() - target) < 15_000;
+  });
 }
 
 function instanceStatus(instance: BotInstance): StrategyRuntimeView["status"] {
@@ -246,6 +412,26 @@ export function buildOpsStats(
   };
 }
 
+export function buildHeaderMetrics(
+  stats: DashboardStats,
+  bot: BotStatus,
+  positions: Position[],
+  capital: number,
+  nextTickSec: number | null,
+  latencyMs: number | null,
+): HeaderMetrics {
+  const notional = positions.reduce((sum, p) => sum + Math.abs(p.entry * (p.side === "short" ? -1 : 1)), 0);
+  const exposurePct = capital > 0 ? Math.min(100, (notional / capital) * 100) : 0;
+  return {
+    capital,
+    positions: positions.length || stats.open_positions,
+    exposurePct: Math.round(exposurePct * 10) / 10,
+    latencyMs,
+    uptime: fmtUptime(bot.started_at),
+    nextTickSec,
+  };
+}
+
 export function buildStrategyCards(
   instances: BotInstance[] | undefined,
   feedItems: OperationsFeedItem[],
@@ -255,35 +441,60 @@ export function buildStrategyCards(
   sparkline: number[],
 ): StrategyRuntimeView[] {
   const baseScore = stats.alignment_score || platform?.alignment_score || quantum?.alignment_score || 50;
+  const regimeBase = inferRegime(quantum?.last_reason ?? null, quantum, platform);
 
   if (!instances?.length) {
-    return DEFAULT_CARDS.map((c, i) => ({
-      ...c,
-      key: `default-${i}`,
-      alignmentScore: baseScore,
-      regime: inferRegime(null, quantum, platform),
-      lastAnalysis: null,
-      nextCandleSec: null,
-      sparkline: sparkline.slice(-24),
-    }));
+    return DEFAULT_CARDS_META.map((meta, i) => {
+      const healthScore = Math.max(45, baseScore - i * 5);
+      const tone = healthToneFromScore(healthScore);
+      const tfs = buildTimeframeRows(null, "hold", meta.visual);
+      const steps = buildSetupSteps(tfs, []);
+      const setupProgress = computeSetupProgress(steps);
+      return {
+        ...DEFAULT_CARD_BASE,
+        key: `default-${i}`,
+        title: meta.title,
+        visual: meta.visual,
+        alignmentScore: baseScore,
+        healthScore,
+        healthTone: tone,
+        healthLabel: healthLabelFromTone(tone),
+        statusEmoji: statusEmojiFromHealth(healthScore),
+        cardTone: cardToneFromHealth(healthScore),
+        confidence: entryProbability(baseScore, setupProgress, "hold", false),
+        regime: regimeBase,
+        timeframes: tfs,
+        setupProgress,
+        setupSteps: steps,
+        lastAnalysis: null,
+        nextCandleSec: null,
+        sparkline: sparkline.slice(-24),
+      };
+    });
   }
 
   return instances.slice(0, 3).map((inst) => {
     const tick = matchTickForInstance(inst, feedItems);
-    const reason = tick?.reason ?? null;
-    const signalRaw = tick?.signal ?? "hold";
+    const reason = tick?.reason ?? quantum?.last_reason ?? null;
+    const signalRaw = tick?.signal ?? quantum?.last_signal ?? "hold";
     const visual = STRATEGY_VISUAL[inst.strategy] ?? "pullback";
     const filters = parseHoldFilters(reason);
     const regime = inferRegime(reason, quantum, platform);
     const alignmentScore = estimateAlignment(baseScore, signalRaw, reason);
+    const timeframes = buildTimeframeRows(reason, signalRaw, visual);
+    const setupSteps = buildSetupSteps(timeframes, filters);
+    const setupProgress = computeSetupProgress(setupSteps);
+    const healthScore = strategyHealthScore(inst, alignmentScore, filters, setupProgress, quantum);
+    const healthTone = healthToneFromScore(healthScore);
+    const confidence = entryProbability(alignmentScore, setupProgress, signalRaw, inst.in_position);
 
     let decision = "Aguardando oportunidade";
     if (inst.last_error) decision = `Pausado · ${inst.last_error}`;
     else if (inst.in_position) decision = "Operação em andamento";
-    else if (signalRaw?.toLowerCase().includes("enter")) decision = "Sinal de compra detectado";
+    else if (signalRaw?.toLowerCase().includes("enter")) decision = "Entrada executada";
     else if (filters.length) {
       const blockers = filters.filter((f) => !f.ok).map((f) => f.label.toLowerCase());
-      if (blockers.length) decision = `Aguardando · ${blockers.join(", ")}`;
+      if (blockers.length) decision = `HOLD · ${blockers.join(", ")}`;
     }
 
     return {
@@ -293,17 +504,93 @@ export function buildStrategyCards(
       visual,
       status: instanceStatus(inst),
       alignmentScore,
+      healthScore,
+      healthTone,
+      healthLabel: healthLabelFromTone(healthTone),
+      statusEmoji: statusEmojiFromHealth(healthScore),
+      cardTone: cardToneFromHealth(healthScore),
+      confidence,
       regime,
       signal: signalLabel(signalRaw),
       lastAnalysis: inst.last_tick_at,
       nextCandleSec: nextCandleSec(inst),
       filters,
+      timeframes,
+      setupProgress,
+      setupSteps,
       decision,
       sparkline: sparkline.slice(-24),
       lastReason: reason,
       inPosition: inst.in_position,
     };
   });
+}
+
+export function buildDecisionView(
+  cards: StrategyRuntimeView[],
+  stats: DashboardStats,
+  quantum?: QuantumStatus,
+  platform?: PlatformStatus,
+): DecisionView {
+  const primary =
+    cards.find((c) => c.status === "operando") ??
+    cards.reduce<StrategyRuntimeView | undefined>((best, c) => {
+      if (!best) return c;
+      return c.alignmentScore < best.alignmentScore ? c : best;
+    }, undefined) ??
+    cards[0];
+
+  if (!primary) {
+    const alignment = stats.alignment_score || 50;
+    return {
+      regime: inferRegime(null, quantum, platform),
+      alignmentScore: alignment,
+      entryProbability: entryProbability(alignment, 0, "hold", false),
+      action: "Aguardando oportunidade",
+      motives: [],
+      timeframes: [],
+      summary: "Runtime aguardando instâncias ativas.",
+    };
+  }
+
+  const motives: DecisionMotive[] = [];
+  for (const tf of primary.timeframes) {
+    motives.push({
+      text:
+        tf.tf === "1D" && !tf.ok
+          ? "Preço abaixo EMA200"
+          : tf.tf === "4H" && !tf.ok
+            ? "Sem confirmação 4H"
+            : tf.tf === "1H" && !tf.ok
+              ? "Pullback / gatilho não formado"
+              : `${tf.tf} ${tf.label}`,
+      ok: !!tf.ok,
+    });
+  }
+  for (const f of primary.filters.slice(0, 4)) {
+    motives.push({
+      text: f.ok ? `${f.label} adequado` : `${f.label} bloqueando`,
+      ok: f.ok,
+    });
+  }
+
+  const summary =
+    primary.status === "operando"
+      ? `${primary.title} em operação. Health ${primary.healthScore}/100 — gestão ativa.`
+      : primary.confidence >= 70
+        ? `Setup ${primary.setupProgress}% formado em ${primary.subtitle}. Próximo de entrada.`
+        : `Sistema monitorando ${primary.subtitle}. Health ${primary.healthScore}/100 — alignment ${primary.alignmentScore}/100.`;
+
+  return {
+    regime: primary.regime,
+    alignmentScore: primary.alignmentScore,
+    entryProbability: primary.confidence,
+    action: primary.decision,
+    strategyLabel: primary.title,
+    motives: motives.slice(0, 8),
+    timeframes: primary.timeframes,
+    summary,
+  };
 }
 
 function timelineTone(event: string, action?: string | null): TimelineEventView["tone"] {
@@ -324,49 +611,114 @@ function timelineIcon(event: string, action?: string | null): TimelineEventView[
   return "signal";
 }
 
-function enrichTickTitle(item: OperationsFeedItem): { title: string; subtitle?: string; detail?: string[] } {
+function tfLine(tf: TfRow): string {
+  return `${tf.tf} ${tf.ok ? "✅" : "❌"} ${tf.label}`;
+}
+
+function enrichTickTitle(
+  item: OperationsFeedItem,
+  card?: StrategyRuntimeView,
+  symbol?: string,
+): Pick<
+  TimelineEventView,
+  "title" | "subtitle" | "detail" | "symbol" | "strategyLabel" | "score" | "decision" | "timeframes" | "entryProbability"
+> {
   const reason = item.reason ?? "";
   const signal = (item.signal ?? "hold").toLowerCase();
+  const tfs = card?.timeframes ?? buildTimeframeRows(reason, signal, "pullback");
+  const score = card?.alignmentScore ?? estimateAlignment(50, signal, reason);
+  const prob = card?.confidence ?? entryProbability(score, computeSetupProgress(buildSetupSteps(tfs, parseHoldFilters(reason))), signal, false);
+  const stratLabel = card?.title ?? item.message?.split("·")[0]?.trim();
+  const sym = symbol ?? "BTCUSDT";
 
   if (item.action === "entry") {
-    return { title: "Entrada executada", subtitle: reason || item.message };
+    return {
+      title: "Entrada executada",
+      subtitle: stratLabel,
+      symbol: sym,
+      strategyLabel: stratLabel,
+      score,
+      entryProbability: prob,
+      decision: "ENTER",
+      timeframes: tfs,
+      detail: [sym, stratLabel ?? "", ...tfs.map(tfLine), `Score: ${Math.round(score)}/100`, "Entrada executada"],
+    };
   }
   if (item.action === "exit") {
-    return { title: "Posição encerrada", subtitle: reason || item.message };
+    return {
+      title: "Posição encerrada",
+      subtitle: reason || item.message,
+      symbol: sym,
+      strategyLabel: stratLabel,
+      score,
+      decision: "EXIT",
+      timeframes: tfs,
+      detail: [sym, reason || item.message, `Score: ${Math.round(score)}/100`].filter(Boolean),
+    };
   }
   if (item.action === "blocked") {
+    const filters = parseHoldFilters(reason);
     return {
       title: "Entrada bloqueada",
       subtitle: reason,
-      detail: parseHoldFilters(reason).map((f) => `${f.ok ? "✅" : "❌"} ${f.label}`),
+      symbol: sym,
+      strategyLabel: stratLabel,
+      score,
+      entryProbability: prob,
+      decision: "BLOCKED",
+      timeframes: tfs,
+      detail: [sym, ...tfs.map(tfLine), ...filters.map((f) => `${f.ok ? "✅" : "❌"} ${f.label}`), `Score: ${Math.round(score)}/100`],
     };
   }
   if (item.status === "warming_up") {
-    return { title: "Aquecendo indicadores", subtitle: item.message };
+    return { title: "Aquecendo indicadores", subtitle: item.message, symbol: sym, score, decision: "WARMUP" };
   }
   if (signal.includes("enter")) {
-    return { title: "Sinal de compra detectado", subtitle: reason };
+    return {
+      title: "Sinal de compra detectado",
+      subtitle: stratLabel,
+      symbol: sym,
+      strategyLabel: stratLabel,
+      score,
+      entryProbability: prob,
+      decision: "SIGNAL",
+      timeframes: tfs,
+      detail: [sym, stratLabel ?? "", ...tfs.map(tfLine), `Score: ${Math.round(score)}/100`],
+    };
   }
 
-  const filters = parseHoldFilters(reason);
   return {
     title: "Monitorando mercado",
-    subtitle: inferRegime(reason),
+    subtitle: stratLabel ?? inferRegime(reason),
+    symbol: sym,
+    strategyLabel: stratLabel,
+    score,
+    entryProbability: prob,
+    decision: "HOLD",
+    timeframes: tfs,
     detail: [
-      `Estado: Monitorando`,
-      `Regime: ${inferRegime(reason)}`,
-      ...filters.map((f) => `${f.ok ? "✅" : "❌"} ${f.label}${f.ok ? "" : reason.includes("below") ? " — abaixo do filtro" : ""}`),
-      `Decisão: Aguardando oportunidade`,
-    ],
+      sym,
+      stratLabel ?? "",
+      ...tfs.map(tfLine),
+      `Score: ${Math.round(score)}/100`,
+      "Decisão: HOLD",
+      reason ? reason.slice(0, 120) : inferRegime(reason),
+    ].filter(Boolean),
   };
 }
 
-export function buildTimelineEvents(items: OperationsFeedItem[], journal: JournalEntry[]): TimelineEventView[] {
+export function buildTimelineEvents(
+  items: OperationsFeedItem[],
+  journal: JournalEntry[],
+  cards: StrategyRuntimeView[] = [],
+  symbol = "BTCUSDT",
+): TimelineEventView[] {
   const fromFeed: TimelineEventView[] = items
     .filter((item) => item.event !== "runner_start")
     .slice(0, 40)
     .map((item, i) => {
-      const enriched = enrichTickTitle(item);
+      const card = matchCardForTick(item, cards);
+      const enriched = enrichTickTitle(item, card, symbol.replace("/", ""));
       return {
         id: `${item.ts}-${item.event}-${i}`,
         ts: item.ts,
@@ -377,6 +729,12 @@ export function buildTimelineEvents(items: OperationsFeedItem[], journal: Journa
         tag: item.event.toUpperCase(),
         tone: timelineTone(item.event, item.action),
         icon: timelineIcon(item.event, item.action),
+        symbol: enriched.symbol,
+        strategyLabel: enriched.strategyLabel,
+        score: enriched.score,
+        decision: enriched.decision,
+        timeframes: enriched.timeframes,
+        entryProbability: enriched.entryProbability,
       };
     });
 
@@ -387,13 +745,16 @@ export function buildTimelineEvents(items: OperationsFeedItem[], journal: Journa
     title: j.event === "entry" ? "Entrada registrada" : "Saída registrada",
     subtitle: j.reason ?? undefined,
     detail: [
-      j.entry_module ? `Módulo: ${j.entry_module}` : "",
-      j.alignment_score != null ? `Score: ${Math.round(j.alignment_score)}` : "",
+      symbol.replace("/", ""),
+      j.entry_module ? j.entry_module : "",
+      j.alignment_score != null ? `Score: ${Math.round(j.alignment_score)}/100` : "",
       j.regime_label ? `Regime: ${j.regime_label}` : "",
     ].filter(Boolean),
     tag: j.event?.toUpperCase() ?? "TRADE",
     tone: j.event === "entry" ? "success" : "info",
     icon: j.event === "entry" ? "entry" : "exit",
+    score: j.alignment_score,
+    decision: j.event === "entry" ? "ENTER" : "EXIT",
   }));
 
   return [...fromFeed, ...fromJournal]
@@ -423,6 +784,7 @@ export type TradeOverlay = {
   current: number;
   stop?: number;
   target?: number;
+  trailing?: number;
   pnlPct: number;
   score?: number;
   regime?: string;
@@ -432,8 +794,8 @@ export function buildTradeOverlays(positions: Position[], journal: JournalEntry[
   return positions.map((p, i) => {
     const j = journal.find((e) => e.event === "entry");
     const stop = typeof j?.fill === "object" && j.fill && "stop_price" in j.fill ? Number(j.fill.stop_price) : undefined;
-    const target =
-      p.entry > 0 ? p.entry * 1.03 : undefined;
+    const target = p.entry > 0 ? p.entry * 1.03 : undefined;
+    const trailing = p.current > p.entry ? p.entry + (p.current - p.entry) * 0.5 : undefined;
     return {
       id: `${p.asset}-${i}`,
       strategy: p.strategy,
@@ -441,6 +803,7 @@ export function buildTradeOverlays(positions: Position[], journal: JournalEntry[
       current: p.current,
       stop: stop || p.entry * 0.98,
       target,
+      trailing,
       pnlPct: p.pnl_pct,
       score: j?.alignment_score ?? undefined,
       regime: j?.regime_label ?? undefined,

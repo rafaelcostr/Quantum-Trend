@@ -1,12 +1,16 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LineChart, Rocket } from "lucide-react";
+import { LiveDecisionPanel } from "@/components/operations/LiveDecisionPanel";
 import { LiveTerminalHeader } from "@/components/operations/LiveTerminalHeader";
 import { PositionsPnLPanel } from "@/components/operations/PositionsPnLPanel";
 import { RuntimeTimeline } from "@/components/operations/RuntimeTimeline";
 import { StrategyRuntimeCards } from "@/components/operations/StrategyRuntimeCards";
 import { PageHeader } from "@/components/ui/page";
+import { api } from "@/lib/api";
 import {
+  buildDecisionView,
+  buildHeaderMetrics,
   buildOpsStats,
   buildStrategyCards,
   buildTimelineEvents,
@@ -40,7 +44,7 @@ export const Route = createFileRoute("/operacoes")({
 
 function ChartSkeleton() {
   return (
-    <div className="glass rounded-2xl min-h-[420px] flex items-center justify-center text-sm text-muted-foreground">
+    <div className="glass rounded-2xl h-[320px] xl:h-[360px] flex items-center justify-center text-sm text-muted-foreground">
       Carregando gráfico TradingView…
     </div>
   );
@@ -56,6 +60,26 @@ function OperationsTerminalPage() {
   const quantum = useQuantumStatus();
   const platform = usePlatformStatus();
   const bot = useBotToggle();
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const ping = async () => {
+      const t0 = performance.now();
+      try {
+        await api.health();
+        if (!cancelled) setLatencyMs(Math.round(performance.now() - t0));
+      } catch {
+        if (!cancelled) setLatencyMs(null);
+      }
+    };
+    ping();
+    const id = setInterval(ping, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   if (feed.isLoading && !feed.data) {
     return <div className="text-muted-foreground text-sm py-12 text-center">Conectando ao runtime…</div>;
@@ -63,7 +87,9 @@ function OperationsTerminalPage() {
   if (feed.error || !feed.data) {
     return (
       <div className="text-destructive text-sm space-y-2">
-        <p>Erro ao carregar terminal. Confirme a API Python: <code className="text-secondary">python -m atlas.cli api</code></p>
+        <p>
+          Erro ao carregar terminal. Confirme a API Python: <code className="text-secondary">python -m atlas.cli api</code>
+        </p>
       </div>
     );
   }
@@ -92,9 +118,18 @@ function OperationsTerminalPage() {
     platform.data,
     sparkline,
   );
-  const timeline = buildTimelineEvents(feedItems, journalItems);
+  const timeline = buildTimelineEvents(feedItems, journalItems, strategyCards, symbol);
   const tradeOverlays = buildTradeOverlays(positions, journalItems);
   const capital = risk.data?.balance ?? stats.balance;
+  const decision = buildDecisionView(strategyCards, stats, quantum.data, platform.data);
+  const headerMetrics = buildHeaderMetrics(
+    stats,
+    botSnap,
+    positions,
+    capital,
+    feed.data.next_tick_in,
+    latencyMs,
+  );
 
   return (
     <div className="space-y-5">
@@ -138,9 +173,11 @@ function OperationsTerminalPage() {
         timeframe={timeframe}
         quantum={quantum.data}
         platform={platform.data}
-        nextUpdateSec={feed.data.next_tick_in}
+        metrics={headerMetrics}
         isStreaming={feed.isStreaming}
       />
+
+      <LiveDecisionPanel decision={decision} />
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4 items-start">
         <Suspense fallback={<ChartSkeleton />}>

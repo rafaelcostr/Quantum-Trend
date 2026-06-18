@@ -1,6 +1,7 @@
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import type { StrategyRuntimeView } from "@/lib/operations-terminal";
 import { fmtCountdown, fmtTime } from "@/lib/operations-terminal";
+import { ConfidenceBar, ProgressBar } from "./ConfidenceBar";
 
 const STATUS_META = {
   operando: { label: "Operando", dot: "bg-success", text: "text-success" },
@@ -14,10 +15,16 @@ const SIGNAL_META = {
   aguardando: { label: "Aguardando", cls: "text-muted-foreground border-white/10 bg-white/[0.03]" },
 } as const;
 
-const VISUAL_ACCENT = {
-  pullback: "border-l-success",
-  breakout: "border-l-purple-500",
-  supertrend: "border-l-primary",
+const CARD_BORDER = {
+  success: "border-l-success",
+  warning: "border-l-warning",
+  danger: "border-l-destructive",
+} as const;
+
+const HEALTH_TEXT = {
+  healthy: "text-success",
+  attention: "text-warning",
+  degraded: "text-destructive",
 } as const;
 
 function Sparkline({ data }: { data: number[] }) {
@@ -45,10 +52,12 @@ function StrategyCard({ card }: { card: StrategyRuntimeView }) {
   const sig = SIGNAL_META[card.signal];
 
   return (
-    <div className={`glass rounded-2xl border border-white/10 border-l-4 ${VISUAL_ACCENT[card.visual]} p-4 flex flex-col min-h-[280px]`}>
+    <div className={`glass rounded-2xl border border-white/10 border-l-4 ${CARD_BORDER[card.cardTone]} p-4 flex flex-col`}>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold">{card.title}</h3>
+          <h3 className="text-sm font-semibold">
+            {card.statusEmoji} {card.title}
+          </h3>
           <p className="text-[11px] text-muted-foreground mt-0.5">{card.subtitle}</p>
         </div>
         <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium ${st.text}`}>
@@ -57,14 +66,28 @@ function StrategyCard({ card }: { card: StrategyRuntimeView }) {
         </span>
       </div>
 
+      <div className="mt-3 space-y-1">
+        {card.timeframes.map((tf) => (
+          <div key={tf.tf} className="flex items-center justify-between text-[11px] font-mono">
+            <span className="text-muted-foreground w-8">{tf.tf}</span>
+            <span className={tf.ok ? "text-success" : "text-muted-foreground"}>
+              {tf.ok ? "✅" : "❌"} {tf.label}
+            </span>
+          </div>
+        ))}
+      </div>
+
       <div className="mt-4 grid grid-cols-2 gap-3 text-[11px]">
         <div>
           <div className="text-muted-foreground uppercase tracking-wide">Alignment</div>
           <div className="num text-lg font-semibold mt-0.5">{Math.round(card.alignmentScore)}/100</div>
         </div>
         <div>
-          <div className="text-muted-foreground uppercase tracking-wide">Regime</div>
-          <div className="font-medium mt-0.5 truncate">{card.regime}</div>
+          <div className="text-muted-foreground uppercase tracking-wide">Health</div>
+          <div className={`num text-lg font-semibold mt-0.5 ${HEALTH_TEXT[card.healthTone]}`}>
+            {Math.round(card.healthScore)}/100
+          </div>
+          <div className={`text-[10px] ${HEALTH_TEXT[card.healthTone]}`}>{card.healthLabel}</div>
         </div>
         <div>
           <div className="text-muted-foreground uppercase tracking-wide">Última análise</div>
@@ -76,34 +99,35 @@ function StrategyCard({ card }: { card: StrategyRuntimeView }) {
         </div>
       </div>
 
-      <div className="mt-3">
-        <div className="text-[10px] text-muted-foreground uppercase mb-1">Sinal atual</div>
-        <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-medium ${sig.cls}`}>{sig.label}</span>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-[10px] text-muted-foreground uppercase mb-1">Confiança</div>
+          <ConfidenceBar value={card.confidence} />
+        </div>
+        <div>
+          <ProgressBar value={card.setupProgress} label="Setup Formation" />
+        </div>
       </div>
 
-      {card.filters.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {card.filters.map((f) => (
-            <span
-              key={f.label}
-              className={`text-[10px] rounded-md px-2 py-0.5 border ${
-                f.ok ? "border-success/30 text-success bg-success/10" : "border-white/10 text-muted-foreground bg-white/[0.03]"
-              }`}
-            >
-              {f.ok ? "✅" : "❌"} {f.label}
-            </span>
+      {card.setupSteps.length > 0 && (
+        <div className="mt-2 space-y-0.5">
+          {card.setupSteps.map((step) => (
+            <div key={step.label} className="flex justify-between text-[10px]">
+              <span className="text-muted-foreground">{step.label}</span>
+              <span>{step.ok ? "✅" : step.ok === false ? "❌" : "—"}</span>
+            </div>
           ))}
         </div>
       )}
 
+      <div className="mt-3">
+        <div className="text-[10px] text-muted-foreground uppercase mb-1">Sinal · {card.regime}</div>
+        <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-medium ${sig.cls}`}>{sig.label}</span>
+      </div>
+
       <div className="mt-auto pt-3 border-t border-white/5">
         <div className="text-[10px] text-muted-foreground uppercase">Decisão</div>
         <p className="text-xs mt-1 leading-relaxed">{card.decision}</p>
-        {card.lastReason && (
-          <p className="text-[10px] text-muted-foreground mt-1 truncate" title={card.lastReason}>
-            {card.lastReason}
-          </p>
-        )}
       </div>
 
       <Sparkline data={card.sparkline} />
@@ -113,7 +137,7 @@ function StrategyCard({ card }: { card: StrategyRuntimeView }) {
 
 export function StrategyRuntimeCards({ cards }: { cards: StrategyRuntimeView[] }) {
   return (
-    <div className="flex flex-col gap-3 h-full">
+    <div className="flex flex-col gap-3 max-h-[520px] xl:max-h-[560px] overflow-y-auto pr-1">
       <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-1">
         Estratégias em tempo real
       </div>
