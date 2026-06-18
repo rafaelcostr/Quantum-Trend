@@ -37,17 +37,13 @@ def reset_system_data(options: ResetOptions) -> ResetResult:
     if options.reports:
         reports_dir = root / "data" / "reports"
         if reports_dir.is_dir():
-            for pattern in ("*_report.json", "*_walkforward.json", "*.md", "*.zip"):
-                for path in reports_dir.glob(pattern):
-                    if path.is_file():
-                        path.unlink(missing_ok=True)
-                        result.deleted_files.append(_rel(path, root))
-            exports_dir = reports_dir / "exports"
-            if exports_dir.is_dir():
-                for path in exports_dir.rglob("*"):
-                    if path.is_file():
-                        path.unlink(missing_ok=True)
-                        result.deleted_files.append(_rel(path, root))
+            for path in sorted(reports_dir.rglob("*")):
+                if path.is_file():
+                    path.unlink(missing_ok=True)
+                    result.deleted_files.append(_rel(path, root))
+        from atlas.platform.store import clear_research_audit_state
+
+        clear_research_audit_state()
 
     if options.ohlcv_cache:
         cache_dir = root / "data" / "cache"
@@ -74,8 +70,10 @@ def reset_system_data(options: ResetOptions) -> ResetResult:
             result.deleted_files.append(_rel(quantum_path, root))
 
         from atlas.runtime.risk_store import reset_risk_counters
+        from atlas.platform.store import clear_paper_audit_state
 
         reset_risk_counters()
+        clear_paper_audit_state()
         result.risk_counters_reset = True
 
     return result

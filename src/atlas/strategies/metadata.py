@@ -7,6 +7,14 @@ PRIMARY_STRATEGIES = (
     "quantum_trend_pro",
 )
 
+# Módulos de entrada reutilizados como estratégias standalone — somente pesquisa/comparação
+ENTRY_MODULE_LEGACY_STRATEGIES = frozenset({
+    "pullback_ema20_v1",
+    "breakout_high20_v1",
+    "supertrend_mm200_v1",
+})
+
+# Estratégias legacy de pesquisa (8)
 LEGACY_STRATEGIES = frozenset({
     "range_hunter_v1",
     "range_hunter_v2",
@@ -16,13 +24,28 @@ LEGACY_STRATEGIES = frozenset({
     "mm200_trend_v2",
     "mm200_daily_macro_v1",
     "portfolio_macro_micro_v1",
-    "pullback_ema20_v1",
-    "breakout_high20_v1",
-    "supertrend_mm200_v1",
 })
 
 STRATEGY_METADATA: dict[str, dict[str, str]] = {
     "quantum_trend_pro": {"type": "QuantumTrend Pro Core", "version": "1.0.0", "tier": "primary"},
+    "pullback_ema20_v1": {
+        "type": "Entry Module · Pullback",
+        "version": "1.0.0",
+        "tier": "entry_module_legacy",
+        "note": "Use quantum_trend_pro — módulo Pullback",
+    },
+    "breakout_high20_v1": {
+        "type": "Entry Module · Breakout",
+        "version": "1.0.0",
+        "tier": "entry_module_legacy",
+        "note": "Use quantum_trend_pro — módulo Breakout",
+    },
+    "supertrend_mm200_v1": {
+        "type": "Entry Module · Supertrend",
+        "version": "1.0.0",
+        "tier": "entry_module_legacy",
+        "note": "Use quantum_trend_pro — módulo Supertrend",
+    },
     "range_hunter_v1": {"type": "Mean Reversion", "version": "1.0.0", "tier": "legacy"},
     "range_hunter_v2": {"type": "Mean Reversion", "version": "2.0.0", "tier": "legacy"},
     "bb_squeeze_v1": {"type": "Breakout", "version": "1.0.0", "tier": "legacy"},
@@ -31,14 +54,19 @@ STRATEGY_METADATA: dict[str, dict[str, str]] = {
     "mm200_trend_v2": {"type": "Trend Following", "version": "2.0.0", "tier": "legacy"},
     "mm200_daily_macro_v1": {"type": "Trend Following", "version": "1.0.0", "tier": "legacy"},
     "portfolio_macro_micro_v1": {"type": "Multi-Strategy", "version": "1.0.0", "tier": "legacy"},
-    "pullback_ema20_v1": {"type": "Trend Pullback", "version": "1.0.0", "tier": "legacy"},
-    "breakout_high20_v1": {"type": "Breakout", "version": "1.0.0", "tier": "legacy"},
-    "supertrend_mm200_v1": {"type": "Trend Following", "version": "1.0.0", "tier": "legacy"},
 }
 
 
 def is_legacy_strategy(name: str) -> bool:
     return name in LEGACY_STRATEGIES
+
+
+def is_entry_module_legacy(name: str) -> bool:
+    return name in ENTRY_MODULE_LEGACY_STRATEGIES
+
+
+def is_research_only(name: str) -> bool:
+    return is_legacy_strategy(name) or is_entry_module_legacy(name)
 
 
 def list_primary_strategies() -> list[str]:

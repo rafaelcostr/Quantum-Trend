@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from atlas.quantum.gates import promotion_checklist_backtest, promotion_checklist_paper
 from atlas.services.quantum_service import compute_drawdown_curve
-from atlas.strategies.metadata import is_legacy_strategy, list_primary_strategies
+from atlas.strategies.metadata import (
+    is_entry_module_legacy,
+    is_legacy_strategy,
+    list_primary_strategies,
+)
 
 
 def test_primary_strategies():
@@ -13,6 +17,14 @@ def test_primary_strategies():
 def test_legacy_flag():
     assert is_legacy_strategy("mm200_trend_v2") is True
     assert is_legacy_strategy("quantum_trend_pro") is False
+    assert is_legacy_strategy("pullback_ema20_v1") is False
+
+
+def test_entry_module_legacy_flag():
+    assert is_entry_module_legacy("pullback_ema20_v1") is True
+    assert is_entry_module_legacy("breakout_high20_v1") is True
+    assert is_entry_module_legacy("supertrend_mm200_v1") is True
+    assert is_entry_module_legacy("mm200_trend_v2") is False
 
 
 def test_drawdown_curve():

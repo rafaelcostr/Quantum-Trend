@@ -36,6 +36,12 @@ def update_runtime_snapshot(
     last_signal: str | None = None,
     last_reason: str | None = None,
     strategy: str | None = None,
+    entry_module: str | None = None,
+    entry_confidence: float | None = None,
+    entry_result: str | None = None,
+    module_status: dict[str, object] | None = None,
+    module_health: dict[str, float] | None = None,
+    rejected_modules: list[dict[str, object]] | None = None,
 ) -> dict[str, Any]:
     data = _load()
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -63,6 +69,18 @@ def update_runtime_snapshot(
         data["last_reason"] = last_reason
     if strategy is not None:
         data["strategy"] = strategy
+    if entry_module is not None:
+        data["entry_module"] = entry_module
+    if entry_confidence is not None:
+        data["entry_confidence"] = round(float(entry_confidence), 1)
+    if entry_result is not None:
+        data["entry_result"] = entry_result
+    if module_status is not None:
+        data["module_status"] = module_status
+    if module_health is not None:
+        data["module_health"] = module_health
+    if rejected_modules is not None:
+        data["rejected_modules"] = rejected_modules
     _save(data)
     return data
 

@@ -3,9 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import {
-  buildMatrixFromDisk,
   buildResultsFromDisk,
-  isMatrixPath,
   isResultsPath,
 } from "./lib/atlas-disk-reports";
 
@@ -47,29 +45,25 @@ async function proxyAtlasApi(request: Request): Promise<Response> {
     init.body = await request.arrayBuffer();
   }
 
-  if (request.method === "GET" || request.method === "HEAD") {
-    const resultsMatch = isResultsPath(apiPath);
-    if (resultsMatch) {
-      try {
-        const payload = await buildResultsFromDisk(resultsMatch.strategy, resultsMatch.timeframe);
-        return Response.json(payload);
-      } catch {
-        /* tenta API abaixo */
-      }
-    }
-    if (isMatrixPath(apiPath)) {
-      try {
-        const payload = await buildMatrixFromDisk();
-        if (payload.total > 0) return Response.json(payload);
-      } catch {
-        /* tenta API abaixo */
-      }
-    }
-  }
-
   try {
     const upstream = await fetch(target, init);
-    if (upstream.status === 404) {
+    if (upstream.ok) {
+      return upstream;
+    }
+    if (upstream.status === 404 && (request.method === "GET" || request.method === "HEAD")) {
+      const resultsMatch = isResultsPath(apiPath);
+      if (resultsMatch) {
+        try {
+          const payload = await buildResultsFromDisk(resultsMatch.strategy, resultsMatch.timeframe);
+          return Response.json(payload);
+        } catch {
+          /* mantém 404 da API */
+        }
+      }
+    }
+    return upstream;
+  } catch (error) {
+    if (request.method === "GET" || request.method === "HEAD") {
       const resultsMatch = isResultsPath(apiPath);
       if (resultsMatch) {
         try {
@@ -79,17 +73,7 @@ async function proxyAtlasApi(request: Request): Promise<Response> {
           /* fall through */
         }
       }
-      if (isMatrixPath(apiPath)) {
-        try {
-          const payload = await buildMatrixFromDisk();
-          return Response.json(payload);
-        } catch {
-          /* fall through */
-        }
-      }
     }
-    return upstream;
-  } catch (error) {
     const message = error instanceof Error ? error.message : "proxy failed";
     console.error("Atlas API proxy error:", error);
     return new Response(

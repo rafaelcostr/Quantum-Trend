@@ -488,6 +488,14 @@ def create_app() -> FastAPI:
 
         clear_dashboard_cache()
         clear_intelligence_cache()
+        try:
+            from atlas.services.backtest_jobs import clear_backtest_job_cache
+
+            clear_backtest_job_cache()
+        except ImportError:
+            pass
+        from atlas.core.env import project_root
+
         return {
             "ok": True,
             "deleted_files": result.deleted_files,
@@ -496,6 +504,7 @@ def create_app() -> FastAPI:
             "quantum_state_cleared": result.quantum_state_cleared,
             "deleted_count": len(result.deleted_files),
             "cleared_count": len(result.cleared_files),
+            "reports_dir": str(project_root() / "data" / "reports"),
         }
 
     return app

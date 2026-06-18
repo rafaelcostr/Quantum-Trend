@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import { PageHeader, Panel } from "@/components/ui/page";
 import { InstitutionalPanel } from "@/components/platform/InstitutionalPanel";
+import { QuantumEntryModulesPanel } from "@/components/quantum/QuantumEntryModulesPanel";
 import { StatCard } from "@/components/widgets/StatCard";
 import { isBrowser, useBotToggle, useDashboard } from "@/lib/queries";
 
@@ -133,6 +134,7 @@ function Dashboard() {
       </div>
 
       <InstitutionalPanel platform={platform} />
+      <QuantumEntryModulesPanel quantum={quantum} />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <Panel className="xl:col-span-2" title="Equity Curve" action={

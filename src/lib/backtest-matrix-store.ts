@@ -1,6 +1,45 @@
 import type { BacktestAllResponse, BacktestBatchItem, BacktestMatrixResponse, OperationalTimeframe } from "./api";
 
 const STORAGE_KEY = "quantum-trend.backtest-matrix.v2";
+const RESET_FLAG_KEY = "quantum-trend.reports-reset.v1";
+
+/** Marca que relatórios foram apagados — bloqueia fallbacks locais até nova matriz na API. */
+export function markReportsReset(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(RESET_FLAG_KEY, String(Date.now()));
+  } catch {
+    /* private mode */
+  }
+}
+
+export function clearReportsResetFlag(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(RESET_FLAG_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
+export function isReportsResetActive(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return sessionStorage.getItem(RESET_FLAG_KEY) != null;
+  } catch {
+    return false;
+  }
+}
+
+export function emptyMatrix(quote = "USDT"): BacktestMatrixResponse {
+  return {
+    total: 0,
+    quote: quote.toUpperCase(),
+    best_return: null,
+    best_score: null,
+    items: [],
+  };
+}
 
 export function isMatrixHealthy(matrix: BacktestMatrixResponse | null | undefined): boolean {
   if (!matrix?.items?.length) return false;

@@ -27,7 +27,11 @@ function Page() {
   const items = matrix.data?.items ?? [];
 
   useEffect(() => {
-    if (selected || !items.length) return;
+    if (items.length === 0) {
+      setSelected(null);
+      return;
+    }
+    if (selected) return;
     const pick = matrix.data?.best_return ?? items[0];
     setSelected({ strategy: pick.strategy, timeframe: pick.timeframe });
   }, [items, matrix.data?.best_return, selected]);

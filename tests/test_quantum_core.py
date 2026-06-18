@@ -8,6 +8,7 @@ import pytest
 from atlas.core.models import Candle, IndicatorSnapshot
 from atlas.quantum.alignment import AlignmentScoreEngine
 from atlas.quantum.candles import bullish_rejection_candle
+from atlas.quantum.decision_engine import DecisionEngine
 from atlas.quantum.entry import evaluate_entry
 from atlas.quantum.gates import promotion_checklist_backtest, promotion_checklist_paper
 from atlas.quantum.models import EntryModule, MarketRegime, MultiTimeframeContext, RiskProfile, TimeframeSnapshot
@@ -65,7 +66,23 @@ def test_regime_engine_bull():
 
 def test_pullback_entry_requires_rejection():
     ctx = _bull_context()
-    assert evaluate_entry(ctx, EntryModule.PULLBACK) is not None
+    result = evaluate_entry(ctx, EntryModule.PULLBACK)
+    assert result is not None
+    assert result.module == EntryModule.PULLBACK
+    assert result.confidence > 0
+
+
+def test_decision_engine_auto_selects_best_module():
+    ctx = _bull_context()
+    decision = DecisionEngine().evaluate(ctx, EntryModule.AUTO)
+    assert decision.selected is not None
+    assert decision.selected.module in {
+        EntryModule.PULLBACK,
+        EntryModule.BREAKOUT,
+        EntryModule.SUPERTREND,
+    }
+    if len([r for r in decision.evaluations if r.triggered]) > 1:
+        assert decision.rejected
 
 
 def test_alignment_score_threshold():

@@ -2,17 +2,21 @@ mode: live
 exchange:
   id: binance
   symbol: BTC/USDT
-  timeframe: 4h
+  timeframe: 1d
   quote_asset: USDT
   demo: false
   limit: 500
 strategy:
-  name: mm200_trend_v2
+  name: pullback_ema20_v1
   params:
-    mm20_period: 20
-    mm200_period: 200
-    warmup_bars: 205
-    stop_below_mm200_pct: 0.02
+    ema_fast: 20
+    ema_slow: 200
+    warmup_bars: 210
+    pullback_pct: 0.008
+    stop_below_ema20_pct: 0.015
+    require_ema_stack: true
+    bb_period: 20
+    adx_period: 14
 risk:
   initial_capital: 10000.0
   risk_per_trade: 0.01
@@ -35,7 +39,7 @@ data:
   years: 3
   cache_dir: data/cache
 runtime:
-  poll_seconds: 30
+  poll_seconds: 3600
   reconcile_minutes: 5
   alert_on_signal: true
   drawdown_alert_pct: 0.05

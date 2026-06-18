@@ -243,17 +243,20 @@ def _promotion_flow(metrics: dict, live_gates: dict | None = None, *, has_backte
 
 def get_strategies() -> list[StrategyDTO]:
     cfg = active_config()
-    from atlas.strategies.metadata import is_legacy_strategy
+    from atlas.strategies.metadata import is_entry_module_legacy, is_legacy_strategy
 
     out: list[StrategyDTO] = []
     for name in list_strategies(include_legacy=True):
         report = load_latest_report(name)
         legacy = is_legacy_strategy(name)
+        entry_legacy = is_entry_module_legacy(name)
         if report:
             m = report["metrics"]
             score = float(m.get("atlas_score", 0))
             status = strategy_status(score, float(m.get("profit_factor", 0)), float(m.get("max_drawdown_pct", 0)))
-            if legacy:
+            if entry_legacy:
+                status = f"Módulo QTP · {status}"
+            elif legacy:
                 status = f"Legado · {status}"
             out.append(
                 StrategyDTO(
@@ -273,10 +276,16 @@ def get_strategies() -> list[StrategyDTO]:
                     winrate=0.0,
                     pf=0.0,
                     dd=0.0,
-                    status="Legado · sem backtest" if legacy else "Sem backtest",
+                    status=(
+                        "Módulo QTP · sem backtest"
+                        if entry_legacy
+                        else "Legado · sem backtest"
+                        if legacy
+                        else "Sem backtest"
+                    ),
                 )
             )
-        elif not legacy:
+        elif not legacy and not entry_legacy:
             out.append(
                 StrategyDTO(
                     id=name,

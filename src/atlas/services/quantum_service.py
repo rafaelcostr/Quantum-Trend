@@ -78,7 +78,41 @@ def get_quantum_status() -> dict:
         "regime_label": runtime.get("regime_label"),
         "last_signal": runtime.get("last_signal"),
         "last_reason": runtime.get("last_reason"),
+        "entry_module": runtime.get("entry_module"),
+        "entry_confidence": runtime.get("entry_confidence"),
+        "entry_result": runtime.get("entry_result"),
+        "module_status": runtime.get("module_status") or _default_module_status(),
+        "module_health": runtime.get("module_health") or _module_health_from_report(report),
+        "module_backtest_stats": _module_stats_from_report(report),
+        "rejected_modules": runtime.get("rejected_modules") or [],
         "updated_at": runtime.get("updated_at"),
+    }
+
+
+def _default_module_status() -> dict[str, dict[str, object]]:
+    return {
+        "pullback": {"active": True, "triggered": False, "confidence": None, "reason": "sem gatilho"},
+        "breakout": {"active": True, "triggered": False, "confidence": None, "reason": "sem gatilho"},
+        "supertrend": {"active": True, "triggered": False, "confidence": None, "reason": "sem gatilho"},
+    }
+
+
+def _module_stats_from_report(report: dict | None) -> dict[str, dict[str, float | int]]:
+    if not report:
+        return {}
+    meta = report.get("metadata") or {}
+    stats = meta.get("module_stats") or report.get("module_stats")
+    return stats if isinstance(stats, dict) else {}
+
+
+def _module_health_from_report(report: dict | None) -> dict[str, float]:
+    stats = _module_stats_from_report(report)
+    if not stats:
+        return {}
+    return {
+        mod: float(data.get("health_score") or 0)
+        for mod, data in stats.items()
+        if isinstance(data, dict)
     }
 
 

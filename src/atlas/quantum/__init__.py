@@ -2,6 +2,7 @@
 
 from atlas.quantum.alignment import AlignmentScoreEngine, AlignmentScoreResult
 from atlas.quantum.core_strategy import QuantumTrendProStrategy, build_quantum_trend_pro
+from atlas.quantum.decision_engine import DecisionEngine
 from atlas.quantum.health import StrategyHealthMonitor, StrategyHealthReport
 from atlas.quantum.models import (
     EntryModule,
@@ -22,6 +23,7 @@ __all__ = [
     "MultiTimeframeContext",
     "PortfolioSnapshot",
     "PositionManager",
+    "DecisionEngine",
     "QuantumTrendProStrategy",
     "RiskProfile",
     "StrategyHealthMonitor",

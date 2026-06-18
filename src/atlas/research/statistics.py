@@ -152,6 +152,13 @@ def save_report(
             buy_hold_pct=buy_hold_pct,
             report_name=name,
         )
+        if config.strategy.name == "quantum_trend_pro":
+            from atlas.quantum.module_stats import compute_module_backtest_stats
+
+            module_stats = compute_module_backtest_stats(result.trades)
+            payload["module_stats"] = module_stats
+            if payload.get("metadata"):
+                payload["metadata"]["module_stats"] = module_stats
     path = out_dir / f"{name}.json"
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path

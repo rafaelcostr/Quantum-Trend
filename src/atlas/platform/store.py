@@ -119,3 +119,25 @@ def is_risk_locked() -> tuple[bool, str | None]:
     if data.get("risk_locked") and not data.get("risk_lock_acknowledged"):
         return True, data.get("risk_lock_reason")
     return False, None
+
+
+def clear_research_audit_state() -> None:
+    """Limpa histórico de pesquisa/backtest na camada platform."""
+    data = load_platform_state()
+    data["decisions"] = []
+    data["score_explanations"] = []
+    data["latest_score_explanation"] = None
+    data["last_decision"] = None
+    data["stress_reports"] = []
+    save_platform_state(data)
+
+
+def clear_paper_audit_state() -> None:
+    """Limpa auditoria operacional paper (mantém state machine)."""
+    data = load_platform_state()
+    data["decisions"] = []
+    data["last_decision"] = None
+    data["alerts"] = []
+    data["trend_exhaustion"] = {}
+    data["capital_scaling"] = {"current_risk_pct": None, "history": [], "paused": False}
+    save_platform_state(data)

@@ -77,7 +77,7 @@ function Page() {
           </div>
         )}
 
-        {!backtestAll.isPending && liveBatch && liveBatch.total_runs > 0 && (
+        {!backtestAll.isPending && liveBatch && liveBatch.total_runs > 0 && savedMatrix && savedMatrix.items.length > 0 && (
           <div className="mt-4 text-sm">
             Última execução:{" "}
             <span className="num text-success">{liveBatch.completed}</span> / {liveBatch.total_runs} concluídos

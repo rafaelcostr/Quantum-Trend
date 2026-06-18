@@ -37,6 +37,11 @@ def get_backtest_batch_job(job_id: str) -> BacktestBatchJob | None:
         return _jobs.get(job_id)
 
 
+def clear_backtest_job_cache() -> None:
+    with _lock:
+        _jobs.clear()
+
+
 def job_snapshot(job: BacktestBatchJob) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "job_id": job.id,

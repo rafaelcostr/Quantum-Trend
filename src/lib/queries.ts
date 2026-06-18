@@ -2,7 +2,16 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type BacktestAllProgress, type BacktestMatrixResponse, type OperationsFeedResponse } from "./api";
 import { ApiError } from "./api";
-import { batchToMatrix, buildMatrixFromResultsFallback, isMatrixHealthy, loadCachedMatrix, saveCachedMatrix, clearCachedMatrix } from "./backtest-matrix-store";
+import {
+  batchToMatrix,
+  clearCachedMatrix,
+  clearReportsResetFlag,
+  emptyMatrix,
+  isMatrixHealthy,
+  isReportsResetActive,
+  markReportsReset,
+  saveCachedMatrix,
+} from "./backtest-matrix-store";
 
 /** TanStack Start faz SSR — queries de API só no browser (proxy /atlas-api). */
 export const isBrowser = typeof window !== "undefined";
@@ -266,33 +275,29 @@ export function useBacktestMatrix() {
   return useQuery({
     queryKey: queryKeys.backtestMatrix,
     queryFn: async (): Promise<BacktestMatrixResponse> => {
+      const resetActive = isReportsResetActive();
       try {
         const fresh = await api.backtestMatrix();
-        if (fresh.items.length > 0 && isMatrixHealthy(fresh)) {
-          saveCachedMatrix(fresh);
-          return fresh;
+        if (fresh.items.length === 0) {
+          clearCachedMatrix();
+          if (resetActive) clearReportsResetFlag();
+          return emptyMatrix(fresh.quote);
         }
-        if (fresh.items.length > 0) return fresh;
+        clearReportsResetFlag();
+        if (isMatrixHealthy(fresh)) {
+          saveCachedMatrix(fresh);
+        }
+        return fresh;
       } catch (err) {
-        const cached = loadCachedMatrix();
-        if (cached) return cached;
-        if (err instanceof ApiError && err.status === 404) {
-          const rebuilt = await buildMatrixFromResultsFallback();
-          if (rebuilt) {
-            saveCachedMatrix(rebuilt);
-            return rebuilt;
-          }
-          throw new ApiError(
-            "Matriz indisponível — rode Testar todas em Backtests ou reinicie a API: python -m atlas.cli api",
-            404,
-          );
+        if (resetActive) {
+          clearCachedMatrix();
+          return emptyMatrix();
         }
         throw err;
       }
     },
     enabled: isBrowser,
     staleTime: 30_000,
-    placeholderData: () => loadCachedMatrix() ?? undefined,
     retry: 1,
   });
 }
@@ -362,11 +367,19 @@ export function useSystemReset() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: api.resetSystem,
-    onSuccess: () => {
-      clearCachedMatrix();
+    onSuccess: (res, variables) => {
+      if (variables.reports) {
+        markReportsReset();
+        clearCachedMatrix();
+        void qc.cancelQueries({ queryKey: queryKeys.backtestMatrix });
+        qc.setQueryData(queryKeys.backtestMatrix, emptyMatrix());
+        qc.removeQueries({ queryKey: queryKeys.results });
+      }
+      qc.invalidateQueries({ queryKey: queryKeys.strategies });
       qc.invalidateQueries({ queryKey: queryKeys.reports });
-      qc.invalidateQueries({ queryKey: queryKeys.backtestMatrix });
-      qc.invalidateQueries({ queryKey: queryKeys.results });
+      if (!variables.reports) {
+        qc.invalidateQueries({ queryKey: queryKeys.backtestMatrix });
+      }
       qc.invalidateQueries({ queryKey: queryKeys.dashboard });
       qc.invalidateQueries({ queryKey: queryKeys.intelligence });
       qc.invalidateQueries({ queryKey: queryKeys.intelligenceAnalysis });
@@ -376,6 +389,7 @@ export function useSystemReset() {
       qc.invalidateQueries({ queryKey: queryKeys.quantum });
       qc.invalidateQueries({ queryKey: queryKeys.portfolio });
       qc.invalidateQueries({ queryKey: queryKeys.platform });
+      return res;
     },
   });
 }

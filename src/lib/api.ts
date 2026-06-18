@@ -442,6 +442,13 @@ export type QuantumStatus = {
   regime_label?: string;
   last_signal?: string;
   last_reason?: string;
+  entry_module?: string;
+  entry_confidence?: number;
+  entry_result?: string;
+  module_status?: Record<string, { active?: boolean; triggered?: boolean; confidence?: number | null; reason?: string }>;
+  module_health?: Record<string, number>;
+  module_backtest_stats?: Record<string, { trades: number; win_rate_pct: number; profit_factor: number; max_drawdown_pct: number; health_score: number }>;
+  rejected_modules?: { module: string; confidence: number; reason: string; detail?: string }[];
   updated_at?: string;
 };
 

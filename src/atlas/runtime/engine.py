@@ -120,13 +120,15 @@ class TradingEngine:
         )
         return self._build_indicators(candles)
 
-    def _snapshot(self, ind_df: pd.DataFrame, idx: int, candles: list[Candle]) -> IndicatorSnapshot:
+    def _snapshot(self, ind_df: pd.DataFrame, idx: int, candle: Candle) -> IndicatorSnapshot:
         snap = row_to_indicator_snapshot(ind_df.iloc[idx])
         if idx > 0:
-            prev = row_to_indicator_snapshot(ind_df.iloc[idx - 1])
-            snap["prev_bb_width"] = prev.get("bb_width")
-            snap["prev_close"] = float(candles[idx - 1].close)
-        return IndicatorSnapshot(timestamp=candles[idx].timestamp, **snap)
+            if snap.get("prev_close") is None:
+                snap["prev_close"] = float(ind_df.iloc[idx - 1]["close"])
+            if snap.get("prev_bb_width") is None:
+                prev = row_to_indicator_snapshot(ind_df.iloc[idx - 1])
+                snap["prev_bb_width"] = prev.get("bb_width")
+        return IndicatorSnapshot(timestamp=candle.timestamp, **snap)
 
     def _evaluate_signal(self, ind_df: pd.DataFrame, idx: int, candle: Candle, position: Position | None):
         row = ind_df.iloc[idx]
@@ -134,6 +136,11 @@ class TradingEngine:
             ctx = self.strategy.build_context(row, candle)
             self._last_context = ctx
             signal = self.strategy.evaluate_context(ctx, position)
+            meta = signal.metadata or {}
+            last_decision = getattr(self.strategy, "last_decision_snapshot", lambda: {})()
+            entry_result = "operacao_executada" if signal.action.value == "enter_long" else (
+                "detectado_nao_executado" if last_decision.get("selected_module") and signal.action.value == "hold" else "sem_sinal"
+            )
             update_runtime_snapshot(
                 alignment_score=ctx.alignment_score,
                 alignment_breakdown=ctx.alignment_breakdown,
@@ -143,9 +150,14 @@ class TradingEngine:
                 last_signal=signal.action.value,
                 last_reason=signal.reason,
                 strategy=self.strategy.name,
+                entry_module=meta.get("entry_module") or last_decision.get("selected_module"),
+                entry_confidence=meta.get("entry_confidence") or last_decision.get("selected_confidence"),
+                entry_result=entry_result if self.strategy.name == "quantum_trend_pro" else None,
+                module_status=last_decision.get("module_status"),
+                rejected_modules=meta.get("rejected_modules") or last_decision.get("rejected_modules"),
             )
             return signal, ctx
-        indicators = self._snapshot(ind_df, idx, [candle])
+        indicators = self._snapshot(ind_df, idx, candle)
         return self.strategy.evaluate(candle, indicators, position), None
 
     def _log_trade(self, event: str, signal, candle: Candle, *, ctx=None, fill=None, position=None) -> None:
@@ -234,6 +246,8 @@ class TradingEngine:
             result.update(alert_meta)
             platform_orchestrator.post_signal(self, signal=signal, ctx=ctx, outcome=result, candle=candle)
             return result
+
+        if signal.action == SignalAction.ENTER_LONG and not position:
             if not can_trade:
                 result["action"] = "blocked"
                 result["block_reason"] = gate_reason

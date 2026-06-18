@@ -1,4 +1,4 @@
-"""QuantumTrend Pro Core Strategy — orquestra regime, score e entradas."""
+"""QuantumTrend Pro Core — orquestra regime, score e entradas."""
 from __future__ import annotations
 
 from typing import Any
@@ -7,7 +7,7 @@ import pandas as pd
 
 from atlas.core.models import Candle, IndicatorSnapshot, Position, Signal, SignalAction
 from atlas.quantum.alignment import AlignmentScoreEngine
-from atlas.quantum.entry import evaluate_entry
+from atlas.quantum.decision_engine import DecisionEngine
 from atlas.quantum.models import EntryModule, REGIME_LABELS, RiskProfile
 from atlas.quantum.multi_timeframe import MultiTimeframeEngine
 from atlas.quantum.position_manager import PositionManager
@@ -17,7 +17,7 @@ from atlas.quantum.regime import MarketRegimeEngine
 class QuantumTrendProStrategy:
     """
     Estratégia principal do TradeBot Pro.
-    Execução no 1H com filtros 1D + 4H + Alignment Score.
+    Execução no 1H com filtros 1D + 4H + Alignment Score + Entry Modules.
     """
 
     name = "quantum_trend_pro"
@@ -37,7 +37,9 @@ class QuantumTrendProStrategy:
         self.alignment_engine = AlignmentScoreEngine(risk_profile=self.risk_profile)
         self.position_manager = PositionManager(stop_atr=stop_atr, target_atr=target_atr)
         self.mtf_engine = MultiTimeframeEngine()
+        self.decision_engine = DecisionEngine()
         self._last_context: dict[str, Any] = {}
+        self._last_decision: dict[str, Any] = {}
 
     def build_context(self, row: pd.Series, candle: Candle):
         ctx = self.mtf_engine.context_from_row(row, candle)
@@ -71,13 +73,29 @@ class QuantumTrendProStrategy:
         if not ctx.confirm_bull:
             return Signal(action=SignalAction.HOLD, reason="4H contrário ou sem confirmação", metadata=self._context_metadata(ctx))
 
-        entry = evaluate_entry(ctx, self.entry_module)
-        entry_signal = entry is not None
+        decision = self.decision_engine.evaluate(ctx, self.entry_module)
+        self._last_decision = {
+            "module_status": DecisionEngine.module_status(decision.evaluations),
+            "evaluations": [
+                {
+                    "module": r.module.value,
+                    "triggered": r.triggered,
+                    "confidence": r.confidence,
+                    "reason": r.reason,
+                }
+                for r in decision.evaluations
+            ],
+            "rejected_modules": list(decision.rejected),
+            "selected_module": decision.selected.module.value if decision.selected else None,
+            "selected_confidence": decision.selected.confidence if decision.selected else None,
+        }
+
+        entry_signal = decision.selected is not None
         alignment = self.alignment_engine.score(ctx, entry_signal=entry_signal)
         ctx.alignment_score = alignment.total
         ctx.alignment_breakdown = alignment.breakdown
 
-        if entry is None:
+        if decision.selected is None:
             return Signal(
                 action=SignalAction.HOLD,
                 reason="nenhum gatilho 1H",
@@ -88,17 +106,17 @@ class QuantumTrendProStrategy:
             return Signal(
                 action=SignalAction.HOLD,
                 reason=f"alignment score {alignment.total} < {alignment.threshold}",
-                metadata=self._context_metadata(ctx, alignment),
+                metadata=self._context_metadata(ctx, alignment, decision.selected),
             )
 
         atr = ctx.atr_execution or 0.0
         entry_price = ctx.execution.candle.close
         levels = self.position_manager.levels_for_entry(entry_price, atr)
-        meta = self._context_metadata(ctx, alignment)
-        meta.update(entry.signal.metadata or {})
+        meta = self._context_metadata(ctx, alignment, decision.selected)
+        meta.update(decision.selected.signal.metadata or {})
         return Signal(
             action=SignalAction.ENTER_LONG,
-            reason=entry.signal.reason,
+            reason=decision.selected.reason,
             stop_price=levels.stop_price,
             target_price=levels.target_price,
             metadata=meta,
@@ -117,7 +135,10 @@ class QuantumTrendProStrategy:
         ctx = self.build_context(row, candle)
         return self.evaluate_context(ctx, position)
 
-    def _context_metadata(self, ctx, alignment=None) -> dict[str, Any]:
+    def last_decision_snapshot(self) -> dict[str, Any]:
+        return dict(self._last_decision)
+
+    def _context_metadata(self, ctx, alignment=None, entry: Any | None = None) -> dict[str, Any]:
         payload = {
             "regime": ctx.regime.value,
             "regime_label": ctx.meta.get("regime_label"),
@@ -125,8 +146,12 @@ class QuantumTrendProStrategy:
             "alignment_breakdown": ctx.alignment_breakdown,
             "macro_bull": ctx.macro_bull,
             "confirm_bull": ctx.confirm_bull,
-            "entry_module": self.entry_module.value,
+            "entry_module": entry.module.value if entry else self.entry_module.value,
+            "entry_confidence": getattr(entry, "confidence", None),
+            "entry_indicators": list(getattr(entry, "indicators", ()) or ()),
             "risk_profile": self.risk_profile.value,
+            "module_status": self._last_decision.get("module_status"),
+            "rejected_modules": self._last_decision.get("rejected_modules"),
         }
         if alignment is not None:
             payload["alignment_threshold"] = alignment.threshold

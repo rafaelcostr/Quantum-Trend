@@ -228,10 +228,16 @@ function Page() {
                       {
                         onSuccess: (res) => {
                           setConfirmReset(false);
+                          if (res.deleted_count === 0 && res.cleared_count === 0) {
+                            setResetMsg(
+                              "Nenhum arquivo encontrado para apagar — confirme que a API Python está rodando no mesmo projeto (python -m atlas.cli api).",
+                            );
+                            return;
+                          }
                           setResetMsg(
                             `Reset concluído: ${res.deleted_count} arquivo(s) removido(s)` +
                               (res.cleared_count ? `, ${res.cleared_count} limpo(s)` : "") +
-                              ".",
+                              ". Backtests e Resultados foram limpos.",
                           );
                         },
                         onError: (err) => {
@@ -260,7 +266,13 @@ function Page() {
           )}
           {resetMsg && (
             <p
-              className={`text-xs mt-3 ${resetMsg.includes("Falha") || resetMsg.includes("pare") ? "text-destructive" : "text-success"}`}
+              className={`text-xs mt-3 ${
+                resetMsg.includes("Falha") ||
+                resetMsg.includes("pare") ||
+                resetMsg.includes("Nenhum arquivo")
+                  ? "text-destructive"
+                  : "text-success"
+              }`}
             >
               {resetMsg}
             </p>
