@@ -346,14 +346,24 @@ _SNAPSHOT_CACHE: dict[bool, AccountSnapshot | None] = {}
 _SNAPSHOT_CACHE_AT: dict[bool, float] = {}
 _SNAPSHOT_TTL = 20.0
 
+_LAST_PRICE_CACHE: dict[str, tuple[float, float]] = {}
+_LAST_PRICE_TTL = 8.0
+
 
 def fetch_last_price(symbol: str = "BTC/USDT") -> float:
+    now = time.time()
+    cached = _LAST_PRICE_CACHE.get(symbol)
+    if cached and (now - cached[1]) < _LAST_PRICE_TTL:
+        return cached[0]
     try:
         ticker = _public_exchange().fetch_ticker(symbol)
-        return float(ticker.get("last") or ticker.get("close") or 0)
+        price = float(ticker.get("last") or ticker.get("close") or 0)
+        if price > 0:
+            _LAST_PRICE_CACHE[symbol] = (price, now)
+        return price
     except Exception as exc:
         logger.debug("fetch_last_price falhou para %s: %s", symbol, exc)
-        return 0.0
+        return cached[0] if cached else 0.0
 
 
 def fetch_account_snapshot(symbol: str = "BTC/USDT", *, live: bool = False, force: bool = False) -> AccountSnapshot | None:

@@ -123,13 +123,13 @@ def active_config():
     return resolve_active_config(live_running=bot_state.running and bot_state.mode == TradingMode.LIVE)
 
 
-def _position_from_engine(engine, cfg) -> PositionDTO | None:
+def _position_from_engine(engine, cfg, *, current: float | None = None) -> PositionDTO | None:
     symbol = cfg.exchange.symbol
     base = symbol.split("/")[0]
-    current = mark_price(symbol)
+    mark = current if current is not None else mark_price(symbol)
     if engine and engine._position:
         pos = engine._position
-        pos.current_price = current or pos.entry_price
+        pos.current_price = mark or pos.entry_price
         return PositionDTO(
             asset=base,
             side="LONG",
@@ -152,8 +152,9 @@ def build_positions() -> list[PositionDTO]:
 
     if bot_pool.is_alive():
         positions: list[PositionDTO] = []
+        current = mark_price(symbol)
         for _key, engine in bot_pool.engines():
-            pos = _position_from_engine(engine, engine.config)
+            pos = _position_from_engine(engine, engine.config, current=current)
             if pos:
                 positions.append(pos)
         if positions:

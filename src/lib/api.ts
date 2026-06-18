@@ -75,9 +75,12 @@ async function request<T>(path: string, init?: RequestInit & { timeoutMs?: numbe
     }
     return res.json() as Promise<T>;
   } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") {
+    const timedOut =
+      (err instanceof DOMException && err.name === "AbortError") ||
+      (err instanceof Error && /timed out|abort/i.test(err.message));
+    if (timedOut) {
       throw new ApiError(
-        "Tempo esgotado — confirme que a API Python está ativa (python -m atlas.cli api).",
+        "Tempo esgotado — a API respondeu devagar (com 3 bots pode levar ~30s). Aguarde ou reinicie a API.",
         408,
       );
     }
@@ -96,25 +99,26 @@ async function request<T>(path: string, init?: RequestInit & { timeoutMs?: numbe
 export const api = {
   health: () =>
     request<HealthResponse>("/health"),
-  dashboard: () => request<DashboardResponse>("/dashboard"),
-  quantumStatus: () => request<QuantumStatus>("/quantum/status"),
-  portfolio: () => request<PortfolioResponse>("/portfolio"),
-  markets: () => request<{ items: MarketTicker[] }>("/markets"),
-  positions: () => request<{ items: Position[] }>("/positions"),
+  dashboard: () => request<DashboardResponse>("/dashboard", { timeoutMs: 90_000 }),
+  quantumStatus: () => request<QuantumStatus>("/quantum/status", { timeoutMs: 45_000 }),
+  portfolio: () => request<PortfolioResponse>("/portfolio", { timeoutMs: 45_000 }),
+  markets: () => request<{ items: MarketTicker[] }>("/markets", { timeoutMs: 45_000 }),
+  positions: () => request<{ items: Position[] }>("/positions", { timeoutMs: 45_000 }),
   strategies: () => request<{ items: Strategy[] }>("/strategies"),
   journal: () => request<{ items: JournalEntry[] }>("/journal"),
-  intelligence: () => request<IntelligenceResponse>("/intelligence"),
+  intelligence: () => request<IntelligenceResponse>("/intelligence", { timeoutMs: 45_000 }),
   intelligenceAnalysis: (strategy?: string) =>
     request<IntelligenceAnalysis>(
       strategy ? `/intelligence/analysis?strategy=${encodeURIComponent(strategy)}` : "/intelligence/analysis",
+      { timeoutMs: 45_000 },
     ),
   botStatus: () => request<BotStatus>("/bot/status"),
-  botStart: () => request<BotStatus>("/bot/start", { method: "POST" }),
-  botStartLive: () => request<BotStatus>("/bot/start-live", { method: "POST" }),
+  botStart: () => request<BotStatus>("/bot/start", { method: "POST", timeoutMs: 120_000 }),
+  botStartLive: () => request<BotStatus>("/bot/start-live", { method: "POST", timeoutMs: 120_000 }),
   botStop: () => request<BotStatus>("/bot/stop", { method: "POST" }),
   live: async (): Promise<LiveResponse> => {
     try {
-      return await request<LiveResponse>("/live");
+      return await request<LiveResponse>("/live", { timeoutMs: 90_000 });
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) {
         throw new ApiError(
@@ -125,9 +129,9 @@ export const api = {
       throw e;
     }
   },
-  liveGates: () => request<LiveGatesResponse>("/live/gates"),
+  liveGates: () => request<LiveGatesResponse>("/live/gates", { timeoutMs: 60_000 }),
   operationsFeed: (limit = 100) =>
-    request<OperationsFeedResponse>(`/operations/feed?limit=${limit}`),
+    request<OperationsFeedResponse>(`/operations/feed?limit=${limit}`, { timeoutMs: 45_000 }),
   backtest: (opts: BacktestOptions = {}) =>
     request<{ metrics: BacktestMetrics; report_path: string; strategy?: string; timeframe?: string }>(
       "/backtest",
@@ -264,7 +268,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
-  platformStatus: () => request<PlatformStatus>("/platform/status"),
+  platformStatus: () => request<PlatformStatus>("/platform/status", { timeoutMs: 60_000 }),
   ackRiskLock: () => request<{ ok: boolean }>("/platform/ack-risk", { method: "POST" }),
   runStressTest: () => request<{ ok: boolean; reports: unknown[] }>("/platform/stress-test", { method: "POST" }),
 };

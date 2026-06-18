@@ -49,7 +49,12 @@ function Dashboard() {
   const [botErr, setBotErr] = useState<string | null>(null);
 
   if (!isBrowser || isPending) {
-    return <div className="text-muted-foreground text-sm">Carregando dashboard…</div>;
+    return (
+      <div className="text-muted-foreground text-sm space-y-2 py-12 text-center">
+        <p>Carregando dashboard…</p>
+        <p className="text-xs opacity-70">Com 3 bots paper a API pode levar até ~30s. Aguarde.</p>
+      </div>
+    );
   }
   if (isError || !data) {
     const msg = error instanceof Error ? error.message : "Erro desconhecido";

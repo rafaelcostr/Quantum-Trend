@@ -75,7 +75,8 @@ export function usePositions() {
     queryKey: queryKeys.positions,
     queryFn: api.positions,
     enabled: isBrowser,
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
+    staleTime: 20_000,
     retry: 1,
   });
 }
@@ -251,7 +252,35 @@ export function useValidation() {
 }
 
 export function useRisk() {
-  return useQuery({ queryKey: queryKeys.risk, queryFn: api.risk });
+  return useQuery({
+    queryKey: queryKeys.risk,
+    queryFn: api.risk,
+    enabled: isBrowser,
+    staleTime: 20_000,
+    retry: 1,
+  });
+}
+
+export function useQuantumStatus() {
+  return useQuery({
+    queryKey: queryKeys.quantum,
+    queryFn: api.quantumStatus,
+    enabled: isBrowser,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
+}
+
+export function usePlatformStatus() {
+  return useQuery({
+    queryKey: queryKeys.platform,
+    queryFn: api.platformStatus,
+    enabled: isBrowser,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
 }
 
 export function useUpdateRisk() {

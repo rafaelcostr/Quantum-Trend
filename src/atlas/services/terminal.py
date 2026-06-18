@@ -43,7 +43,7 @@ from atlas.services.analytics import (
 
 _DASHBOARD_CACHE: dict | None = None
 _DASHBOARD_CACHE_AT: float = 0.0
-_DASHBOARD_TTL = 45.0
+_DASHBOARD_TTL = 60.0
 
 _INTELLIGENCE_CACHE: dict | None = None
 _INTELLIGENCE_CACHE_AT: float = 0.0
