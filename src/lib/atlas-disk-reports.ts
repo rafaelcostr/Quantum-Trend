@@ -44,7 +44,9 @@ function strategyLabel(id: string): string {
   return STRATEGY_LABELS[id] ?? id.replace(/_/g, " ");
 }
 
-function parseReportStem(stem: string): { strategy: string; timeframe: string; quote: string; base_asset: "BTC" | "ETH" } | null {
+function parseReportStem(
+  stem: string,
+): { strategy: string; timeframe: string; quote: string; base_asset: "BTC" | "ETH" } | null {
   const m = stem.match(/^(.+)_(4h|1d|1h)_(usdt|usdc)(?:_(btc|eth))?(?:_report)?$/i);
   if (!m) return null;
   const base = (m[4]?.toUpperCase() ?? "BTC") as "BTC" | "ETH";
@@ -83,7 +85,10 @@ function metricsFromRaw(raw: Record<string, unknown>): ReportMetrics {
     win_rate_pct: round(winRate <= 1 ? winRate * 100 : winRate, 2),
     trades: Number(stats.total_trades ?? stats.trades ?? 0),
     expectancy: round(Number(stats.avg_trade_pct ?? stats.expectancy ?? 0), 4),
-    atlas_score: round(Number((raw.metrics as Record<string, unknown> | undefined)?.atlas_score ?? 0), 1),
+    atlas_score: round(
+      Number((raw.metrics as Record<string, unknown> | undefined)?.atlas_score ?? 0),
+      1,
+    ),
   };
 }
 
@@ -93,7 +98,20 @@ type ParsedTrade = {
   pnl_pct: number;
 };
 
-const MONTH_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const MONTH_LABELS = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
+];
 
 function monthLabel(isoTs: string): string {
   const d = new Date(isoTs);
@@ -131,7 +149,7 @@ function monthlyReturnsFromEquity(equityRaw: unknown[]): { m: string; r: number 
     const start = prevEnd ?? points[0];
     const end = points[points.length - 1];
     if (!start) continue;
-    const retPct = ((end / start) - 1) * 100;
+    const retPct = (end / start - 1) * 100;
     const [, monthNum] = ym.split("-");
     const year = ym.slice(2, 4);
     const label = `${MONTH_LABELS[Number(monthNum) - 1]}/${year}`;
@@ -141,7 +159,10 @@ function monthlyReturnsFromEquity(equityRaw: unknown[]): { m: string; r: number 
   return out;
 }
 
-function monthlyReturnsFromTrades(trades: ParsedTrade[], initial = 10000): { m: string; r: number }[] {
+function monthlyReturnsFromTrades(
+  trades: ParsedTrade[],
+  initial = 10000,
+): { m: string; r: number }[] {
   if (!trades.length) return [];
   const buckets = new Map<string, number>();
   let equity = initial;
@@ -175,7 +196,11 @@ function tradeDistribution(trades: ParsedTrade[]): { bucket: string; n: number }
   return Object.entries(buckets).map(([bucket, n]) => ({ bucket, n }));
 }
 
-function periodFromEquity(equityRaw: unknown[]): { period_start: string | null; period_end: string | null; days: number | null } {
+function periodFromEquity(equityRaw: unknown[]): {
+  period_start: string | null;
+  period_end: string | null;
+  days: number | null;
+} {
   if (!equityRaw.length) return { period_start: null, period_end: null, days: null };
   const first = equityRaw[0] as Record<string, unknown>;
   const last = equityRaw[equityRaw.length - 1] as Record<string, unknown>;
@@ -184,9 +209,10 @@ function periodFromEquity(equityRaw: unknown[]): { period_start: string | null; 
   if (!startTs || !endTs) return { period_start: null, period_end: null, days: null };
   const start = new Date(`${startTs}T00:00:00Z`);
   const end = new Date(`${endTs}T00:00:00Z`);
-  const days = Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())
-    ? null
-    : Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
+  const days =
+    Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())
+      ? null
+      : Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
   return { period_start: startTs, period_end: endTs, days };
 }
 
@@ -199,7 +225,13 @@ async function loadReportFile(filename: string): Promise<Record<string, unknown>
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
-export async function buildMatrixFromDisk(quote = "USDT"): Promise<{ total: number; quote: string; best_return: MatrixItem | null; best_score: MatrixItem | null; items: MatrixItem[] }> {
+export async function buildMatrixFromDisk(quote = "USDT"): Promise<{
+  total: number;
+  quote: string;
+  best_return: MatrixItem | null;
+  best_score: MatrixItem | null;
+  items: MatrixItem[];
+}> {
   const dir = await reportsDir();
   const files = (await readdir(dir))
     .filter((f) => f.endsWith(".json") && !f.toLowerCase().includes("walkforward"))
@@ -237,7 +269,9 @@ export async function buildMatrixFromDisk(quote = "USDT"): Promise<{ total: numb
   }
 
   items.sort((a, b) => (b.metrics.total_return_pct ?? 0) - (a.metrics.total_return_pct ?? 0));
-  const byScore = [...items].sort((a, b) => (b.metrics.atlas_score ?? 0) - (a.metrics.atlas_score ?? 0));
+  const byScore = [...items].sort(
+    (a, b) => (b.metrics.atlas_score ?? 0) - (a.metrics.atlas_score ?? 0),
+  );
 
   return {
     total: items.length,
@@ -248,7 +282,12 @@ export async function buildMatrixFromDisk(quote = "USDT"): Promise<{ total: numb
   };
 }
 
-export async function buildResultsFromDisk(strategy: string, timeframe: string, quote = "USDT", baseAsset: "BTC" | "ETH" = "BTC") {
+export async function buildResultsFromDisk(
+  strategy: string,
+  timeframe: string,
+  quote = "USDT",
+  baseAsset: "BTC" | "ETH" = "BTC",
+) {
   const base = baseAsset.toLowerCase();
   const candidates = [
     `${strategy}_${timeframe.toLowerCase()}_${quote.toLowerCase()}_${base}_report.json`,
@@ -264,7 +303,8 @@ export async function buildResultsFromDisk(strategy: string, timeframe: string, 
       /* try next */
     }
   }
-  if (!raw) throw new Error(`Relatório não encontrado para ${strategy} · ${timeframe} · ${baseAsset}`);
+  if (!raw)
+    throw new Error(`Relatório não encontrado para ${strategy} · ${timeframe} · ${baseAsset}`);
   const metrics = metricsFromRaw(raw);
   const meta = (raw.metadata ?? {}) as Record<string, unknown>;
   const symbol = String(meta.market ?? "BTC/USDT");

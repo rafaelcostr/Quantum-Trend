@@ -102,7 +102,21 @@ const MODULE_KEYS: Record<string, string> = {
 
 const DEFAULT_CARD_BASE: Omit<
   StrategyRuntimeView,
-  "key" | "lastAnalysis" | "nextCandleSec" | "sparkline" | "alignmentScore" | "healthScore" | "healthTone" | "healthLabel" | "statusEmoji" | "cardTone" | "confidence" | "timeframes" | "setupProgress" | "setupSteps" | "regime"
+  | "key"
+  | "lastAnalysis"
+  | "nextCandleSec"
+  | "sparkline"
+  | "alignmentScore"
+  | "healthScore"
+  | "healthTone"
+  | "healthLabel"
+  | "statusEmoji"
+  | "cardTone"
+  | "confidence"
+  | "timeframes"
+  | "setupProgress"
+  | "setupSteps"
+  | "regime"
 > = {
   title: "",
   subtitle: "BTC/USDT",
@@ -124,7 +138,11 @@ const DEFAULT_CARDS_META: { title: string; visual: StrategyVisualId }[] = [
 export function fmtTime(ts: string | null | undefined): string {
   if (!ts) return "—";
   try {
-    return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return new Date(ts).toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   } catch {
     return ts.slice(11, 19);
   }
@@ -135,7 +153,8 @@ export function fmtCountdown(totalSec: number | null | undefined): string {
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
-  if (h > 0) return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  if (h > 0)
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
@@ -218,7 +237,10 @@ export function parseHoldFilters(reason: string | null | undefined): FilterChip[
     chips.push({ label: "EMA200", ok: !r.includes("below") && !r.includes("no uptrend") });
   }
   if (r.includes("ema20") || r.includes("pullback")) {
-    chips.push({ label: "EMA20", ok: !r.includes("no pullback") && !r.includes("no bullish bounce") });
+    chips.push({
+      label: "EMA20",
+      ok: !r.includes("no pullback") && !r.includes("no bullish bounce"),
+    });
   }
   if (r.includes("volume")) {
     chips.push({ label: "Volume", ok: !r.includes("low volume") && !r.includes("volume too") });
@@ -227,7 +249,10 @@ export function parseHoldFilters(reason: string | null | undefined): FilterChip[
     chips.push({ label: "ADX", ok: !r.includes("adx too low") });
   }
   if (r.includes("supertrend")) {
-    chips.push({ label: "Supertrend", ok: !r.includes("not bullish") && !r.includes("flipped bearish") });
+    chips.push({
+      label: "Supertrend",
+      ok: !r.includes("not bullish") && !r.includes("flipped bearish"),
+    });
   }
   if (r.includes("breakout") || r.includes("high_20")) {
     chips.push({ label: "Breakout", ok: !r.includes("no breakout") });
@@ -249,8 +274,12 @@ function signalLabel(raw: string | null | undefined): StrategyRuntimeView["signa
   return "aguardando";
 }
 
-function estimateAlignment(base: number, signal: string | null | undefined, reason: string | null | undefined): number {
-  let score = base || 50;
+function estimateAlignment(
+  base: number,
+  signal: string | null | undefined,
+  reason: string | null | undefined,
+): number {
+  const score = base || 50;
   const s = (signal ?? "hold").toLowerCase();
   const r = (reason ?? "").toLowerCase();
   if (s.includes("enter")) return Math.min(100, score + 12);
@@ -357,7 +386,10 @@ export function entryProbability(
   return Math.round(Math.max(8, Math.min(88, alignment * 0.38 + setupProgress * 0.52)));
 }
 
-function matchTickForInstance(instance: BotInstance, items: OperationsFeedItem[]): OperationsFeedItem | undefined {
+function matchTickForInstance(
+  instance: BotInstance,
+  items: OperationsFeedItem[],
+): OperationsFeedItem | undefined {
   if (!instance.last_tick_at) return undefined;
   const target = new Date(instance.last_tick_at).getTime();
   let best: OperationsFeedItem | undefined;
@@ -373,7 +405,10 @@ function matchTickForInstance(instance: BotInstance, items: OperationsFeedItem[]
   return best;
 }
 
-function matchCardForTick(tick: OperationsFeedItem, cards: StrategyRuntimeView[]): StrategyRuntimeView | undefined {
+function matchCardForTick(
+  tick: OperationsFeedItem,
+  cards: StrategyRuntimeView[],
+): StrategyRuntimeView | undefined {
   if (!tick.ts) return undefined;
   const target = new Date(tick.ts).getTime();
   return cards.find((c) => {
@@ -432,7 +467,10 @@ export function buildHeaderMetrics(
   nextTickSec: number | null,
   latencyMs: number | null,
 ): HeaderMetrics {
-  const notional = positions.reduce((sum, p) => sum + Math.abs(p.entry * (p.side === "short" ? -1 : 1)), 0);
+  const notional = positions.reduce(
+    (sum, p) => sum + Math.abs(p.entry * (p.side === "short" ? -1 : 1)),
+    0,
+  );
   const exposurePct = capital > 0 ? Math.min(100, (notional / capital) * 100) : 0;
   return {
     capital,
@@ -452,7 +490,8 @@ export function buildStrategyCards(
   platform: PlatformStatus | undefined,
   sparkline: number[],
 ): StrategyRuntimeView[] {
-  const baseScore = stats.alignment_score || platform?.alignment_score || quantum?.alignment_score || 50;
+  const baseScore =
+    stats.alignment_score || platform?.alignment_score || quantum?.alignment_score || 50;
   const regimeBase = inferRegime(quantum?.last_reason ?? null, quantum, platform);
 
   if (!instances?.length) {
@@ -633,13 +672,28 @@ function enrichTickTitle(
   symbol?: string,
 ): Pick<
   TimelineEventView,
-  "title" | "subtitle" | "detail" | "symbol" | "strategyLabel" | "score" | "decision" | "timeframes" | "entryProbability"
+  | "title"
+  | "subtitle"
+  | "detail"
+  | "symbol"
+  | "strategyLabel"
+  | "score"
+  | "decision"
+  | "timeframes"
+  | "entryProbability"
 > {
   const reason = item.reason ?? "";
   const signal = (item.signal ?? "hold").toLowerCase();
   const tfs = card?.timeframes ?? buildTimeframeRows(reason, signal, "pullback");
   const score = card?.alignmentScore ?? estimateAlignment(50, signal, reason);
-  const prob = card?.confidence ?? entryProbability(score, computeSetupProgress(buildSetupSteps(tfs, parseHoldFilters(reason))), signal, false);
+  const prob =
+    card?.confidence ??
+    entryProbability(
+      score,
+      computeSetupProgress(buildSetupSteps(tfs, parseHoldFilters(reason))),
+      signal,
+      false,
+    );
   const stratLabel = card?.title ?? item.message?.split("·")[0]?.trim();
   const sym = symbol ?? "BTCUSDT";
 
@@ -653,7 +707,13 @@ function enrichTickTitle(
       entryProbability: prob,
       decision: "ENTER",
       timeframes: tfs,
-      detail: [sym, stratLabel ?? "", ...tfs.map(tfLine), `Score: ${Math.round(score)}/100`, "Entrada executada"],
+      detail: [
+        sym,
+        stratLabel ?? "",
+        ...tfs.map(tfLine),
+        `Score: ${Math.round(score)}/100`,
+        "Entrada executada",
+      ],
     };
   }
   if (item.action === "exit") {
@@ -679,11 +739,22 @@ function enrichTickTitle(
       entryProbability: prob,
       decision: "BLOCKED",
       timeframes: tfs,
-      detail: [sym, ...tfs.map(tfLine), ...filters.map((f) => `${f.ok ? "✅" : "❌"} ${f.label}`), `Score: ${Math.round(score)}/100`],
+      detail: [
+        sym,
+        ...tfs.map(tfLine),
+        ...filters.map((f) => `${f.ok ? "✅" : "❌"} ${f.label}`),
+        `Score: ${Math.round(score)}/100`,
+      ],
     };
   }
   if (item.status === "warming_up") {
-    return { title: "Aquecendo indicadores", subtitle: item.message, symbol: sym, score, decision: "WARMUP" };
+    return {
+      title: "Aquecendo indicadores",
+      subtitle: item.message,
+      symbol: sym,
+      score,
+      decision: "WARMUP",
+    };
   }
   if (signal.includes("enter")) {
     return {
@@ -805,7 +876,10 @@ export type TradeOverlay = {
 export function buildTradeOverlays(positions: Position[], journal: JournalEntry[]): TradeOverlay[] {
   return positions.map((p, i) => {
     const j = journal.find((e) => e.event === "entry");
-    const stop = typeof j?.fill === "object" && j.fill && "stop_price" in j.fill ? Number(j.fill.stop_price) : undefined;
+    const stop =
+      typeof j?.fill === "object" && j.fill && "stop_price" in j.fill
+        ? Number(j.fill.stop_price)
+        : undefined;
     const target = p.entry > 0 ? p.entry * 1.03 : undefined;
     const trailing = p.current > p.entry ? p.entry + (p.current - p.entry) * 0.5 : undefined;
     return {

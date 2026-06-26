@@ -123,11 +123,10 @@ def get_market_regime_snapshot(cfg: AtlasConfig | None = None) -> dict:
     cache_key = (symbol, timeframe)
     now = time.time()
     cached = _REGIME_CACHE.get(cache_key)
-    if cached and (now - cached[0]) < _REGIME_TTL:
-        return cached[1]
 
     base = {
         "available": False,
+        "stale": False,
         "symbol": symbol,
         "timeframe": timeframe,
         "market_type": "range",
@@ -150,6 +149,7 @@ def get_market_regime_snapshot(cfg: AtlasConfig | None = None) -> dict:
         "slot_details": [],
         "warning": None,
         "error": None,
+        "stale_snapshot": None,
     }
 
     try:
@@ -157,6 +157,9 @@ def get_market_regime_snapshot(cfg: AtlasConfig | None = None) -> dict:
     except Exception as exc:
         base["error"] = str(exc)[:240]
         base["reason"] = "Não foi possível obter candles da Binance (rede ou símbolo)."
+        if cached and (now - cached[0]) < _REGIME_TTL:
+            base["stale"] = True
+            base["stale_snapshot"] = cached[1]
         _REGIME_CACHE[cache_key] = (now, base)
         return base
 
@@ -192,6 +195,7 @@ def get_market_regime_snapshot(cfg: AtlasConfig | None = None) -> dict:
     base.update(
         {
             "available": True,
+            "stale": False,
             "market_type": regime,
             "label": REGIME_LABELS_PT[regime],
             "suggestion": REGIME_SUGGESTIONS[regime],
@@ -210,6 +214,7 @@ def get_market_regime_snapshot(cfg: AtlasConfig | None = None) -> dict:
             "active_market_labels": alignment["active_market_labels"],
             "slot_details": alignment["slots"],
             "warning": alignment["warning"],
+            "stale_snapshot": None,
         }
     )
     _REGIME_CACHE[cache_key] = (now, base)

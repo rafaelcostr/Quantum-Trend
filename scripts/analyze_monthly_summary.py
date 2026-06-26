@@ -30,7 +30,7 @@ def main() -> None:
         flag = "SIM" if match else f"NAO (diff {diff:.1f}%)"
         print(f"{name}  {a['trades']:3}  {a['total_report']:+6.1f}%   {flag}")
 
-    print(f"\n{ok}/{traded} estrategias com trades batem retorno total vs soma mensal composta")
+    print(f"\n{ok}/{traded} estratégias com trades batem retorno total vs soma mensal composta")
 
     print("\n--- % do mes (meses com |ret| >= 0.05%) ---")
     for path in reports:

@@ -490,7 +490,7 @@ def get_markets() -> list[dict]:
 
     return [
         t.model_dump()
-        for t in fetch_tickers_cached(operated_market_watchlist(), include_sparkline=False)
+        for t in fetch_tickers_cached(symbols=operated_market_watchlist(), include_sparkline=False)
     ]
 
 
@@ -714,4 +714,3 @@ def get_live_payload() -> dict:
         },
         "instances": snap.get("instances", []),
     }
-

@@ -54,19 +54,32 @@ function TradeLevelOverlay({ trade, refPrice }: { trade: TradeOverlay; refPrice:
         style={{ top: `${riskTop}%`, height: `${riskBottom - riskTop}%` }}
       />
 
-      <div className="absolute left-0 right-0 border-t-2 border-dashed border-success" style={{ top: targetY }}>
-        <span className="absolute right-0 -top-3 text-[10px] font-mono text-success bg-black/60 px-1 rounded">TP</span>
+      <div
+        className="absolute left-0 right-0 border-t-2 border-dashed border-success"
+        style={{ top: targetY }}
+      >
+        <span className="absolute right-0 -top-3 text-[10px] font-mono text-success bg-black/60 px-1 rounded">
+          TP
+        </span>
       </div>
       <div className="absolute left-0 right-0 border-t-2 border-success" style={{ top: entryY }}>
         <span className="absolute left-2 -top-4 text-[11px] font-bold text-success bg-black/70 px-2 py-0.5 rounded">
           BUY ${trade.entry.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </span>
       </div>
-      <div className="absolute left-0 right-0 border-t-2 border-dashed border-warning" style={{ top: stopY }}>
-        <span className="absolute right-0 -top-3 text-[10px] font-mono text-warning bg-black/60 px-1 rounded">SL</span>
+      <div
+        className="absolute left-0 right-0 border-t-2 border-dashed border-warning"
+        style={{ top: stopY }}
+      >
+        <span className="absolute right-0 -top-3 text-[10px] font-mono text-warning bg-black/60 px-1 rounded">
+          SL
+        </span>
       </div>
       {trailY && (
-        <div className="absolute left-0 right-0 border-t border-dotted border-primary" style={{ top: trailY }}>
+        <div
+          className="absolute left-0 right-0 border-t border-dotted border-primary"
+          style={{ top: trailY }}
+        >
           <span className="absolute right-12 -top-3 text-[10px] font-mono text-primary bg-black/60 px-1 rounded">
             TRAIL
           </span>
@@ -119,7 +132,9 @@ export function LiveTradingViewChart({ symbol, timeframe, price, trades, onSelec
       subtitle={`TradingView · ${symbol.replace("/", "")} · EMA20 · EMA200 · Bollinger · Supertrend · ADX · RSI`}
       action={
         price != null ? (
-          <span className="chip num text-sm">${price.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+          <span className="chip num text-sm">
+            ${price.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </span>
         ) : null
       }
     >
@@ -131,7 +146,9 @@ export function LiveTradingViewChart({ symbol, timeframe, price, trades, onSelec
 
         <aside className="w-full lg:w-48 xl:w-52 shrink-0 p-3 space-y-3 bg-black/20 max-h-[280px] sm:max-h-[320px] xl:max-h-[360px] overflow-y-auto">
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">Overlays</div>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
+              Overlays
+            </div>
             <ul className="space-y-1.5">
               {MARKER_LEGEND.map((m) => (
                 <li key={m.label} className="flex items-center gap-2 text-[11px]">
@@ -143,7 +160,9 @@ export function LiveTradingViewChart({ symbol, timeframe, price, trades, onSelec
           </div>
 
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-[10px] space-y-1">
-            <div className="font-semibold text-muted-foreground uppercase mb-1">Legenda de zonas</div>
+            <div className="font-semibold text-muted-foreground uppercase mb-1">
+              Legenda de zonas
+            </div>
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded bg-success/20 border border-success/40" />
               <span>Lucro potencial</span>
@@ -156,7 +175,9 @@ export function LiveTradingViewChart({ symbol, timeframe, price, trades, onSelec
 
           {trades.length > 0 ? (
             <div className="space-y-2">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Operações abertas</div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Operações abertas
+              </div>
               {trades.map((t) => (
                 <button
                   key={t.id}
@@ -180,23 +201,31 @@ export function LiveTradingViewChart({ symbol, timeframe, price, trades, onSelec
                     {t.target && (
                       <div className="flex justify-between text-primary">
                         <span>TP</span>
-                        <span>${t.target.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span>
+                          ${t.target.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </span>
                       </div>
                     )}
                     {t.stop && (
                       <div className="flex justify-between text-warning">
                         <span>SL</span>
-                        <span>${t.stop.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span>
+                          ${t.stop.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </span>
                       </div>
                     )}
                     {t.trailing && (
                       <div className="flex justify-between text-sky-400">
                         <span>Trail</span>
-                        <span>${t.trailing.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span>
+                          ${t.trailing.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </span>
                       </div>
                     )}
                   </div>
-                  <div className={`mt-2 text-xs num ${t.pnlPct >= 0 ? "text-success" : "text-destructive"}`}>
+                  <div
+                    className={`mt-2 text-xs num ${t.pnlPct >= 0 ? "text-success" : "text-destructive"}`}
+                  >
                     {t.pnlPct >= 0 ? "+" : ""}
                     {t.pnlPct.toFixed(2)}%
                   </div>

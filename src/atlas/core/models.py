@@ -199,7 +199,7 @@ class ExecutionConfig(BaseModel):
 
 
 class DataConfig(BaseModel):
-    years: int = 3  # 0 = todo historico disponivel na exchange (ex.: BTC/USDT desde ~2017)
+    years: int = 3  # 0 = todo histórico disponível na exchange (ex.: BTC/USDT desde ~2017)
     cache_dir: str = "data/cache"
 
 

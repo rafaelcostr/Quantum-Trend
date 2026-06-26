@@ -1,6 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { PageHeader, Panel } from "@/components/ui/page";
-import { useSettings, useStrategies, useUpdateOperational, useUpdateOperationalSlots } from "@/lib/queries";
+import {
+  useSettings,
+  useStrategies,
+  useUpdateOperational,
+  useUpdateOperationalSlots,
+} from "@/lib/queries";
 import type { PaperSlotConfig, OperationalTimeframe, Strategy } from "@/lib/api";
 import { Edit, Copy, Play, MoreHorizontal, Layers } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -47,7 +52,8 @@ const PAGE_META: Record<
   },
   bear: {
     title: "Estratégias de Baixa",
-    subtitle: "Pullback Short, Breakout Down e Supertrend Bear — ativas em mercado de baixa (Bear).",
+    subtitle:
+      "Pullback Short, Breakout Down e Supertrend Bear — ativas em mercado de baixa (Bear).",
     tableTitle: "Bear Strategies",
     tableSubtitle: "Operações short em tendências de baixa.",
     badge: <span className="chip text-destructive">Bear</span>,
@@ -106,7 +112,11 @@ function strategyMarketType(strategy: string): StrategyMarket | null {
   return null;
 }
 
-function slotBelongsToMarket(strategy: string, market: StrategyMarket, allowedIds: Set<string>): boolean {
+function slotBelongsToMarket(
+  strategy: string,
+  market: StrategyMarket,
+  allowedIds: Set<string>,
+): boolean {
   return allowedIds.has(strategy) || STRATEGY_IDS_BY_MARKET[market].includes(strategy);
 }
 
@@ -171,7 +181,8 @@ function isSlotLocked(
 const PANEL_SLOT_HINT: Record<StrategyMarket, string> = {
   bull: "6 estratégias de alta por moeda. Se existir qualquer Baixa ativa no bot, esta página inteira fica bloqueada (e vice-versa). Laterais são independentes.",
   bear: "6 estratégias de baixa por moeda. Se existir qualquer Alta ativa no bot, esta página inteira fica bloqueada (e vice-versa). Laterais são independentes.",
-  range: "6 estratégias laterais por moeda. Slots 4 e 5 ficam livres mesmo com Alta nos slots 1–2. Demais slots com tendência ativa aparecem somente leitura.",
+  range:
+    "6 estratégias laterais por moeda. Slots 4 e 5 ficam livres mesmo com Alta nos slots 1–2. Demais slots com tendência ativa aparecem somente leitura.",
 };
 
 function slotLabel(globalIdx: number): number {
@@ -280,7 +291,9 @@ function mergeSlotsForSave(
       if (market === "range" && isFirstLateralSlot(globalIdx)) {
         toSave = normalizeRangeSlotForSave(toSave);
       } else if (st && st !== market) {
-        throw new Error(`Este slot está configurado para ${st} — desabilite na página correspondente antes de alterar aqui.`);
+        throw new Error(
+          `Este slot está configurado para ${st} — desabilite na página correspondente antes de alterar aqui.`,
+        );
       }
       if (!slotBelongsToMarket(toSave.strategy, market, allowedIds)) {
         throw new Error(`Estratégia "${toSave.strategy}" não pertence a este mercado (${market}).`);
@@ -358,17 +371,24 @@ function StrategyTable({
               const isActive = activeId === sid;
               const inSlots = slots.some((sl) => sl.enabled && sl.strategy === sid);
               return (
-                <tr key={sid} className={`border-t border-white/5 hover:bg-white/[0.03] ${isActive || inSlots ? "bg-primary/5" : ""}`}>
+                <tr
+                  key={sid}
+                  className={`border-t border-white/5 hover:bg-white/[0.03] ${isActive || inSlots ? "bg-primary/5" : ""}`}
+                >
                   <td className="px-3 py-3">
                     <div className="font-medium">{s.name}</div>
                     <div className="text-[11px] text-muted-foreground">{sid}</div>
                   </td>
-                  <td className="px-3 py-3 text-xs text-muted-foreground max-w-[140px]">{s.strategy_type || "—"}</td>
+                  <td className="px-3 py-3 text-xs text-muted-foreground max-w-[140px]">
+                    {s.strategy_type || "—"}
+                  </td>
                   <td className="px-3 py-3 text-right num">{s.trades ?? 0}</td>
                   <td className="px-3 py-3 text-right num">{s.winrate.toFixed(1)}%</td>
                   <td className="px-3 py-3 text-right num">{s.pf.toFixed(2)}</td>
                   <td className="px-3 py-3 text-right num">{s.dd.toFixed(1)}%</td>
-                  <td className="px-3 py-3"><span className={`chip ${statusChip(s.status)}`}>{s.status}</span></td>
+                  <td className="px-3 py-3">
+                    <span className={`chip ${statusChip(s.status)}`}>{s.status}</span>
+                  </td>
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <select
@@ -376,9 +396,15 @@ function StrategyTable({
                         onChange={(e) => setTimeframe(e.target.value as OperationalTimeframe)}
                         className="mr-1 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white"
                       >
-                        <option value="1h" className="text-black bg-white">1H</option>
-                        <option value="4h" className="text-black bg-white">4H</option>
-                        <option value="1d" className="text-black bg-white">1D</option>
+                        <option value="1h" className="text-black bg-white">
+                          1H
+                        </option>
+                        <option value="4h" className="text-black bg-white">
+                          4H
+                        </option>
+                        <option value="1d" className="text-black bg-white">
+                          1D
+                        </option>
                       </select>
                       <button
                         title={`Definir slot 1 · ${timeframe.toUpperCase()}`}
@@ -388,9 +414,24 @@ function StrategyTable({
                       >
                         <Play className="h-3.5 w-3.5" />
                       </button>
-                      <button className="h-8 w-8 grid place-items-center rounded-lg hover:bg-white/10 opacity-40" disabled><Edit className="h-3.5 w-3.5" /></button>
-                      <button className="h-8 w-8 grid place-items-center rounded-lg hover:bg-white/10 opacity-40" disabled><Copy className="h-3.5 w-3.5" /></button>
-                      <button className="h-8 w-8 grid place-items-center rounded-lg hover:bg-white/10 opacity-40" disabled><MoreHorizontal className="h-3.5 w-3.5" /></button>
+                      <button
+                        className="h-8 w-8 grid place-items-center rounded-lg hover:bg-white/10 opacity-40"
+                        disabled
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        className="h-8 w-8 grid place-items-center rounded-lg hover:bg-white/10 opacity-40"
+                        disabled
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        className="h-8 w-8 grid place-items-center rounded-lg hover:bg-white/10 opacity-40"
+                        disabled
+                      >
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -413,24 +454,32 @@ export function StrategiesMarketPage({ market }: { market: StrategyMarket }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [slotsDirty, setSlotsDirty] = useState(false);
   const [dirtyIndices, setDirtyIndices] = useState<Set<number>>(() => new Set());
-  const [slots, setSlots] = useState<PaperSlotConfig[]>(() => buildSlotsForMarket(undefined, market));
+  const [slots, setSlots] = useState<PaperSlotConfig[]>(() =>
+    buildSlotsForMarket(undefined, market),
+  );
 
-  const strategies = settings.data?.operational?.strategies ?? [];
+  const operational = settings.data?.operational;
   const maxSlots = settings.data?.operational?.max_slots ?? TOTAL_SLOT_ROWS;
   const botRunning = settings.data?.system.bot_running;
 
-  const marketItems = data?.items.filter((s) => (s.market_type ?? s.strategy_category) === market) ?? [];
+  const marketItems = useMemo(
+    () => data?.items.filter((s) => (s.market_type ?? s.strategy_category) === market) ?? [],
+    [data?.items, market],
+  );
   const allowedIdKey = useMemo(() => {
     const fromApi = marketItems.map((s) => s.id).sort();
     if (fromApi.length > 0) return fromApi.join("|");
     return STRATEGY_IDS_BY_MARKET[market].join("|");
-  }, [market, data?.items]);
+  }, [market, marketItems]);
 
-  const allowedIds = useMemo(() => new Set(allowedIdKey.split("|").filter(Boolean)), [allowedIdKey]);
+  const allowedIds = useMemo(
+    () => new Set(allowedIdKey.split("|").filter(Boolean)),
+    [allowedIdKey],
+  );
 
   const slotOptionsList = useMemo(
-    () => strategies.filter((s) => allowedIds.has(s.id)),
-    [strategies, allowedIdKey],
+    () => (operational?.strategies ?? []).filter((s) => allowedIds.has(s.id)),
+    [operational?.strategies, allowedIds],
   );
 
   useEffect(() => {
@@ -439,9 +488,9 @@ export function StrategiesMarketPage({ market }: { market: StrategyMarket }) {
   }, [market]);
 
   useEffect(() => {
-    if (!settings.data?.operational || slotsDirty) return;
-    setSlots(buildSlotsForMarket(settings.data.operational.slots, market));
-  }, [settings.data?.operational?.slots, market, slotsDirty]);
+    if (!operational || slotsDirty) return;
+    setSlots(buildSlotsForMarket(operational.slots, market));
+  }, [operational, market, slotsDirty]);
 
   if (!isPending && (isError || !data)) {
     return <div className="text-destructive text-sm">Erro ao carregar estratégias.</div>;
@@ -466,7 +515,10 @@ export function StrategiesMarketPage({ market }: { market: StrategyMarket }) {
     activate.mutate(
       { strategy: strategyId, timeframe },
       {
-        onSuccess: () => setMsg(`Slot 1 atualizado: ${strategyId} · ${timeframe.toUpperCase()} — salve slots ou inicie o bot.`),
+        onSuccess: () =>
+          setMsg(
+            `Slot 1 atualizado: ${strategyId} · ${timeframe.toUpperCase()} — salve slots ou inicie o bot.`,
+          ),
         onError: (e) => setMsg(e instanceof Error ? e.message : "Erro ao ativar"),
       },
     );
@@ -522,73 +574,90 @@ export function StrategiesMarketPage({ market }: { market: StrategyMarket }) {
     setSlots((prev) => prev.map((s, i) => (i === index ? next : s)));
   };
 
-  const renderSlotRow = (slot: PaperSlotConfig, index: number, base: "BTC" | "ETH", slotNum: number) => {
+  const renderSlotRow = (
+    slot: PaperSlotConfig,
+    index: number,
+    base: "BTC" | "ETH",
+    slotNum: number,
+  ) => {
     const inMarketList = slotOptionsList.some((s) => s.id === slot.strategy);
     const strategyValue = slot.strategy;
     const lockReason = slotLockReason(index, market, slot, slots);
     const locked = lockReason !== null;
 
     return (
-    <div
-      key={`${base}-${index}`}
-      className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
-        locked
-          ? "border-white/5 bg-white/[0.01] opacity-80"
-          : slot.enabled
-            ? "border-primary/30 bg-primary/5"
-            : "border-white/5 bg-white/[0.02]"
-      }`}
-    >
-      <label className={`flex items-center gap-2 text-sm ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}>
-        <input
-          type="checkbox"
-          checked={slot.enabled}
-          disabled={botRunning || locked}
+      <div
+        key={`${base}-${index}`}
+        className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
+          locked
+            ? "border-white/5 bg-white/[0.01] opacity-80"
+            : slot.enabled
+              ? "border-primary/30 bg-primary/5"
+              : "border-white/5 bg-white/[0.02]"
+        }`}
+      >
+        <label
+          className={`flex items-center gap-2 text-sm ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
+        >
+          <input
+            type="checkbox"
+            checked={slot.enabled}
+            disabled={botRunning || locked}
+            title={lockReason ?? undefined}
+            onChange={(e) => updateSlot(index, { enabled: e.target.checked, base })}
+            className="rounded border-white/20"
+          />
+          <span className="text-muted-foreground w-14">Slot {slotNum}</span>
+        </label>
+        <select
+          value={strategyValue}
+          disabled={botRunning || slotOptionsList.length === 0 || locked}
           title={lockReason ?? undefined}
-          onChange={(e) => updateSlot(index, { enabled: e.target.checked, base })}
-          className="rounded border-white/20"
-        />
-        <span className="text-muted-foreground w-14">Slot {slotNum}</span>
-      </label>
-      <select
-        value={strategyValue}
-        disabled={botRunning || slotOptionsList.length === 0 || locked}
-        title={lockReason ?? undefined}
-        onChange={(e) => updateSlot(index, { strategy: e.target.value, base })}
-        className="flex-1 min-w-[180px] rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white disabled:opacity-60"
-      >
-        {!inMarketList && slot.strategy && (
-          <option value={slot.strategy} className="text-black bg-white">
-            {slot.strategy}
-          </option>
-        )}
-        {slotOptionsList.map((s) => (
-          <option key={s.id} value={s.id} className="text-black bg-white">{s.name}</option>
-        ))}
-      </select>
-      <span className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm font-medium w-14 text-center">
-        {base}
-      </span>
-      <select
-        value={slot.timeframe}
-        disabled={botRunning || locked}
-        onChange={(e) => updateSlot(index, { timeframe: e.target.value as OperationalTimeframe, base })}
-        className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm w-24 text-white disabled:opacity-60"
-      >
-        <option value="1h" className="text-black bg-white">1H</option>
-        <option value="4h" className="text-black bg-white">4H</option>
-        <option value="1d" className="text-black bg-white">1D</option>
-      </select>
-      {slot.enabled && (
-        <span className="text-xs text-success flex items-center gap-1">
-          <Layers className="h-3 w-3" />
-          {base} · {slot.timeframe.toUpperCase()}
+          onChange={(e) => updateSlot(index, { strategy: e.target.value, base })}
+          className="flex-1 min-w-[180px] rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white disabled:opacity-60"
+        >
+          {!inMarketList && slot.strategy && (
+            <option value={slot.strategy} className="text-black bg-white">
+              {slot.strategy}
+            </option>
+          )}
+          {slotOptionsList.map((s) => (
+            <option key={s.id} value={s.id} className="text-black bg-white">
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <span className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm font-medium w-14 text-center">
+          {base}
         </span>
-      )}
-      {locked && lockReason && (
-        <span className="text-[10px] text-muted-foreground max-w-[220px]">{lockReason}</span>
-      )}
-    </div>
+        <select
+          value={slot.timeframe}
+          disabled={botRunning || locked}
+          onChange={(e) =>
+            updateSlot(index, { timeframe: e.target.value as OperationalTimeframe, base })
+          }
+          className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm w-24 text-white disabled:opacity-60"
+        >
+          <option value="1h" className="text-black bg-white">
+            1H
+          </option>
+          <option value="4h" className="text-black bg-white">
+            4H
+          </option>
+          <option value="1d" className="text-black bg-white">
+            1D
+          </option>
+        </select>
+        {slot.enabled && (
+          <span className="text-xs text-success flex items-center gap-1">
+            <Layers className="h-3 w-3" />
+            {base} · {slot.timeframe.toUpperCase()}
+          </span>
+        )}
+        {locked && lockReason && (
+          <span className="text-[10px] text-muted-foreground max-w-[220px]">{lockReason}</span>
+        )}
+      </div>
     );
   };
 
@@ -608,7 +677,10 @@ export function StrategiesMarketPage({ market }: { market: StrategyMarket }) {
                 {peer.label}
               </Link>
             ))}
-            <Link to="/backtests" className="rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm hover:bg-white/10">
+            <Link
+              to="/backtests"
+              className="rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm hover:bg-white/10"
+            >
               Backtests
             </Link>
           </div>
@@ -621,7 +693,9 @@ export function StrategiesMarketPage({ market }: { market: StrategyMarket }) {
           {trendRegimeBanner}
         </p>
       )}
-      {botRunning && <p className="text-sm text-warning">Pare o bot antes de alterar slots ou estratégias.</p>}
+      {botRunning && (
+        <p className="text-sm text-warning">Pare o bot antes de alterar slots ou estratégias.</p>
+      )}
 
       <Panel
         title={`Operação paralela · ${SLOTS_PER_BASE} por moeda (${maxSlots} total)`}
@@ -634,12 +708,7 @@ export function StrategiesMarketPage({ market }: { market: StrategyMarket }) {
               BTC/USDT · {enabledBtc}/{SLOTS_PER_BASE} habilitada(s)
             </h3>
             {btcPageIndices.map((idx) =>
-              renderSlotRow(
-                slots[idx] ?? emptySlot(market, "BTC"),
-                idx,
-                "BTC",
-                slotLabel(idx),
-              ),
+              renderSlotRow(slots[idx] ?? emptySlot(market, "BTC"), idx, "BTC", slotLabel(idx)),
             )}
           </div>
           <div className="space-y-3">
@@ -648,12 +717,7 @@ export function StrategiesMarketPage({ market }: { market: StrategyMarket }) {
               ETH/USDT · {enabledEth}/{SLOTS_PER_BASE} habilitada(s)
             </h3>
             {ethPageIndices.map((idx) =>
-              renderSlotRow(
-                slots[idx] ?? emptySlot(market, "ETH"),
-                idx,
-                "ETH",
-                slotLabel(idx),
-              ),
+              renderSlotRow(slots[idx] ?? emptySlot(market, "ETH"), idx, "ETH", slotLabel(idx)),
             )}
           </div>
         </div>

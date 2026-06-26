@@ -28,7 +28,13 @@ const HEALTH_TEXT = {
 } as const;
 
 function Sparkline({ data }: { data: number[] }) {
-  const series = data.length > 1 ? data.map((v, i) => ({ i, v })) : [{ i: 0, v: 50 }, { i: 1, v: 52 }];
+  const series =
+    data.length > 1
+      ? data.map((v, i) => ({ i, v }))
+      : [
+          { i: 0, v: 50 },
+          { i: 1, v: 52 },
+        ];
   const up = series[series.length - 1]?.v >= series[0]?.v;
   return (
     <div className="h-10 mt-3">
@@ -40,7 +46,14 @@ function Sparkline({ data }: { data: number[] }) {
               <stop offset="100%" stopColor={up ? "#22C55E" : "#EF4444"} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <Area type="monotone" dataKey="v" stroke={up ? "#22C55E" : "#EF4444"} strokeWidth={1.5} fill="url(#sparkOp)" dot={false} />
+          <Area
+            type="monotone"
+            dataKey="v"
+            stroke={up ? "#22C55E" : "#EF4444"}
+            strokeWidth={1.5}
+            fill="url(#sparkOp)"
+            dot={false}
+          />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -52,7 +65,9 @@ function StrategyCard({ card }: { card: StrategyRuntimeView }) {
   const sig = SIGNAL_META[card.signal];
 
   return (
-    <div className={`glass rounded-2xl border border-white/10 border-l-4 ${CARD_BORDER[card.cardTone]} p-4 flex flex-col`}>
+    <div
+      className={`glass rounded-2xl border border-white/10 border-l-4 ${CARD_BORDER[card.cardTone]} p-4 flex flex-col`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold">
@@ -80,7 +95,9 @@ function StrategyCard({ card }: { card: StrategyRuntimeView }) {
       <div className="mt-4 grid grid-cols-2 gap-3 text-[11px]">
         <div>
           <div className="text-muted-foreground uppercase tracking-wide">Alignment</div>
-          <div className="num text-lg font-semibold mt-0.5">{Math.round(card.alignmentScore)}/100</div>
+          <div className="num text-lg font-semibold mt-0.5">
+            {Math.round(card.alignmentScore)}/100
+          </div>
         </div>
         <div>
           <div className="text-muted-foreground uppercase tracking-wide">Health</div>
@@ -121,8 +138,12 @@ function StrategyCard({ card }: { card: StrategyRuntimeView }) {
       )}
 
       <div className="mt-3">
-        <div className="text-[10px] text-muted-foreground uppercase mb-1">Sinal · {card.regime}</div>
-        <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-medium ${sig.cls}`}>{sig.label}</span>
+        <div className="text-[10px] text-muted-foreground uppercase mb-1">
+          Sinal · {card.regime}
+        </div>
+        <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-medium ${sig.cls}`}>
+          {sig.label}
+        </span>
       </div>
 
       <div className="mt-auto pt-3 border-t border-white/5">

@@ -197,8 +197,10 @@ function Page() {
     update.mutate(next);
   };
 
-  if (isPending && !data) return <div className="text-muted-foreground text-sm">Carregando risco…</div>;
-  if ((isError && !data) || !data) return <div className="text-destructive text-sm">Erro ao carregar gestão de risco.</div>;
+  if (isPending && !data)
+    return <div className="text-muted-foreground text-sm">Carregando risco…</div>;
+  if ((isError && !data) || !data)
+    return <div className="text-destructive text-sm">Erro ao carregar gestão de risco.</div>;
 
   return (
     <div className="space-y-8">
@@ -206,19 +208,19 @@ function Page() {
         title="Gestão de Risco"
         subtitle="Limites do bot paper — sincronizados com o engine Atlas. Ajuste cada controle com calma: eles definem quanto você arrisca, quando parar e como se proteger."
       />
-      {isFetching && (
-        <p className="text-xs text-muted-foreground">Atualizando saldo demo…</p>
-      )}
+      {isFetching && <p className="text-xs text-muted-foreground">Atualizando saldo demo…</p>}
 
       <Panel title="Como usar esta página">
         <div className="text-sm text-muted-foreground space-y-2 leading-relaxed">
           <p>
-            Os sliders abaixo controlam o <strong className="text-white">RiskManager</strong> em tempo real. Cada alteração
-            é salva automaticamente e vale para todos os slots paper (BTC e ETH) enquanto o bot estiver parado ou rodando.
+            Os sliders abaixo controlam o <strong className="text-white">RiskManager</strong> em
+            tempo real. Cada alteração é salva automaticamente e vale para todos os slots paper (BTC
+            e ETH) enquanto o bot estiver parado ou rodando.
           </p>
           <p>
-            O <strong className="text-white">resumo à direita</strong> traduz os percentuais em valores em dólares com base
-            no saldo demo atual. Use-o para sentir o impacto prático antes de subir o risco.
+            O <strong className="text-white">resumo à direita</strong> traduz os percentuais em
+            valores em dólares com base no saldo demo atual. Use-o para sentir o impacto prático
+            antes de subir o risco.
           </p>
         </div>
       </Panel>
@@ -247,7 +249,8 @@ function Page() {
         <div className="space-y-6">
           <Panel title="Resumo de Risco">
             <p className="text-xs text-muted-foreground mb-3">
-              Valores estimados com saldo demo de ${data.balance.toLocaleString()} — recalculados ao mover os sliders.
+              Valores estimados com saldo demo de ${data.balance.toLocaleString()} — recalculados ao
+              mover os sliders.
             </p>
             <ul className="space-y-3 text-sm">
               <li className="flex justify-between">
@@ -256,11 +259,15 @@ function Page() {
               </li>
               <li className="flex justify-between">
                 <span className="text-muted-foreground">Perda máxima diária</span>
-                <span className="num text-destructive">-${data.summary.max_daily_loss.toLocaleString()}</span>
+                <span className="num text-destructive">
+                  -${data.summary.max_daily_loss.toLocaleString()}
+                </span>
               </li>
               <li className="flex justify-between">
                 <span className="text-muted-foreground">Meta diária</span>
-                <span className="num text-success">+${data.summary.daily_target.toLocaleString()}</span>
+                <span className="num text-success">
+                  +${data.summary.daily_target.toLocaleString()}
+                </span>
               </li>
               <li className="flex justify-between">
                 <span className="text-muted-foreground">P&L hoje</span>

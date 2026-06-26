@@ -81,30 +81,30 @@ python -m atlas.cli api
 
 ## Variáveis `.env`
 
-| Variável | Uso |
-|----------|-----|
-| `BINANCE_DEMO_API_*` | Paper trading (obrigatório para dados reais) |
-| `BINANCE_LIVE_API_*` | Live (após gates) |
-| `ATLAS_ALLOW_LIVE=1` | Opt-in explícito para live |
-| `ATLAS_LIVE_MIN_PAPER_DAYS=7` | Dias mínimos em paper |
-| `ATLAS_KILL_SWITCH=1` | Bloqueia bot |
-| `TELEGRAM_*` | Alertas opcionais |
+| Variável                      | Uso                                          |
+| ----------------------------- | -------------------------------------------- |
+| `BINANCE_DEMO_API_*`          | Paper trading (obrigatório para dados reais) |
+| `BINANCE_LIVE_API_*`          | Live (após gates)                            |
+| `ATLAS_ALLOW_LIVE=1`          | Opt-in explícito para live                   |
+| `ATLAS_LIVE_MIN_PAPER_DAYS=7` | Dias mínimos em paper                        |
+| `ATLAS_KILL_SWITCH=1`         | Bloqueia bot                                 |
+| `TELEGRAM_*`                  | Alertas opcionais                            |
 
 ## Endpoints principais
 
-| Rota | Descrição |
-|------|-----------|
-| `GET /api/health` | Status |
-| `GET /api/dashboard` | Saldo demo real, equity, posições |
-| `GET /api/operations/feed` | Feed de ticks/sinais |
-| `GET /api/operations/stream` | SSE tempo real |
-| `POST /api/bot/start` | Iniciar paper |
-| `POST /api/bot/start-live` | Iniciar live (gates) |
-| `GET /api/live/gates` | Checklist promoção |
-| `POST /api/backtest` | Backtest |
-| `POST /api/research/walkforward` | Walk-forward |
-| `GET /api/validation` | Critérios demo |
-| `PUT /api/risk` | Risco (sincroniza com engine) |
+| Rota                             | Descrição                         |
+| -------------------------------- | --------------------------------- |
+| `GET /api/health`                | Status                            |
+| `GET /api/dashboard`             | Saldo demo real, equity, posições |
+| `GET /api/operations/feed`       | Feed de ticks/sinais              |
+| `GET /api/operations/stream`     | SSE tempo real                    |
+| `POST /api/bot/start`            | Iniciar paper                     |
+| `POST /api/bot/start-live`       | Iniciar live (gates)              |
+| `GET /api/live/gates`            | Checklist promoção                |
+| `POST /api/backtest`             | Backtest                          |
+| `POST /api/research/walkforward` | Walk-forward                      |
+| `GET /api/validation`            | Critérios demo                    |
+| `PUT /api/risk`                  | Risco (sincroniza com engine)     |
 
 ## Estrutura
 
@@ -130,10 +130,10 @@ npm run build
 
 ## Dados operacionais vs pesquisa
 
-| Tela | Fonte de dados |
-|------|----------------|
+| Tela                                    | Fonte de dados             |
+| --------------------------------------- | -------------------------- |
 | Dashboard, Diário, Validação, Operações | **Binance Demo + journal** |
-| Backtests, Resultados, Relatórios, IA | **Relatórios de backtest** |
+| Backtests, Resultados, Relatórios, IA   | **Relatórios de backtest** |
 
 ## Live trading
 

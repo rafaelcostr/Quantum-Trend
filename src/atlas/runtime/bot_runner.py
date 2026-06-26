@@ -86,37 +86,40 @@ class BotRunner:
         return self._engine
 
     def _loop(self) -> None:
-        assert self._engine is not None
-        poll = self._engine.config.runtime.poll_seconds
+        engine = self._engine
+        if engine is None:
+            logger.warning("Runner %s iniciado sem engine; encerrando thread", self.slot_key or "?")
+            return
+        poll = engine.config.runtime.poll_seconds
         while not self._stop.is_set():
             try:
-                apply_risk_to_engine(self._engine)
-                outcome = self._engine.process_once()
+                apply_risk_to_engine(engine)
+                outcome = engine.process_once()
                 outcome["slot"] = self.slot_key
-                outcome["strategy"] = self._engine.config.strategy.name
-                outcome["timeframe"] = self._engine.config.exchange.timeframe
-                self._engine.journal.log("tick", self._engine.config.exchange.symbol, **outcome)
+                outcome["strategy"] = engine.config.strategy.name
+                outcome["timeframe"] = engine.config.exchange.timeframe
+                engine.journal.log("tick", engine.config.exchange.symbol, **outcome)
                 from atlas.platform.orchestrator import platform_orchestrator
 
-                platform_orchestrator.post_tick(self._engine, outcome)
+                platform_orchestrator.post_tick(engine, outcome)
                 equity = outcome.get("equity")
                 if isinstance(equity, (int, float)) and equity > 0:
                     record_balance(
-                        mode=self._engine.config.mode,
+                        mode=engine.config.mode,
                         equity=float(equity),
-                        symbol=self._engine.config.exchange.symbol,
+                        symbol=engine.config.exchange.symbol,
                     )
             except Exception as exc:
-                self._engine.last_error = str(exc)
-                self._engine.journal.log(
+                engine.last_error = str(exc)
+                engine.journal.log(
                     "error",
-                    self._engine.config.exchange.symbol,
+                    engine.config.exchange.symbol,
                     error=str(exc),
                     slot=self.slot_key,
                 )
                 from atlas.platform.orchestrator import platform_orchestrator
 
-                platform_orchestrator.on_error(self._engine, str(exc))
+                platform_orchestrator.on_error(engine, str(exc))
                 logger.exception("Erro no tick (%s): %s", self.slot_key, exc)
             self._stop.wait(poll)
 

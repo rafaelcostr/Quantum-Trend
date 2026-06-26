@@ -6,7 +6,12 @@ import type {
   OperationalTimeframe,
 } from "./api";
 import type { BacktestPeriodFields } from "./backtest-period";
-import { buildMatrixGroups, enrichItemsWithPeriodFields, filterMatrixByAsset, splitMatrixByAsset } from "./backtest-matrix-groups";
+import {
+  buildMatrixGroups,
+  enrichItemsWithPeriodFields,
+  filterMatrixByAsset,
+  splitMatrixByAsset,
+} from "./backtest-matrix-groups";
 
 const STORAGE_KEY = "quantum-trend.backtest-matrix.v4";
 const RESET_FLAG_KEY = "quantum-trend.reports-reset.v1";
@@ -112,7 +117,9 @@ function normalizeAssetSlice(
   };
 }
 
-export async function hydrateMatrixPeriods(matrix: BacktestMatrixResponse): Promise<BacktestMatrixResponse> {
+export async function hydrateMatrixPeriods(
+  matrix: BacktestMatrixResponse,
+): Promise<BacktestMatrixResponse> {
   const missing = matrix.items.filter((item) => item.ok && !hasPeriod(item));
   if (!missing.length) return normalizeMatrixResponse(matrix);
 
@@ -186,8 +193,8 @@ export function mergeMatrixResponses(
 ): BacktestMatrixResponse {
   const prevParts = prev?.items?.length ? splitMatrixByAsset(prev) : null;
   const nextPart = filterMatrixByAsset(incoming, replacedAsset);
-  const btc = replacedAsset === "BTC" ? nextPart : prevParts?.BTC ?? emptyMatrix();
-  const eth = replacedAsset === "ETH" ? nextPart : prevParts?.ETH ?? emptyMatrix();
+  const btc = replacedAsset === "BTC" ? nextPart : (prevParts?.BTC ?? emptyMatrix());
+  const eth = replacedAsset === "ETH" ? nextPart : (prevParts?.ETH ?? emptyMatrix());
   const items = sortByReturn([...btc.items, ...eth.items]);
   const byScore = sortByScore(items);
   return normalizeMatrixResponse({

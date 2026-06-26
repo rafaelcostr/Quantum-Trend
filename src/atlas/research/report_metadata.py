@@ -1,4 +1,4 @@
-"""Metadados embutidos nos relatorios JSON de backtest."""
+"""Metadados embutidos nos relatórios JSON de backtest."""
 from __future__ import annotations
 
 import json

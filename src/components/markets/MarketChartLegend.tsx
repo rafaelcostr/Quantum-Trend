@@ -1,4 +1,8 @@
-import { CHART_INDICATOR_LEGEND, STRATEGY_CHART_GUIDE, type StrategyChartGuide } from "@/lib/tradingview-chart";
+import {
+  CHART_INDICATOR_LEGEND,
+  STRATEGY_CHART_GUIDE,
+  type StrategyChartGuide,
+} from "@/lib/tradingview-chart";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_LABEL: Record<StrategyChartGuide["category"], string> = {
@@ -19,7 +23,9 @@ export function MarketChartLegend() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 border-t border-white/5 p-4">
       <div>
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">Indicadores no gráfico</div>
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">
+          Indicadores no gráfico
+        </div>
         <ul className="space-y-2">
           {CHART_INDICATOR_LEGEND.map((item) => (
             <li key={item.key} className="flex items-start gap-3 text-xs">
@@ -34,19 +40,29 @@ export function MarketChartLegend() {
       </div>
 
       <div>
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">Estratégias · indicadores usados</div>
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">
+          Estratégias · indicadores usados
+        </div>
         <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
           {STRATEGY_CHART_GUIDE.map((s) => (
             <div key={s.id} className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-medium">{s.label}</span>
-                <span className={cn("text-[10px] px-1.5 py-0.5 rounded border", CATEGORY_STYLE[s.category])}>
+                <span
+                  className={cn(
+                    "text-[10px] px-1.5 py-0.5 rounded border",
+                    CATEGORY_STYLE[s.category],
+                  )}
+                >
                   {CATEGORY_LABEL[s.category]}
                 </span>
               </div>
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {s.indicators.map((ind) => (
-                  <span key={ind} className="text-[10px] rounded-md bg-white/5 border border-white/10 px-1.5 py-0.5 text-muted-foreground">
+                  <span
+                    key={ind}
+                    className="text-[10px] rounded-md bg-white/5 border border-white/10 px-1.5 py-0.5 text-muted-foreground"
+                  >
                     {ind}
                   </span>
                 ))}

@@ -1,8 +1,25 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, FlaskConical, BarChart3, MonitorPlay, LineChart,
-  ShieldCheck, Bot, NotebookPen, FileBarChart, Globe2, Settings, Rocket,
-  Search, Bell, ChevronDown, Moon, Wallet, TrendingUp, TrendingDown, ArrowLeftRight,
+  LayoutDashboard,
+  FlaskConical,
+  BarChart3,
+  MonitorPlay,
+  LineChart,
+  ShieldCheck,
+  Bot,
+  NotebookPen,
+  FileBarChart,
+  Globe2,
+  Settings,
+  Rocket,
+  Search,
+  Bell,
+  ChevronDown,
+  Moon,
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  ArrowLeftRight,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
@@ -43,7 +60,9 @@ function Sidebar() {
         </div>
         <div className="leading-tight">
           <div className="text-[15px] font-semibold tracking-tight">Quantum</div>
-          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Trend Terminal</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            Trend Terminal
+          </div>
         </div>
       </Link>
       <nav className="flex flex-col gap-1 overflow-y-auto pr-1">
@@ -75,12 +94,24 @@ function Sidebar() {
       <div className="mt-auto pt-4">
         <div className="glass-strong rounded-2xl p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className={`h-2 w-2 rounded-full ${running ? (mode === "live" ? "bg-destructive" : "bg-success animate-pulse") : "bg-muted-foreground"}`} />
-            {running ? (mode === "live" ? "Bot LIVE" : instanceCount > 1 ? `${instanceCount} bots paper` : "Bot paper") : "Bot parado"}
+            <span
+              className={`h-2 w-2 rounded-full ${running ? (mode === "live" ? "bg-destructive" : "bg-success animate-pulse") : "bg-muted-foreground"}`}
+            />
+            {running
+              ? mode === "live"
+                ? "Bot LIVE"
+                : instanceCount > 1
+                  ? `${instanceCount} bots paper`
+                  : "Bot paper"
+              : "Bot parado"}
           </div>
           <div className="mt-2 num text-xl">
             {running ? (
-              <BotUptimeTimer startedAt={bot.data?.started_at} running={running} className="text-xl font-semibold text-success" />
+              <BotUptimeTimer
+                startedAt={bot.data?.started_at}
+                running={running}
+                className="text-xl font-semibold text-success"
+              />
             ) : (
               "—"
             )}
@@ -125,14 +156,20 @@ function Topbar() {
             className="hidden sm:flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-[11px]"
             title="FastAPI Python"
           >
-            <span className={`h-2 w-2 rounded-full ${apiOk ? "bg-success" : apiError ? "bg-destructive" : "bg-warning animate-pulse"}`} />
+            <span
+              className={`h-2 w-2 rounded-full ${apiOk ? "bg-success" : apiError ? "bg-destructive" : "bg-warning animate-pulse"}`}
+            />
             API {apiOk ? "OK" : apiError ? "offline" : "…"}
           </span>
           <button className="hidden md:flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs hover:bg-white/10 transition">
-            <span className={`h-2 w-2 rounded-full ${binanceOk ? "bg-success" : "bg-destructive"}`} />
+            <span
+              className={`h-2 w-2 rounded-full ${binanceOk ? "bg-success" : "bg-destructive"}`}
+            />
             {accountLabel}
             {settings?.system.timeframe && (
-              <span className="text-muted-foreground">· {settings.system.timeframe.toUpperCase()}</span>
+              <span className="text-muted-foreground">
+                · {settings.system.timeframe.toUpperCase()}
+              </span>
             )}
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
@@ -144,10 +181,14 @@ function Topbar() {
             <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
           </button>
           <div className="flex items-center gap-2.5 rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
-            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#3B82F6] grid place-items-center text-xs font-semibold">QT</div>
+            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#3B82F6] grid place-items-center text-xs font-semibold">
+              QT
+            </div>
             <div className="hidden sm:block leading-tight pr-1">
               <div className="text-xs font-medium">{settings?.profile.name ?? "Operador"}</div>
-              <div className="text-[10px] text-muted-foreground">{settings?.profile.plan ?? "Atlas Paper"}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {settings?.profile.plan ?? "Atlas Paper"}
+              </div>
             </div>
           </div>
         </div>

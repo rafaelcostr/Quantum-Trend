@@ -1,5 +1,16 @@
 import type { ReactNode } from "react";
-import { Activity, Clock, DollarSign, Gauge, Layers, Radio, Timer, TrendingUp, Wifi, Zap } from "lucide-react";
+import {
+  Activity,
+  Clock,
+  DollarSign,
+  Gauge,
+  Layers,
+  Radio,
+  Timer,
+  TrendingUp,
+  Wifi,
+  Zap,
+} from "lucide-react";
 import type { BotStatus, DashboardStats, PlatformStatus, QuantumStatus } from "@/lib/api";
 import {
   botHeaderLabel,
@@ -35,7 +46,8 @@ export function LiveTerminalHeader({
 }: Props) {
   const running = bot.running;
   const regime = inferRegime(quantum?.last_reason, quantum, platform);
-  const alignment = stats.alignment_score || platform?.alignment_score || quantum?.alignment_score || 0;
+  const alignment =
+    stats.alignment_score || platform?.alignment_score || quantum?.alignment_score || 0;
   const health = stats.health_score || platform?.system_health || quantum?.health_score || 0;
 
   const chips: {
@@ -48,7 +60,12 @@ export function LiveTerminalHeader({
       icon: Radio,
       label: "Bot",
       value: botHeaderLabel(bot, mode),
-      tone: running && !bot.last_error ? "text-success" : bot.last_error ? "text-destructive" : "text-muted-foreground",
+      tone:
+        running && !bot.last_error
+          ? "text-success"
+          : bot.last_error
+            ? "text-destructive"
+            : "text-muted-foreground",
     },
     { icon: Activity, label: "Exchange", value: exchangeLabel(stats, mode) },
     { icon: TrendingUp, label: "Ativo", value: symbol.replace("/", "") },
@@ -71,7 +88,13 @@ export function LiveTerminalHeader({
     {
       icon: Timer,
       label: "Cronômetro",
-      value: <BotUptimeTimer startedAt={bot.started_at} running={running} className="text-sm font-semibold text-success" />,
+      value: (
+        <BotUptimeTimer
+          startedAt={bot.started_at}
+          running={running}
+          className="text-sm font-semibold text-success"
+        />
+      ),
     },
     {
       icon: Clock,
@@ -85,17 +108,26 @@ export function LiveTerminalHeader({
       <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-white/5 bg-white/[0.02]">
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground shrink-0">
-            <span className={`h-2 w-2 rounded-full ${running ? "bg-success animate-pulse" : "bg-muted-foreground"}`} />
+            <span
+              className={`h-2 w-2 rounded-full ${running ? "bg-success animate-pulse" : "bg-muted-foreground"}`}
+            />
             Quantum Trend Terminal · Runtime
           </div>
           {running && (
             <div className="hidden sm:flex items-center gap-2 rounded-lg border border-success/25 bg-success/10 px-2.5 py-1 text-xs">
               <Timer className="h-3.5 w-3.5 text-success shrink-0" />
-              <BotUptimeTimer startedAt={bot.started_at} running={running} className="text-success font-semibold" showLabel />
+              <BotUptimeTimer
+                startedAt={bot.started_at}
+                running={running}
+                className="text-success font-semibold"
+                showLabel
+              />
             </div>
           )}
         </div>
-        <span className={`chip text-[10px] shrink-0 ${mode === "live" ? "text-destructive" : "text-success"}`}>
+        <span
+          className={`chip text-[10px] shrink-0 ${mode === "live" ? "text-destructive" : "text-success"}`}
+        >
           {mode === "live" ? "LIVE" : "PAPER"}
         </span>
       </div>
@@ -106,7 +138,9 @@ export function LiveTerminalHeader({
               <Icon className="h-3 w-3 shrink-0" />
               {label}
             </div>
-            <div className={`mt-1 text-sm font-medium truncate num ${tone ?? "text-foreground"}`}>{value}</div>
+            <div className={`mt-1 text-sm font-medium truncate num ${tone ?? "text-foreground"}`}>
+              {value}
+            </div>
           </div>
         ))}
       </div>

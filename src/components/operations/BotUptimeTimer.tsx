@@ -24,7 +24,11 @@ export function BotUptimeTimer({ startedAt, running, className = "", showLabel =
 
   return (
     <span className={`inline-flex items-center gap-1.5 font-mono tabular-nums ${className}`}>
-      {showLabel && <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-sans">Ligado há</span>}
+      {showLabel && (
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-sans">
+          Ligado há
+        </span>
+      )}
       <span>{fmtUptimeClock(startedAt, now)}</span>
     </span>
   );

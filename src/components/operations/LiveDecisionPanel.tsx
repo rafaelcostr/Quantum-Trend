@@ -10,14 +10,22 @@ export function LiveDecisionPanel({ decision }: { decision: DecisionView }) {
         <div className="space-y-3 text-sm">
           <Row label="Mercado" value={decision.regime} />
           <Row label="Alignment" value={`${Math.round(decision.alignmentScore)}/100`} />
-          <Row label="Probabilidade de entrada" value={`${Math.round(decision.entryProbability)}%`} highlight />
+          <Row
+            label="Probabilidade de entrada"
+            value={`${Math.round(decision.entryProbability)}%`}
+            highlight
+          />
           <Row label="Ação" value={decision.action} />
           {decision.strategyLabel && <Row label="Engine foco" value={decision.strategyLabel} />}
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">Confiança do setup</div>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
+            Confiança do setup
+          </div>
           <ConfidenceBar value={decision.entryProbability} />
-          <div className="mt-4 text-[10px] uppercase tracking-wide text-muted-foreground mb-2">Motivos</div>
+          <div className="mt-4 text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
+            Motivos
+          </div>
           <ul className="space-y-1.5 text-xs">
             {decision.motives.map((m, i) => (
               <li key={i} className={m.ok ? "text-success" : "text-muted-foreground"}>
@@ -31,7 +39,9 @@ export function LiveDecisionPanel({ decision }: { decision: DecisionView }) {
                 <span
                   key={tf.tf}
                   className={`text-[10px] rounded-md px-2 py-1 border ${
-                    tf.ok ? "border-success/30 bg-success/10 text-success" : "border-white/10 bg-white/[0.03]"
+                    tf.ok
+                      ? "border-success/30 bg-success/10 text-success"
+                      : "border-white/10 bg-white/[0.03]"
                   }`}
                 >
                   {tf.tf} {tf.ok ? "✅" : "❌"} {tf.label}
@@ -53,7 +63,9 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
   return (
     <div className="flex justify-between gap-3 border-b border-white/5 pb-2">
       <span className="text-muted-foreground">{label}</span>
-      <span className={`font-medium num text-right ${highlight ? "text-primary" : ""}`}>{value}</span>
+      <span className={`font-medium num text-right ${highlight ? "text-primary" : ""}`}>
+        {value}
+      </span>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-"""Helpers para ler/gravar relatorios de backtest."""
+"""Helpers para ler/gravar relatórios de backtest."""
 from __future__ import annotations
 
 import json

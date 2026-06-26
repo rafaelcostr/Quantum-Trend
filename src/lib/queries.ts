@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type BacktestAllProgress, type BacktestMatrixResponse, type OperationsFeedResponse } from "./api";
+import {
+  api,
+  type BacktestAllProgress,
+  type BacktestMatrixResponse,
+  type OperationsFeedResponse,
+} from "./api";
 import { ApiError } from "./api";
 import {
   batchToMatrix,
@@ -118,7 +123,12 @@ export function usePositions() {
 }
 
 export function useStrategies() {
-  return useQuery({ queryKey: queryKeys.strategies, queryFn: api.strategies, enabled: isBrowser, retry: 1 });
+  return useQuery({
+    queryKey: queryKeys.strategies,
+    queryFn: api.strategies,
+    enabled: isBrowser,
+    retry: 1,
+  });
 }
 
 export function useJournal() {
@@ -208,7 +218,11 @@ export function useLive() {
 }
 
 export function useLiveGates() {
-  return useQuery({ queryKey: [...queryKeys.live, "gates"], queryFn: api.liveGates, refetchInterval: 15_000 });
+  return useQuery({
+    queryKey: [...queryKeys.live, "gates"],
+    queryFn: api.liveGates,
+    refetchInterval: 15_000,
+  });
 }
 
 export function useOperationsFeed() {
@@ -277,7 +291,8 @@ export function useRunBacktestAll(onProgress?: (progress: BacktestAllProgress) =
       api.backtestAll("USDT", baseAsset, (p) => progressRef.current?.(p)),
     onSuccess: (data, baseAsset) => {
       const incoming = batchToMatrix(data);
-      const prev = qc.getQueryData<BacktestMatrixResponse>(queryKeys.backtestMatrix) ?? loadCachedMatrix();
+      const prev =
+        qc.getQueryData<BacktestMatrixResponse>(queryKeys.backtestMatrix) ?? loadCachedMatrix();
       const matrix =
         incoming.items.length > 0 && isMatrixHealthy(incoming)
           ? mergeMatrixResponses(prev, incoming, baseAsset)
@@ -364,9 +379,20 @@ export function useUpdateRisk() {
   });
 }
 
-export function useResults(selection?: { strategy: string; timeframe: string; base_asset?: import("./api").OperatedBase } | null) {
+export function useResults(
+  selection?: {
+    strategy: string;
+    timeframe: string;
+    base_asset?: import("./api").OperatedBase;
+  } | null,
+) {
   return useQuery({
-    queryKey: [...queryKeys.results, selection?.strategy, selection?.timeframe, selection?.base_asset ?? "BTC"],
+    queryKey: [
+      ...queryKeys.results,
+      selection?.strategy,
+      selection?.timeframe,
+      selection?.base_asset ?? "BTC",
+    ],
     queryFn: () =>
       api.results({
         strategy: selection!.strategy,

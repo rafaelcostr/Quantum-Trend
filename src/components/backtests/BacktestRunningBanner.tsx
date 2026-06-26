@@ -1,7 +1,10 @@
 import type { BacktestAllProgress, OperatedBase } from "@/lib/api";
 import { resolveRunningAsset, resolveRunningLabel } from "@/lib/backtest-running";
 
-const ASSET_STYLE: Record<OperatedBase, { bg: string; border: string; dot: string; label: string }> = {
+const ASSET_STYLE: Record<
+  OperatedBase,
+  { bg: string; border: string; dot: string; label: string }
+> = {
   BTC: {
     bg: "from-[#F7931A]/20 to-transparent",
     border: "border-[#F7931A]/40",
@@ -29,7 +32,8 @@ export function BacktestRunningBanner({
   const style = ASSET_STYLE[base];
   const label = resolveRunningLabel(progress) ?? `${base}/USDT`;
   const total = progress.total || totalFallback;
-  const pct = total > 0 ? Math.max(4, Math.min(100, Math.round((progress.completed / total) * 100))) : 4;
+  const pct =
+    total > 0 ? Math.max(4, Math.min(100, Math.round((progress.completed / total) * 100))) : 4;
 
   return (
     <div
@@ -37,10 +41,11 @@ export function BacktestRunningBanner({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide"
-          >
-            <span className="h-2.5 w-2.5 rounded-full animate-pulse" style={{ backgroundColor: style.dot }} />
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+            <span
+              className="h-2.5 w-2.5 rounded-full animate-pulse"
+              style={{ backgroundColor: style.dot }}
+            />
             Testando {label}
           </span>
           <span className="text-sm text-white font-medium">{style.label}</span>
@@ -68,7 +73,8 @@ export function BacktestRunningBanner({
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        Matriz de {total} backtests · mantenha a API Python aberta. Resultados ETH e BTC ficam em abas separadas.
+        Matriz de {total} backtests · mantenha a API Python aberta. Resultados ETH e BTC ficam em
+        abas separadas.
       </p>
     </div>
   );

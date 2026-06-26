@@ -19,7 +19,15 @@ function HealthBar({ label, value, max = 100 }: { label: string; value: number; 
   );
 }
 
-function AlertList({ title, items, tone }: { title: string; items: { message: string; ts: string; category?: string }[]; tone: string }) {
+function AlertList({
+  title,
+  items,
+  tone,
+}: {
+  title: string;
+  items: { message: string; ts: string; category?: string }[];
+  tone: string;
+}) {
   return (
     <div>
       <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${tone}`}>{title}</div>
@@ -30,7 +38,9 @@ function AlertList({ title, items, tone }: { title: string; items: { message: st
           {items.slice(0, 6).map((a, i) => (
             <li key={i} className="text-xs border-l-2 border-white/10 pl-2">
               <div>{a.message}</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">{a.ts?.slice(0, 19).replace("T", " ")}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {a.ts?.slice(0, 19).replace("T", " ")}
+              </div>
             </li>
           ))}
         </ul>
@@ -45,7 +55,9 @@ export function InstitutionalPanel({ platform }: { platform: PlatformStatus | un
   if (!platform) {
     return (
       <Panel title="Plataforma Quantitativa">
-        <p className="text-sm text-muted-foreground">Dados da plataforma indisponíveis — reinicie a API Python.</p>
+        <p className="text-sm text-muted-foreground">
+          Dados da plataforma indisponíveis — reinicie a API Python.
+        </p>
       </Panel>
     );
   }
@@ -61,7 +73,9 @@ export function InstitutionalPanel({ platform }: { platform: PlatformStatus | un
             <Shield className="h-5 w-5 shrink-0 mt-0.5" />
             <div>
               <div className="font-semibold">RISK_LOCKED — operações bloqueadas</div>
-              <div className="text-xs mt-1 opacity-90">{runtime.risk_lock_reason ?? "Inconsistência detectada no recovery."}</div>
+              <div className="text-xs mt-1 opacity-90">
+                {runtime.risk_lock_reason ?? "Inconsistência detectada no recovery."}
+              </div>
             </div>
           </div>
           <button
@@ -110,12 +124,34 @@ export function InstitutionalPanel({ platform }: { platform: PlatformStatus | un
 
         <Panel title="Runtime">
           <dl className="text-sm space-y-2">
-            <div className="flex justify-between"><dt className="text-muted-foreground">Estado</dt><dd className="font-medium">{runtime.state}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">Última sync</dt><dd className="text-xs num">{runtime.last_sync?.slice(0, 19).replace("T", " ") ?? "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">Próxima análise</dt><dd>{runtime.next_analysis ?? "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">Latência Binance</dt><dd className="num">{engine.binance_latency_ms != null ? `${engine.binance_latency_ms}ms` : "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">Broker</dt><dd>{engine.broker_status}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">Recovery</dt><dd>{engine.recovery_status}</dd></div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Estado</dt>
+              <dd className="font-medium">{runtime.state}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Última sync</dt>
+              <dd className="text-xs num">
+                {runtime.last_sync?.slice(0, 19).replace("T", " ") ?? "—"}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Próxima análise</dt>
+              <dd>{runtime.next_analysis ?? "—"}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Latência Binance</dt>
+              <dd className="num">
+                {engine.binance_latency_ms != null ? `${engine.binance_latency_ms}ms` : "—"}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Broker</dt>
+              <dd>{engine.broker_status}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Recovery</dt>
+              <dd>{engine.recovery_status}</dd>
+            </div>
           </dl>
           {runtime.last_decision && (
             <div className="mt-4 rounded-xl bg-white/[0.03] border border-white/5 p-3">
@@ -145,10 +181,13 @@ export function InstitutionalPanel({ platform }: { platform: PlatformStatus | un
               ) : (
                 <AlertTriangle className="h-4 w-4 text-destructive" />
               )}
-              <span>{recovery.ok !== false ? "Último recovery OK" : "Recovery com inconsistências"}</span>
+              <span>
+                {recovery.ok !== false ? "Último recovery OK" : "Recovery com inconsistências"}
+              </span>
             </div>
             <div className="text-xs text-muted-foreground">
-              Fonte posição: {recovery.position_source ?? "—"} · {recovery.reconciled_at?.slice(0, 19).replace("T", " ") ?? "—"}
+              Fonte posição: {recovery.position_source ?? "—"} ·{" "}
+              {recovery.reconciled_at?.slice(0, 19).replace("T", " ") ?? "—"}
             </div>
             {(recovery.issues ?? []).length > 0 && (
               <ul className="text-xs text-destructive list-disc pl-4 space-y-1">
@@ -172,7 +211,9 @@ export function InstitutionalPanel({ platform }: { platform: PlatformStatus | un
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">Último candle</span>
-              <span className="num">{data_quality.last_candle_ts?.slice(0, 16).replace("T", " ") ?? "—"}</span>
+              <span className="num">
+                {data_quality.last_candle_ts?.slice(0, 16).replace("T", " ") ?? "—"}
+              </span>
             </div>
             {(data_quality.issues ?? []).length > 0 && (
               <ul className="text-xs text-warning list-disc pl-4 space-y-1 pt-2">
@@ -189,26 +230,34 @@ export function InstitutionalPanel({ platform }: { platform: PlatformStatus | un
         <Panel title="Alignment Score — detalhamento">
           <div className="flex flex-wrap items-baseline gap-2 mb-4">
             <span className="text-2xl font-bold num">{score_explanation.total}</span>
-            <span className="text-muted-foreground">/100 · mínimo {score_explanation.threshold}</span>
+            <span className="text-muted-foreground">
+              /100 · mínimo {score_explanation.threshold}
+            </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {(score_explanation.components ?? []).map((c) => (
               <div key={c.key} className="rounded-xl bg-white/[0.03] border border-white/5 p-3">
                 <div className="text-[11px] text-muted-foreground">{c.label}</div>
-                <div className="text-lg font-semibold num">{c.score}/{c.max}</div>
+                <div className="text-lg font-semibold num">
+                  {c.score}/{c.max}
+                </div>
               </div>
             ))}
           </div>
         </Panel>
       )}
 
-      {(platform.capital_scaling?.current_risk_pct != null || platform.trend_exhaustion?.exhausted) && (
+      {(platform.capital_scaling?.current_risk_pct != null ||
+        platform.trend_exhaustion?.exhausted) && (
         <Panel title="Gestão dinâmica">
           <div className="flex flex-wrap gap-6 text-sm">
             {platform.capital_scaling?.current_risk_pct != null && (
               <div className="flex items-center gap-2">
                 <Zap className="h-4 w-4 text-warning" />
-                <span>Risco atual: <strong>{platform.capital_scaling.current_risk_pct}%</strong> por trade</span>
+                <span>
+                  Risco atual: <strong>{platform.capital_scaling.current_risk_pct}%</strong> por
+                  trade
+                </span>
               </div>
             )}
             {platform.trend_exhaustion?.exhausted && (

@@ -51,7 +51,11 @@ export function StrategyMarketChart({ data, className }: Props) {
         horzLines: { color: "rgba(255,255,255,0.06)" },
       },
       rightPriceScale: { borderColor: "rgba(255,255,255,0.08)" },
-      timeScale: { borderColor: "rgba(255,255,255,0.08)", timeVisible: true, secondsVisible: false },
+      timeScale: {
+        borderColor: "rgba(255,255,255,0.08)",
+        timeVisible: true,
+        secondsVisible: false,
+      },
       crosshair: { mode: 1 },
     });
     chartRef.current = chart;
@@ -66,12 +70,50 @@ export function StrategyMarketChart({ data, className }: Props) {
     });
 
     const series: ISeriesApi<"Line">[] = [
-      chart.addLineSeries({ color: "#38bdf8", lineWidth: 2, title: "EMA 20", priceLineVisible: false, lastValueVisible: true }),
-      chart.addLineSeries({ color: "#fbbf24", lineWidth: 2, title: "EMA 200", priceLineVisible: false, lastValueVisible: true }),
-      chart.addLineSeries({ color: "#818cf8", lineWidth: 1, lineStyle: 2, title: "BB Sup", priceLineVisible: false, lastValueVisible: false }),
-      chart.addLineSeries({ color: "#a78bfa", lineWidth: 1, title: "BB Mid", priceLineVisible: false, lastValueVisible: false }),
-      chart.addLineSeries({ color: "#818cf8", lineWidth: 1, lineStyle: 2, title: "BB Inf", priceLineVisible: false, lastValueVisible: false }),
-      chart.addLineSeries({ color: "#34d399", lineWidth: 2, title: "Supertrend", priceLineVisible: false, lastValueVisible: true }),
+      chart.addLineSeries({
+        color: "#38bdf8",
+        lineWidth: 2,
+        title: "EMA 20",
+        priceLineVisible: false,
+        lastValueVisible: true,
+      }),
+      chart.addLineSeries({
+        color: "#fbbf24",
+        lineWidth: 2,
+        title: "EMA 200",
+        priceLineVisible: false,
+        lastValueVisible: true,
+      }),
+      chart.addLineSeries({
+        color: "#818cf8",
+        lineWidth: 1,
+        lineStyle: 2,
+        title: "BB Sup",
+        priceLineVisible: false,
+        lastValueVisible: false,
+      }),
+      chart.addLineSeries({
+        color: "#a78bfa",
+        lineWidth: 1,
+        title: "BB Mid",
+        priceLineVisible: false,
+        lastValueVisible: false,
+      }),
+      chart.addLineSeries({
+        color: "#818cf8",
+        lineWidth: 1,
+        lineStyle: 2,
+        title: "BB Inf",
+        priceLineVisible: false,
+        lastValueVisible: false,
+      }),
+      chart.addLineSeries({
+        color: "#34d399",
+        lineWidth: 2,
+        title: "Supertrend",
+        priceLineVisible: false,
+        lastValueVisible: true,
+      }),
     ];
 
     const candles: CandlestickData<Time>[] = data.bars.map((b) => ({
@@ -83,7 +125,14 @@ export function StrategyMarketChart({ data, className }: Props) {
     }));
 
     candleSeries.setData(candles);
-    const keys: (keyof MarketChartBar)[] = ["ema20", "ema200", "bb_upper", "bb_mid", "bb_lower", "supertrend"];
+    const keys: (keyof MarketChartBar)[] = [
+      "ema20",
+      "ema200",
+      "bb_upper",
+      "bb_mid",
+      "bb_lower",
+      "supertrend",
+    ];
     keys.forEach((key, i) => series[i]?.setData(linePoints(data.bars, key)));
 
     chart.timeScale().fitContent();
@@ -102,7 +151,11 @@ export function StrategyMarketChart({ data, className }: Props) {
 
   if (!data.bars.length) {
     return (
-      <div className={className ?? "h-[560px] flex items-center justify-center text-sm text-muted-foreground"}>
+      <div
+        className={
+          className ?? "h-[560px] flex items-center justify-center text-sm text-muted-foreground"
+        }
+      >
         {data.error ?? "Sem dados de candles para este par."}
       </div>
     );

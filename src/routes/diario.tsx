@@ -18,9 +18,14 @@ function Page() {
   const { data, isPending, error, isError, isFetching } = useJournal();
   const [sel, setSel] = useState(0);
 
-  if (isPending && !data) return <div className="text-muted-foreground text-sm">Carregando journal…</div>;
+  if (isPending && !data)
+    return <div className="text-muted-foreground text-sm">Carregando journal…</div>;
   if ((isError && !data) || !data || data.items.length === 0) {
-    return <div className="text-muted-foreground text-sm">Nenhuma operação registrada ainda. Inicie o bot paper para popular o journal automático.</div>;
+    return (
+      <div className="text-muted-foreground text-sm">
+        Nenhuma operação registrada ainda. Inicie o bot paper para popular o journal automático.
+      </div>
+    );
   }
 
   const trade = data.items[sel] ?? data.items[0];
@@ -28,10 +33,11 @@ function Page() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Journal Automático" subtitle="Horário, motivo, score, regime e indicadores no momento da operação." />
-      {isFetching && (
-        <p className="text-xs text-muted-foreground">Atualizando entradas…</p>
-      )}
+      <PageHeader
+        title="Journal Automático"
+        subtitle="Horário, motivo, score, regime e indicadores no momento da operação."
+      />
+      {isFetching && <p className="text-xs text-muted-foreground">Atualizando entradas…</p>}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <Panel className="xl:col-span-2">
@@ -54,9 +60,15 @@ function Page() {
                     className={`border-t border-white/5 cursor-pointer transition ${i === sel ? "bg-primary/10" : "hover:bg-white/[0.03]"}`}
                   >
                     <td className="px-3 py-3 text-xs text-muted-foreground">{label(t)}</td>
-                    <td className="px-3 py-3 font-medium uppercase text-xs">{t.event ?? (t.pnl != null ? "trade" : "—")}</td>
-                    <td className="px-3 py-3 text-muted-foreground max-w-xs truncate">{t.reason ?? t.strategy ?? "—"}</td>
-                    <td className="px-3 py-3 text-right num">{t.alignment_score != null ? t.alignment_score.toFixed(0) : "—"}</td>
+                    <td className="px-3 py-3 font-medium uppercase text-xs">
+                      {t.event ?? (t.pnl != null ? "trade" : "—")}
+                    </td>
+                    <td className="px-3 py-3 text-muted-foreground max-w-xs truncate">
+                      {t.reason ?? t.strategy ?? "—"}
+                    </td>
+                    <td className="px-3 py-3 text-right num">
+                      {t.alignment_score != null ? t.alignment_score.toFixed(0) : "—"}
+                    </td>
                     <td className="px-3 py-3 text-xs">{t.regime_label ?? "—"}</td>
                   </tr>
                 ))}
@@ -70,7 +82,9 @@ function Page() {
             <Row label="Horário" value={label(trade)} />
             <Row label="Evento" value={trade.event ?? "—"} />
             <Row label="Motivo" value={trade.reason ?? trade.strategy ?? "—"} />
-            {trade.alignment_score != null && <Row label="Alignment Score" value={trade.alignment_score.toFixed(1)} />}
+            {trade.alignment_score != null && (
+              <Row label="Alignment Score" value={trade.alignment_score.toFixed(1)} />
+            )}
             {trade.regime_label && <Row label="Regime" value={trade.regime_label} />}
             {trade.entry_module && <Row label="Módulo" value={trade.entry_module} />}
             {!enriched && trade.pnl != null && (

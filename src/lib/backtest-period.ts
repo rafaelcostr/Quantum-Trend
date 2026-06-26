@@ -31,10 +31,7 @@ export function formatBacktestPeriodLong(p?: BacktestPeriodFields | null): strin
 }
 
 /** Trades com contexto de tempo: 378 trades · ~7.8 anos */
-export function formatTradesWithPeriod(
-  trades: number,
-  p?: BacktestPeriodFields | null,
-): string {
+export function formatTradesWithPeriod(trades: number, p?: BacktestPeriodFields | null): string {
   if (trades === 0) return "0";
   const duration = formatDuration(p?.period_days ?? null);
   return duration ? `${trades} · ${duration}` : String(trades);

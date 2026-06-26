@@ -4,7 +4,16 @@ import { PageHeader, Panel } from "@/components/ui/page";
 import { IntelligenceSelectionPanel } from "@/components/intelligence/IntelligenceSelectionPanel";
 import { useIntelligence, useIntelligenceAnalysis } from "@/lib/queries";
 import type { EducationalMetric, Level1Snapshot, MetricReading, Strategy } from "@/lib/api";
-import { Bot, Sparkles, Trophy, Brain, FlaskConical, Microscope, Loader2, Info } from "lucide-react";
+import {
+  Bot,
+  Sparkles,
+  Trophy,
+  Brain,
+  FlaskConical,
+  Microscope,
+  Loader2,
+  Info,
+} from "lucide-react";
 
 export const Route = createFileRoute("/ia")({
   head: () => ({ meta: [{ title: "IA de Seleção · Quantum-Trend" }] }),
@@ -36,7 +45,8 @@ function inferMarketType(s: Strategy): "bull" | "bear" | "range" {
   if (mt === "bear" || mt === "bull" || mt === "range") return mt;
   const id = (s.id || s.name || "").toLowerCase();
   if (id.includes("short") || id.includes("_bear") || id.includes("breakout_down")) return "bear";
-  if (id.startsWith("range_") || id.includes("bb_squeeze") || id.includes("regime_switching")) return "range";
+  if (id.startsWith("range_") || id.includes("bb_squeeze") || id.includes("regime_switching"))
+    return "range";
   return "bull";
 }
 
@@ -48,7 +58,9 @@ function MetricTable({ metrics }: { metrics: MetricReading[] }) {
           {metrics.map((m) => (
             <tr key={m.key} className="border-b border-white/5">
               <td className="py-2 pr-4 text-muted-foreground">{m.label}</td>
-              <td className="py-2 num">{m.emoji} {m.display}</td>
+              <td className="py-2 num">
+                {m.emoji} {m.display}
+              </td>
               <td className="py-2 text-right text-xs text-muted-foreground">{m.status_text}</td>
             </tr>
           ))}
@@ -71,15 +83,22 @@ function BulletList({ items, tone }: { items: string[]; tone: "success" | "warni
 
 function EducationalCards({ metrics }: { metrics: EducationalMetric[] }) {
   if (!metrics.length) {
-    return <p className="text-sm text-muted-foreground">Sem métricas disponíveis para este nível.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">Sem métricas disponíveis para este nível.</p>
+    );
   }
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {metrics.map((edu) => (
-        <div key={edu.reading.key} className="rounded-xl border border-white/5 bg-white/[0.02] p-4 space-y-2">
+        <div
+          key={edu.reading.key}
+          className="rounded-xl border border-white/5 bg-white/[0.02] p-4 space-y-2"
+        >
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-medium">{edu.reading.label}</span>
-            <span className="num text-sm">{edu.reading.emoji} {edu.reading.display}</span>
+            <span className="num text-sm">
+              {edu.reading.emoji} {edu.reading.display}
+            </span>
           </div>
           <p className="text-xs text-muted-foreground">{edu.what_is}</p>
           <p className="text-xs">{edu.why_matters}</p>
@@ -97,15 +116,21 @@ function Level1Panel({ l1 }: { l1: Level1Snapshot }) {
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center">
           <div className="text-xs uppercase text-muted-foreground mb-1">Atlas Score</div>
           <div className="num text-4xl text-gradient-primary">{l1.atlas_score}</div>
-          <div className="text-sm mt-1">{l1.score_emoji} {l1.score_label}</div>
+          <div className="text-sm mt-1">
+            {l1.score_emoji} {l1.score_label}
+          </div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center">
           <div className="text-xs uppercase text-muted-foreground mb-1">Confiança</div>
-          <div className="text-lg">{l1.confidence_emoji} {l1.confidence}</div>
+          <div className="text-lg">
+            {l1.confidence_emoji} {l1.confidence}
+          </div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center">
           <div className="text-xs uppercase text-muted-foreground mb-1">Overfitting (L1)</div>
-          <div className="text-lg">{l1.overfitting_emoji} {l1.overfitting_risk}</div>
+          <div className="text-lg">
+            {l1.overfitting_emoji} {l1.overfitting_risk}
+          </div>
         </div>
       </div>
 
@@ -116,15 +141,24 @@ function Level1Panel({ l1 }: { l1: Level1Snapshot }) {
       <p className="text-sm text-muted-foreground leading-relaxed">{l1.summary}</p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Panel title="Pontos fortes"><BulletList items={l1.strengths} tone="success" /></Panel>
-        <Panel title="Pontos fracos"><BulletList items={l1.weaknesses} tone="warning" /></Panel>
-        <Panel title="Riscos"><BulletList items={l1.risks} tone="danger" /></Panel>
+        <Panel title="Pontos fortes">
+          <BulletList items={l1.strengths} tone="success" />
+        </Panel>
+        <Panel title="Pontos fracos">
+          <BulletList items={l1.weaknesses} tone="warning" />
+        </Panel>
+        <Panel title="Riscos">
+          <BulletList items={l1.risks} tone="danger" />
+        </Panel>
       </div>
 
       <Panel title="Checklist Backtest → Paper">
         <ul className="space-y-2">
           {l1.promotion_backtest_paper.map((c) => (
-            <li key={c.label} className="flex items-center gap-3 text-sm rounded-lg bg-white/[0.02] px-3 py-2">
+            <li
+              key={c.label}
+              className="flex items-center gap-3 text-sm rounded-lg bg-white/[0.02] px-3 py-2"
+            >
               <span className={c.ok ? "text-success" : "text-destructive"}>{c.ok ? "✓" : "✗"}</span>
               <span className="flex-1">{c.label}</span>
               <span className="text-xs text-muted-foreground num">{c.value}</span>
@@ -179,7 +213,9 @@ function Page() {
           <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full blur-3xl opacity-40 bg-primary" />
           <div className="flex items-center gap-3 mb-3">
             <Bot className="h-5 w-5 text-primary" />
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">Estratégias Avaliadas</span>
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">
+              Estratégias Avaliadas
+            </span>
           </div>
           <div className="num text-4xl">{data.strategies_evaluated}</div>
         </Panel>
@@ -187,7 +223,9 @@ function Page() {
           <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full blur-3xl opacity-40 bg-success" />
           <div className="flex items-center gap-3 mb-3">
             <Trophy className="h-5 w-5 text-success" />
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">Melhor Estratégia</span>
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">
+              Melhor Estratégia
+            </span>
           </div>
           <div className="num text-2xl">{data.best_strategy}</div>
           <div className="text-xs text-success mt-1">Score {data.best_score}</div>
@@ -196,9 +234,13 @@ function Page() {
           <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full blur-3xl opacity-40 bg-secondary" />
           <div className="flex items-center gap-3 mb-3">
             <Sparkles className="h-5 w-5 text-secondary" />
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">Atlas Score</span>
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">
+              Atlas Score
+            </span>
           </div>
-          <div className="num text-4xl text-gradient-primary">{l1?.atlas_score ?? data.overall_score}</div>
+          <div className="num text-4xl text-gradient-primary">
+            {l1?.atlas_score ?? data.overall_score}
+          </div>
           {analysis && (
             <div className="text-xs text-muted-foreground mt-1">
               {analysis.strategy} · {analysis.market} · {analysis.timeframe}
@@ -240,24 +282,35 @@ function Page() {
               {filteredStrategies.map((s, i) => {
                 const mt = inferMarketType(s);
                 const badge =
-                  mt === "bear" ? "text-destructive" : mt === "range" ? "text-sky-300" : "text-success";
+                  mt === "bear"
+                    ? "text-destructive"
+                    : mt === "range"
+                      ? "text-sky-300"
+                      : "text-success";
                 return (
                   <li
                     key={s.id || s.name}
                     className="flex items-center gap-3 rounded-xl bg-white/[0.03] border border-white/5 px-4 py-3"
                   >
-                    <span className={`num text-sm w-6 ${i < 3 ? "text-gradient-primary" : "text-muted-foreground"}`}>
+                    <span
+                      className={`num text-sm w-6 ${i < 3 ? "text-gradient-primary" : "text-muted-foreground"}`}
+                    >
                       #{i + 1}
                     </span>
                     <div className="flex-1">
                       <div className="text-sm font-medium">{s.name}</div>
                       <div className="text-[11px] text-muted-foreground">
-                        <span className={badge}>{mt === "bull" ? "Alta" : mt === "bear" ? "Baixa" : "Lateral"}</span>
+                        <span className={badge}>
+                          {mt === "bull" ? "Alta" : mt === "bear" ? "Baixa" : "Lateral"}
+                        </span>
                         {" · "}
                         PF {s.pf} · WR {s.winrate}% · DD {s.dd}%
                       </div>
                     </div>
-                    <div className="num text-sm" style={{ color: scoreColor(s.winrate + s.pf * 10) }}>
+                    <div
+                      className="num text-sm"
+                      style={{ color: scoreColor(s.winrate + s.pf * 10) }}
+                    >
                       {Math.round(s.winrate + s.pf * 10)}
                     </div>
                   </li>
@@ -298,8 +351,9 @@ function Page() {
             <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
             <div className="text-sm space-y-1 text-muted-foreground">
               <p>
-                A <strong className="text-foreground">seleção rápida</strong> acima usa a matriz de backtests. A análise
-                abaixo aprofunda o relatório ativo (L1 decisão, L2 diagnóstico, L3 research/overfitting).
+                A <strong className="text-foreground">seleção rápida</strong> acima usa a matriz de
+                backtests. A análise abaixo aprofunda o relatório ativo (L1 decisão, L2 diagnóstico,
+                L3 research/overfitting).
               </p>
             </div>
           </div>
@@ -313,7 +367,8 @@ function Page() {
         )}
         {analysisQuery.isError && (
           <p className="text-sm text-warning">
-            Não foi possível carregar a análise profunda. O ranking e a seleção rápida continuam válidos.
+            Não foi possível carregar a análise profunda. O ranking e a seleção rápida continuam
+            válidos.
           </p>
         )}
         {!analysisQuery.isPending && !l1 && (
@@ -361,7 +416,9 @@ function Page() {
                   <span>{l3.overfitting_emoji}</span>
                   <span className="font-medium">Risco OOS:</span>
                   <span className="text-muted-foreground">{l3.overfitting_risk}</span>
-                  {!l3.has_walkforward && <span className="text-xs text-warning ml-2">· Walk-forward pendente</span>}
+                  {!l3.has_walkforward && (
+                    <span className="text-xs text-warning ml-2">· Walk-forward pendente</span>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed">{l3.diagnosis}</p>
                 <EducationalCards metrics={l3.metrics} />

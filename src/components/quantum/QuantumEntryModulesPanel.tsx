@@ -23,11 +23,15 @@ function ModuleRow({
         <div className="text-[11px] text-muted-foreground mt-0.5">{status?.reason ?? "—"}</div>
       </div>
       <div className="text-right shrink-0">
-        <span className={`text-xs font-medium ${active ? "text-success" : "text-muted-foreground"}`}>
+        <span
+          className={`text-xs font-medium ${active ? "text-success" : "text-muted-foreground"}`}
+        >
           {active ? "Ativo" : "Inativo"}
         </span>
         {status?.triggered && status.confidence != null && (
-          <div className="text-[11px] num text-primary mt-0.5">Score {status.confidence.toFixed(0)}</div>
+          <div className="text-[11px] num text-primary mt-0.5">
+            Score {status.confidence.toFixed(0)}
+          </div>
         )}
       </div>
     </div>
@@ -64,7 +68,8 @@ export function QuantumEntryModulesPanel({ quantum }: { quantum: QuantumStatus |
                 </div>
                 {quantum.entry_confidence != null && (
                   <div className="mt-1">
-                    Score: <span className="num text-primary">{quantum.entry_confidence.toFixed(0)}</span>
+                    Score:{" "}
+                    <span className="num text-primary">{quantum.entry_confidence.toFixed(0)}</span>
                   </div>
                 )}
                 {quantum.regime_label && (
@@ -72,12 +77,18 @@ export function QuantumEntryModulesPanel({ quantum }: { quantum: QuantumStatus |
                 )}
                 <div className="mt-2 text-xs">
                   Resultado:{" "}
-                  <span className={quantum.entry_result === "operacao_executada" ? "text-success" : "text-muted-foreground"}>
+                  <span
+                    className={
+                      quantum.entry_result === "operacao_executada"
+                        ? "text-success"
+                        : "text-muted-foreground"
+                    }
+                  >
                     {quantum.entry_result === "operacao_executada"
                       ? "Operação executada"
                       : quantum.entry_result === "detectado_nao_executado"
                         ? "Detectado · não executado"
-                        : quantum.last_reason ?? "Sem sinal"}
+                        : (quantum.last_reason ?? "Sem sinal")}
                   </span>
                 </div>
               </>

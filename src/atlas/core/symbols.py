@@ -1,4 +1,4 @@
-"""Simbolos de mercado e nomes de relatorios."""
+"""Símbolos de mercado e nomes de relatórios."""
 from __future__ import annotations
 
 import re

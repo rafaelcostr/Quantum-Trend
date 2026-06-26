@@ -54,34 +54,34 @@
 
   --card: oklch(0.22 0.03 265 / 0.55);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.20 0.03 265);
+  --popover: oklch(0.2 0.03 265);
   --popover-foreground: oklch(0.985 0 0);
 
   /* Brand */
-  --primary: oklch(0.62 0.24 295);             /* #7C3AED neon purple */
+  --primary: oklch(0.62 0.24 295); /* #7C3AED neon purple */
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.65 0.20 255);           /* #3B82F6 electric blue */
+  --secondary: oklch(0.65 0.2 255); /* #3B82F6 electric blue */
   --secondary-foreground: oklch(0.99 0 0);
 
-  --success: oklch(0.74 0.20 145);             /* #22C55E */
+  --success: oklch(0.74 0.2 145); /* #22C55E */
   --success-foreground: oklch(0.15 0 0);
-  --warning: oklch(0.78 0.16 75);              /* #F59E0B */
+  --warning: oklch(0.78 0.16 75); /* #F59E0B */
   --warning-foreground: oklch(0.15 0 0);
-  --destructive: oklch(0.65 0.24 25);          /* #EF4444 */
+  --destructive: oklch(0.65 0.24 25); /* #EF4444 */
   --destructive-foreground: oklch(0.99 0 0);
 
   --muted: oklch(0.26 0.03 265 / 0.5);
-  --muted-foreground: oklch(0.72 0.03 255);    /* #94A3B8 */
-  --accent: oklch(0.30 0.05 290 / 0.6);
+  --muted-foreground: oklch(0.72 0.03 255); /* #94A3B8 */
+  --accent: oklch(0.3 0.05 290 / 0.6);
   --accent-foreground: oklch(0.985 0 0);
 
   --border: oklch(1 0 0 / 0.08);
-  --input: oklch(1 0 0 / 0.10);
+  --input: oklch(1 0 0 / 0.1);
   --ring: oklch(0.62 0.24 295 / 0.6);
 
   --chart-1: oklch(0.62 0.24 295);
-  --chart-2: oklch(0.65 0.20 255);
-  --chart-3: oklch(0.74 0.20 145);
+  --chart-2: oklch(0.65 0.2 255);
+  --chart-3: oklch(0.74 0.2 145);
   --chart-4: oklch(0.78 0.16 75);
   --chart-5: oklch(0.65 0.24 25);
 
@@ -104,16 +104,18 @@
     border-color: var(--color-border);
   }
 
-  html, body, #root {
+  html,
+  body,
+  #root {
     min-height: 100vh;
   }
 
   body {
-    background: #060B16;
+    background: #060b16;
     background-image:
       radial-gradient(1100px 600px at 12% -10%, rgba(124, 58, 237, 0.18), transparent 60%),
       radial-gradient(900px 500px at 95% 8%, rgba(59, 130, 246, 0.14), transparent 60%),
-      radial-gradient(700px 700px at 50% 110%, rgba(124, 58, 237, 0.10), transparent 60%);
+      radial-gradient(700px 700px at 50% 110%, rgba(124, 58, 237, 0.1), transparent 60%);
     background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -127,13 +129,20 @@
   }
 
   /* Scrollbar */
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
   ::-webkit-scrollbar-thumb {
     background: oklch(1 0 0 / 0.08);
     border-radius: 999px;
   }
-  ::-webkit-scrollbar-thumb:hover { background: oklch(1 0 0 / 0.16); }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(1 0 0 / 0.16);
+  }
 
   /* Dropdown nativo — fundo claro exige texto escuro */
   select option {
@@ -143,19 +152,19 @@
 }
 
 @utility glass {
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
-  border: 1px solid rgba(255,255,255,0.07);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  border: 1px solid rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(18px) saturate(140%);
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.05) inset,
-    0 20px 50px -25px rgba(0,0,0,0.6);
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 20px 50px -25px rgba(0, 0, 0, 0.6);
 }
 
 @utility glass-strong {
-  background: linear-gradient(180deg, rgba(20,24,40,0.7), rgba(12,16,28,0.7));
-  border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, rgba(20, 24, 40, 0.7), rgba(12, 16, 28, 0.7));
+  border: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(22px) saturate(150%);
-  box-shadow: 0 30px 80px -30px rgba(0,0,0,0.7);
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.7);
 }
 
 @utility glow-primary {
@@ -166,7 +175,7 @@
 }
 
 @utility text-gradient-primary {
-  background: linear-gradient(135deg, #c4b5fd 0%, #7C3AED 50%, #3B82F6 100%);
+  background: linear-gradient(135deg, #c4b5fd 0%, #7c3aed 50%, #3b82f6 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -180,8 +189,8 @@
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 500;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 @utility num {

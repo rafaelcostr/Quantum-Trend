@@ -15,7 +15,11 @@ export function ProgressBar({ value, label }: { value: number; label?: string })
   const pct = Math.max(0, Math.min(100, Math.round(value)));
   return (
     <div>
-      {label && <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{label}</div>}
+      {label && (
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+          {label}
+        </div>
+      )}
       <div className="h-2 rounded-full bg-white/5 overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${pct >= 80 ? "bg-success" : pct >= 50 ? "bg-warning" : "bg-destructive"}`}

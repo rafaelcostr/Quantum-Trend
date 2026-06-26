@@ -90,7 +90,11 @@ export function BacktestTradeChart({ data, className }: Props) {
           horzLines: { color: "rgba(255,255,255,0.06)" },
         },
         rightPriceScale: { borderColor: "rgba(255,255,255,0.08)" },
-        timeScale: { borderColor: "rgba(255,255,255,0.08)", timeVisible: true, secondsVisible: false },
+        timeScale: {
+          borderColor: "rgba(255,255,255,0.08)",
+          timeVisible: true,
+          secondsVisible: false,
+        },
         crosshair: { mode: 1 },
       });
 

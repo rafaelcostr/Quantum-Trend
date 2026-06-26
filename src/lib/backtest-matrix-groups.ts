@@ -1,4 +1,9 @@
-import type { BacktestBatchItem, BacktestMatrixGroup, BacktestMatrixResponse, OperatedBase } from "./api";
+import type {
+  BacktestBatchItem,
+  BacktestMatrixGroup,
+  BacktestMatrixResponse,
+  OperatedBase,
+} from "./api";
 
 function itemKey(item: Pick<BacktestBatchItem, "strategy" | "timeframe" | "base_asset">): string {
   return `${item.base_asset ?? "BTC"}:${item.strategy}:${item.timeframe}`;
@@ -27,7 +32,11 @@ export function enrichItemsWithPeriodFields(
 }
 
 function inferMarketType(strategy: string): BacktestMatrixGroup["market_type"] {
-  if (strategy.includes("short") || strategy.includes("_bear") || strategy.includes("breakout_down")) {
+  if (
+    strategy.includes("short") ||
+    strategy.includes("_bear") ||
+    strategy.includes("breakout_down")
+  ) {
     return "bear";
   }
   if (
@@ -81,7 +90,10 @@ function sortByScore(items: BacktestBatchItem[]) {
   return [...items].sort((a, b) => (b.metrics?.atlas_score ?? 0) - (a.metrics?.atlas_score ?? 0));
 }
 
-export function filterMatrixByAsset(matrix: BacktestMatrixResponse, base: OperatedBase): BacktestMatrixResponse {
+export function filterMatrixByAsset(
+  matrix: BacktestMatrixResponse,
+  base: OperatedBase,
+): BacktestMatrixResponse {
   const fromApi = matrix.by_asset?.[base];
   const items = sortByReturn(
     enrichItemsWithPeriodFields(
@@ -100,7 +112,9 @@ export function filterMatrixByAsset(matrix: BacktestMatrixResponse, base: Operat
   };
 }
 
-export function splitMatrixByAsset(matrix: BacktestMatrixResponse): Record<OperatedBase, BacktestMatrixResponse> {
+export function splitMatrixByAsset(
+  matrix: BacktestMatrixResponse,
+): Record<OperatedBase, BacktestMatrixResponse> {
   return {
     BTC: filterMatrixByAsset(matrix, "BTC"),
     ETH: filterMatrixByAsset(matrix, "ETH"),

@@ -34,19 +34,69 @@ export type StrategyChartGuide = {
 
 /** Mapa rápido: estratégia → indicadores visíveis no gráfico. */
 export const STRATEGY_CHART_GUIDE: StrategyChartGuide[] = [
-  { id: "quantum_trend_pro", label: "QuantumTrend Pro", category: "core", indicators: ["EMA 20", "EMA 200", "Supertrend", "ADX"] },
-  { id: "pullback_ema20_v1", label: "Pullback EMA20", category: "bull", indicators: ["EMA 20", "EMA 200"] },
-  { id: "breakout_high20_v1", label: "Breakout High20", category: "bull", indicators: ["EMA 20", "ADX"] },
-  { id: "supertrend_mm200_v1", label: "Supertrend + EMA200", category: "bull", indicators: ["Supertrend", "EMA 200", "ADX"] },
+  {
+    id: "quantum_trend_pro",
+    label: "QuantumTrend Pro",
+    category: "core",
+    indicators: ["EMA 20", "EMA 200", "Supertrend", "ADX"],
+  },
+  {
+    id: "pullback_ema20_v1",
+    label: "Pullback EMA20",
+    category: "bull",
+    indicators: ["EMA 20", "EMA 200"],
+  },
+  {
+    id: "breakout_high20_v1",
+    label: "Breakout High20",
+    category: "bull",
+    indicators: ["EMA 20", "ADX"],
+  },
+  {
+    id: "supertrend_mm200_v1",
+    label: "Supertrend + EMA200",
+    category: "bull",
+    indicators: ["Supertrend", "EMA 200", "ADX"],
+  },
   { id: "mm200_trend_v1", label: "MM200 Trend v1", category: "bull", indicators: ["EMA 200"] },
   { id: "mm200_trend_v2", label: "MM200 Trend v2", category: "bull", indicators: ["EMA 200"] },
-  { id: "mm200_daily_macro_v1", label: "MM200 Daily Macro", category: "bull", indicators: ["EMA 200"] },
-  { id: "pullback_short_v1", label: "Pullback Short", category: "bear", indicators: ["EMA 20", "EMA 200", "ADX"] },
-  { id: "breakout_down_v1", label: "Breakout Down", category: "bear", indicators: ["EMA 200", "ADX"] },
-  { id: "supertrend_bear_v1", label: "Supertrend Bear", category: "bear", indicators: ["Supertrend", "EMA 200", "ADX"] },
-  { id: "range_hunter_v1", label: "Range Hunter", category: "range", indicators: ["Bollinger", "RSI", "ADX"] },
+  {
+    id: "mm200_daily_macro_v1",
+    label: "MM200 Daily Macro",
+    category: "bull",
+    indicators: ["EMA 200"],
+  },
+  {
+    id: "pullback_short_v1",
+    label: "Pullback Short",
+    category: "bear",
+    indicators: ["EMA 20", "EMA 200", "ADX"],
+  },
+  {
+    id: "breakout_down_v1",
+    label: "Breakout Down",
+    category: "bear",
+    indicators: ["EMA 200", "ADX"],
+  },
+  {
+    id: "supertrend_bear_v1",
+    label: "Supertrend Bear",
+    category: "bear",
+    indicators: ["Supertrend", "EMA 200", "ADX"],
+  },
+  {
+    id: "range_hunter_v1",
+    label: "Range Hunter",
+    category: "range",
+    indicators: ["Bollinger", "RSI", "ADX"],
+  },
   { id: "bb_squeeze_v1", label: "BB Squeeze", category: "range", indicators: ["Bollinger", "ADX"] },
-  { id: "regime_switching_v1", label: "Regime Switching", category: "range", indicators: ["Bollinger", "ADX", "RSI"] },
+  {
+    id: "regime_switching_v1",
+    label: "Regime Switching",
+    category: "range",
+    indicators: ["Bollinger", "ADX", "RSI"],
+  },
 ];
 
 export const CHART_INDICATOR_LEGEND = [

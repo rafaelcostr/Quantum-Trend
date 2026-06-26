@@ -161,7 +161,7 @@ def fetch_ohlcv(symbol: str, timeframe: str = "4h", limit: int = 120) -> pd.Data
 
 
 def history_start_ms(ex: ccxt.Exchange, symbol: str, *, years: int = 0) -> int:
-    """Epoch ms para inicio do download. years<=0 = todo historico disponivel na exchange."""
+    """Epoch ms para início do download. years<=0 = todo histórico disponível na exchange."""
     if years > 0:
         start = datetime.now(timezone.utc).replace(microsecond=0) - pd.Timedelta(days=365 * years)
         return int(start.timestamp() * 1000)

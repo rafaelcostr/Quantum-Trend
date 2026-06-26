@@ -124,7 +124,9 @@ function SlotCard({ slot, index }: { slot: IntelligencePick; index: number }) {
           <div className="text-[11px] text-muted-foreground">Slot {index + 1}</div>
           <div className="text-sm font-medium truncate">{slot.name}</div>
         </div>
-        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${meta.chip}`}>
+        <span
+          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${meta.chip}`}
+        >
           <Icon className="h-3 w-3" />
           {meta.label}
         </span>
@@ -156,21 +158,18 @@ function AssetPanel({
 
   const apply = () => {
     setMsg(null);
-    const merged = mergeSlotsForBase(
-      settings.data?.operational?.slots,
-      asset.base,
-      pack.slots,
-      {
-        strategy: pack.slots[0]?.strategy ?? "pullback_ema20_v1",
-        timeframe: "4h",
-        quote: "USDT",
-        base: asset.base,
-        enabled: false,
-      },
-    );
+    const merged = mergeSlotsForBase(settings.data?.operational?.slots, asset.base, pack.slots, {
+      strategy: pack.slots[0]?.strategy ?? "pullback_ema20_v1",
+      timeframe: "4h",
+      quote: "USDT",
+      base: asset.base,
+      enabled: false,
+    });
     saveSlots.mutate(merged, {
       onSuccess: () =>
-        setMsg(`${pack.label} aplicado em ${asset.base} — 6 slots prontos. Inicie o paper no Dashboard.`),
+        setMsg(
+          `${pack.label} aplicado em ${asset.base} — 6 slots prontos. Inicie o paper no Dashboard.`,
+        ),
       onError: (e) => setMsg(e instanceof Error ? e.message : "Erro ao aplicar slots"),
     });
   };
@@ -198,7 +197,9 @@ function AssetPanel({
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <TrendIcon className={`h-4 w-4 ${id === "bull_range" ? "text-success" : "text-destructive"}`} />
+                  <TrendIcon
+                    className={`h-4 w-4 ${id === "bull_range" ? "text-success" : "text-destructive"}`}
+                  />
                   <ArrowLeftRight className="h-3.5 w-3.5 text-sky-300" />
                   <span className="text-sm font-medium">{p.label}</span>
                 </div>
@@ -240,9 +241,7 @@ function AssetPanel({
           </Link>
         </div>
 
-        {botRunning && (
-          <p className="text-xs text-warning">Pare o bot antes de alterar slots.</p>
-        )}
+        {botRunning && <p className="text-xs text-warning">Pare o bot antes de alterar slots.</p>}
         {msg && <p className="text-xs text-success">{msg}</p>}
       </div>
     </Panel>
@@ -268,8 +267,9 @@ export function IntelligenceSelectionPanel({
             <p className="text-foreground font-medium">Seleção rápida — 6 slots por moeda</p>
             <p>
               Escolha <strong className="text-foreground">Alta + Lateral</strong> ou{" "}
-              <strong className="text-foreground">Baixa + Lateral</strong> para BTC e ETH. A IA monta 3 estratégias de
-              tendência + 3 laterais com base nos melhores backtests salvos. Um clique aplica os 6 slots no paper.
+              <strong className="text-foreground">Baixa + Lateral</strong> para BTC e ETH. A IA
+              monta 3 estratégias de tendência + 3 laterais com base nos melhores backtests salvos.
+              Um clique aplica os 6 slots no paper.
             </p>
           </div>
         </div>
@@ -295,7 +295,9 @@ export function IntelligenceSelectionPanel({
               key={market}
               title={`Top 6 · ${meta.label}`}
               action={
-                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${meta.chip}`}>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${meta.chip}`}
+                >
                   <Icon className="h-3 w-3" />
                   {meta.label}
                 </span>
@@ -304,13 +306,20 @@ export function IntelligenceSelectionPanel({
               <div className="space-y-4">
                 {selection.assets.map((asset) => (
                   <div key={asset.base}>
-                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">{asset.base}</div>
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+                      {asset.base}
+                    </div>
                     {asset.groups[market].length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Sem backtests — rode a matriz em Backtests.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Sem backtests — rode a matriz em Backtests.
+                      </p>
                     ) : (
                       <div className="space-y-2">
                         {asset.groups[market].map((row) => (
-                          <RankRow key={`${asset.base}-${row.strategy}-${row.timeframe}`} row={row} />
+                          <RankRow
+                            key={`${asset.base}-${row.strategy}-${row.timeframe}`}
+                            row={row}
+                          />
                         ))}
                       </div>
                     )}

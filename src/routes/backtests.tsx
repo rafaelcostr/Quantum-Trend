@@ -16,7 +16,12 @@ import {
   useBacktestMatrix,
   useBacktestActiveJob,
 } from "@/lib/queries";
-import type { BacktestOptions, BacktestAllProgress, OperationalTimeframe, OperatedBase } from "@/lib/api";
+import type {
+  BacktestOptions,
+  BacktestAllProgress,
+  OperationalTimeframe,
+  OperatedBase,
+} from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { resolveRunningAsset, resolveRunningLabel } from "@/lib/backtest-running";
 import { Layers, Play, GitBranch } from "lucide-react";
@@ -48,11 +53,12 @@ function Page() {
   const [matrixSelection, setMatrixSelection] = useState<BacktestMatrixSelection | null>(null);
 
   const remoteRunning = activeJob.data?.active && activeJob.data.status === "running";
-  const runningProgress: BacktestAllProgress | null = backtestAll.isPending
-    ? batchProgress ?? (remoteRunning ? activeJob.data : null)
-    : remoteRunning
-      ? activeJob.data
-      : null;
+  const runningProgress: BacktestAllProgress | null =
+    (backtestAll.isPending
+      ? (batchProgress ?? (remoteRunning ? activeJob.data : null))
+      : remoteRunning
+        ? activeJob.data
+        : null) ?? null;
   const runningAsset = resolveRunningAsset(runningProgress);
   const runningLabel = resolveRunningLabel(runningProgress);
   const isRunning = !!runningProgress && runningProgress.status === "running";
@@ -71,7 +77,9 @@ function Page() {
   const strategyItems = strategiesQuery.data?.items ?? settings.data?.operational?.strategies ?? [];
   const bullItems = strategyItems.filter((s) => (s.market_type ?? s.strategy_category) === "bull");
   const bearItems = strategyItems.filter((s) => (s.market_type ?? s.strategy_category) === "bear");
-  const rangeItems = strategyItems.filter((s) => (s.market_type ?? s.strategy_category) === "range");
+  const rangeItems = strategyItems.filter(
+    (s) => (s.market_type ?? s.strategy_category) === "range",
+  );
   const otherItems = strategyItems.filter(
     (s) => !["bull", "bear", "range"].includes(s.market_type ?? s.strategy_category ?? ""),
   );
@@ -87,8 +95,13 @@ function Page() {
 
       <Panel title="Testar todas as estratégias (1H + 4H + 1D)">
         <p className="text-sm text-muted-foreground mb-4">
-          Roda <strong>{MATRIX_STRATEGY_COUNT} estratégias × {MATRIX_TIMEFRAMES} timeframes = {MATRIX_TOTAL} backtests</strong>{" "}
-          (8 Alta · 3 Baixa · 4 Lateral) no ativo selecionado (BTC ou ETH). Pode levar vários minutos.
+          Roda{" "}
+          <strong>
+            {MATRIX_STRATEGY_COUNT} estratégias × {MATRIX_TIMEFRAMES} timeframes = {MATRIX_TOTAL}{" "}
+            backtests
+          </strong>{" "}
+          (8 Alta · 3 Baixa · 4 Lateral) no ativo selecionado (BTC ou ETH). Pode levar vários
+          minutos.
         </p>
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <label className="text-sm flex items-center gap-2">
@@ -137,7 +150,8 @@ function Page() {
         {!isRunning && backtestAll.isSuccess && liveBatch && liveBatch.total_runs > 0 && (
           <div className="mt-4 text-sm">
             Última execução ({liveBatch.base_asset ?? "BTC"}/USDT):{" "}
-            <span className="num text-success">{liveBatch.completed}</span> / {liveBatch.total_runs} concluídos
+            <span className="num text-success">{liveBatch.completed}</span> / {liveBatch.total_runs}{" "}
+            concluídos
           </div>
         )}
 
@@ -157,7 +171,8 @@ function Page() {
 
         {!matrix.isLoading && !savedMatrix?.items.length && !isRunning && (
           <p className="text-sm text-muted-foreground mt-4">
-            Nenhuma matriz salva ainda. Clique em &quot;Testar todas&quot; para gerar os {MATRIX_TOTAL} relatórios.
+            Nenhuma matriz salva ainda. Clique em &quot;Testar todas&quot; para gerar os{" "}
+            {MATRIX_TOTAL} relatórios.
           </p>
         )}
 
@@ -176,20 +191,24 @@ function Page() {
           </div>
         )}
 
-        {!backtestAll.isPending && backtestAll.isSuccess && liveBatch && (liveBatch.failed ?? 0) > 0 && (
-          <div className="mt-4 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning space-y-2">
-            <p>
-              {liveBatch.completed}/{liveBatch.total_runs} concluídos · {liveBatch.failed} falha(s).
-            </p>
-            <ul className="text-xs space-y-1 list-disc pl-4">
-              {(liveBatch.errors ?? []).slice(0, 6).map((e) => (
-                <li key={`${e.strategy}-${e.timeframe}`}>
-                  <strong>{e.strategy}</strong> · {e.timeframe.toUpperCase()} — {e.error}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {!backtestAll.isPending &&
+          backtestAll.isSuccess &&
+          liveBatch &&
+          (liveBatch.failed ?? 0) > 0 && (
+            <div className="mt-4 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning space-y-2">
+              <p>
+                {liveBatch.completed}/{liveBatch.total_runs} concluídos · {liveBatch.failed}{" "}
+                falha(s).
+              </p>
+              <ul className="text-xs space-y-1 list-disc pl-4">
+                {(liveBatch.errors ?? []).slice(0, 6).map((e) => (
+                  <li key={`${e.strategy}-${e.timeframe}`}>
+                    <strong>{e.strategy}</strong> · {e.timeframe.toUpperCase()} — {e.error}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
       </Panel>
 
       <Panel title="Backtest individual">
@@ -204,28 +223,36 @@ function Page() {
               {bullItems.length > 0 && (
                 <optgroup label="Estratégias de Alta">
                   {bullItems.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
                   ))}
                 </optgroup>
               )}
               {bearItems.length > 0 && (
                 <optgroup label="Estratégias de Baixa">
                   {bearItems.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
                   ))}
                 </optgroup>
               )}
               {rangeItems.length > 0 && (
                 <optgroup label="Estratégias Laterais">
                   {rangeItems.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
                   ))}
                 </optgroup>
               )}
               {otherItems.length > 0 && (
                 <optgroup label="Outras">
                   {otherItems.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
                   ))}
                 </optgroup>
               )}
@@ -258,18 +285,20 @@ function Page() {
         {backtest.data && (
           <div className="rounded-xl bg-white/[0.03] border border-white/5 p-4 text-sm space-y-1">
             <div>
-              {backtest.data.strategy} · {baseAsset}/USDT · {backtest.data.timeframe?.toUpperCase()} — Atlas Score:{" "}
+              {backtest.data.strategy} · {baseAsset}/USDT · {backtest.data.timeframe?.toUpperCase()}{" "}
+              — Atlas Score:{" "}
               <span className="num text-gradient-primary">{backtest.data.metrics.atlas_score}</span>
             </div>
             <div>
-              PF: {backtest.data.metrics.profit_factor} · DD: {backtest.data.metrics.max_drawdown_pct}% · Trades:{" "}
-              {backtest.data.metrics.trades}
+              PF: {backtest.data.metrics.profit_factor} · DD:{" "}
+              {backtest.data.metrics.max_drawdown_pct}% · Trades: {backtest.data.metrics.trades}
             </div>
           </div>
         )}
         {walkforward.data && (
           <div className="rounded-xl bg-success/10 border border-success/30 p-4 text-sm text-success mt-4">
-            Walk-forward salvo em <code className="text-secondary">{walkforward.data.report_path}</code>
+            Walk-forward salvo em{" "}
+            <code className="text-secondary">{walkforward.data.report_path}</code>
           </div>
         )}
       </Panel>
@@ -281,14 +310,17 @@ function Page() {
           className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#7C3AED] to-[#3B82F6] px-8 py-4 text-base font-semibold glow-primary disabled:opacity-50"
         >
           <Play className="h-5 w-5" />{" "}
-          {backtest.isPending ? "Executando…" : `Backtest ${baseAsset} · ${timeframe.toUpperCase()}`}
+          {backtest.isPending
+            ? "Executando…"
+            : `Backtest ${baseAsset} · ${timeframe.toUpperCase()}`}
         </button>
         <button
           onClick={() => walkforward.mutate(opts)}
           disabled={walkforward.isPending || isRunning}
           className="inline-flex items-center gap-2 rounded-2xl bg-white/5 border border-white/10 px-8 py-4 text-base font-semibold hover:bg-white/10 disabled:opacity-50"
         >
-          <GitBranch className="h-5 w-5" /> {walkforward.isPending ? "Walk-forward…" : "Walk-forward OOS"}
+          <GitBranch className="h-5 w-5" />{" "}
+          {walkforward.isPending ? "Walk-forward…" : "Walk-forward OOS"}
         </button>
       </div>
     </div>

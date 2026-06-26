@@ -29,14 +29,19 @@ import {
 } from "@/lib/queries";
 
 const LiveTradingViewChart = lazy(() =>
-  import("@/components/operations/LiveTradingViewChart").then((m) => ({ default: m.LiveTradingViewChart })),
+  import("@/components/operations/LiveTradingViewChart").then((m) => ({
+    default: m.LiveTradingViewChart,
+  })),
 );
 
 export const Route = createFileRoute("/operacoes")({
   head: () => ({
     meta: [
       { title: "Operações ao Vivo · Quantum-Trend" },
-      { name: "description", content: "Terminal quantitativo em tempo real — gráfico, estratégias, timeline e P&L." },
+      {
+        name: "description",
+        content: "Terminal quantitativo em tempo real — gráfico, estratégias, timeline e P&L.",
+      },
     ],
   }),
   component: OperationsTerminalPage,
@@ -82,13 +87,16 @@ function OperationsTerminalPage() {
   }, []);
 
   if (feed.isLoading && !feed.data) {
-    return <div className="text-muted-foreground text-sm py-12 text-center">Conectando ao runtime…</div>;
+    return (
+      <div className="text-muted-foreground text-sm py-12 text-center">Conectando ao runtime…</div>
+    );
   }
   if (feed.error || !feed.data) {
     return (
       <div className="text-destructive text-sm space-y-2">
         <p>
-          Erro ao carregar terminal. Confirme a API Python: <code className="text-secondary">python -m atlas.cli api</code>
+          Erro ao carregar terminal. Confirme a API Python:{" "}
+          <code className="text-secondary">python -m atlas.cli api</code>
         </p>
       </div>
     );
@@ -149,7 +157,9 @@ function OperationsTerminalPage() {
               onClick={() => bot.mutate(running ? "stop" : "start")}
               disabled={bot.isPending || stats.kill_switch}
               className={`rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-50 ${
-                running ? "bg-destructive/90 text-white" : "bg-gradient-to-r from-[#7C3AED] to-[#3B82F6] text-white"
+                running
+                  ? "bg-destructive/90 text-white"
+                  : "bg-gradient-to-r from-[#7C3AED] to-[#3B82F6] text-white"
               }`}
             >
               {running ? "Parar Bot" : "Iniciar Paper"}

@@ -1,4 +1,4 @@
-"""Relatorio comparativo — todos os backtests em um unico Markdown."""
+"""Relatório comparativo — todos os backtests em um único Markdown."""
 from __future__ import annotations
 
 import zipfile
@@ -140,7 +140,7 @@ def render_full_consolidated_report(
     analyses: list[StrategyAnalysis],
     errors: list[tuple[str, str]],
 ) -> str:
-    """Comparacao + cada relatorio ATLAS Intelligence completo."""
+    """Comparação + cada relatório ATLAS Intelligence completo."""
     parts = [render_comparison_summary(analyses, errors)]
     if analyses:
         parts.append("\n---\n\n# RELATÓRIOS INDIVIDUAIS COMPLETOS\n")
@@ -156,7 +156,7 @@ def render_unified_ai_report(
     analyses: list[StrategyAnalysis],
     errors: list[tuple[str, str]],
 ) -> str:
-    """Um unico Markdown com todas as estrategias — pronto para colar em uma IA."""
+    """Um único Markdown com todas as estratégias — pronto para colar em uma IA."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     preamble = f"""# ATLAS QUANT — RELATÓRIO ÚNICO · TODAS AS ESTRATÉGIAS
 
@@ -198,7 +198,7 @@ def build_comparison_report(
 ) -> dict[str, Any]:
     analyses, errors = analyze_all_reports(reports_dir)
     if not analyses and not errors:
-        return {"ok": False, "error": "Nenhum relatorio em data/reports/. Rode backtests em Pesquisa."}
+        return {"ok": False, "error": "Nenhum relatório em data/reports/. Rode backtests em Pesquisa."}
 
     if include_full:
         markdown = render_full_consolidated_report(analyses, errors)
@@ -231,7 +231,7 @@ def export_all_reports(
 
     analyses, errors = analyze_all_reports(reports_dir)
     if not analyses and not errors:
-        return {"ok": False, "error": "Nenhum relatorio em data/reports/. Rode backtests em Pesquisa."}
+        return {"ok": False, "error": "Nenhum relatório em data/reports/. Rode backtests em Pesquisa."}
 
     summary_md = render_comparison_summary(analyses, errors)
     summary_path = reports_dir / "atlas_comparativo_resumo.md"

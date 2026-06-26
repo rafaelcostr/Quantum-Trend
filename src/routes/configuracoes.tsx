@@ -1,6 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHeader, Panel } from "@/components/ui/page";
-import { useSettings, useSystemReset, useTestTelegram, useUpdateKillSwitch, useUpdateNotifications } from "@/lib/queries";
+import {
+  useSettings,
+  useSystemReset,
+  useTestTelegram,
+  useUpdateKillSwitch,
+  useUpdateNotifications,
+} from "@/lib/queries";
 import { ApiError } from "@/lib/api";
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
@@ -10,7 +16,15 @@ export const Route = createFileRoute("/configuracoes")({
   component: Page,
 });
 
-function Toggle({ checked, onClick, disabled }: { checked: boolean; onClick?: () => void; disabled?: boolean }) {
+function Toggle({
+  checked,
+  onClick,
+  disabled,
+}: {
+  checked: boolean;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
@@ -18,7 +32,9 @@ function Toggle({ checked, onClick, disabled }: { checked: boolean; onClick?: ()
       onClick={onClick}
       className={`relative inline-flex items-center w-11 h-6 rounded-full transition disabled:opacity-50 ${checked ? "bg-gradient-to-r from-[#7C3AED] to-[#3B82F6]" : "bg-white/10"}`}
     >
-      <div className={`h-5 w-5 rounded-full bg-white transition ${checked ? "translate-x-5" : "translate-x-0.5"}`} />
+      <div
+        className={`h-5 w-5 rounded-full bg-white transition ${checked ? "translate-x-5" : "translate-x-0.5"}`}
+      />
     </button>
   );
 }
@@ -44,43 +60,81 @@ function Page() {
   const [resetMsg, setResetMsg] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
 
-  if (isPending) return <div className="text-muted-foreground text-sm">Carregando configurações…</div>;
-  if (isError || !data) return <div className="text-destructive text-sm">Erro ao carregar configurações.</div>;
+  if (isPending)
+    return <div className="text-muted-foreground text-sm">Carregando configurações…</div>;
+  if (isError || !data)
+    return <div className="text-destructive text-sm">Erro ao carregar configurações.</div>;
 
-  const initials = data.profile.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  const initials = data.profile.name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Configurações" subtitle="Estratégia ativa, kill switch e preferências do terminal." />
+      <PageHeader
+        title="Configurações"
+        subtitle="Estratégia ativa, kill switch e preferências do terminal."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Panel title="Sistema operacional">
           <div className="flex items-center gap-4 mb-5">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[#7C3AED] to-[#3B82F6] grid place-items-center text-xl font-bold">{initials}</div>
+            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[#7C3AED] to-[#3B82F6] grid place-items-center text-xl font-bold">
+              {initials}
+            </div>
             <div>
               <div className="font-semibold">{data.profile.name}</div>
-              <div className="text-xs text-muted-foreground">{data.profile.email} · {data.profile.plan}</div>
+              <div className="text-xs text-muted-foreground">
+                {data.profile.email} · {data.profile.plan}
+              </div>
             </div>
           </div>
           <div className="rounded-xl bg-white/[0.03] border border-white/5 p-4 text-sm space-y-2">
-            <div className="flex justify-between"><span className="text-muted-foreground">Estratégia</span><span>{data.system.strategy}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Par</span><span>{data.system.symbol}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Gráfico</span><span className="uppercase">{data.system.timeframe}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Poll bot</span><span>{data.system.poll_seconds}s</span></div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Estratégia</span>
+              <span>{data.system.strategy}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Par</span>
+              <span>{data.system.symbol}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Gráfico</span>
+              <span className="uppercase">{data.system.timeframe}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Poll bot</span>
+              <span>{data.system.poll_seconds}s</span>
+            </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3 text-xs">
-            <Link to="/estrategias-alta" className="text-secondary hover:underline">Estratégias de Alta →</Link>
-            <Link to="/estrategias-baixa" className="text-destructive hover:underline">Estratégias de Baixa →</Link>
-            <Link to="/estrategias-lateral" className="text-warning hover:underline">Estratégias Laterais →</Link>
+            <Link to="/estrategias-alta" className="text-secondary hover:underline">
+              Estratégias de Alta →
+            </Link>
+            <Link to="/estrategias-baixa" className="text-destructive hover:underline">
+              Estratégias de Baixa →
+            </Link>
+            <Link to="/estrategias-lateral" className="text-warning hover:underline">
+              Estratégias Laterais →
+            </Link>
           </div>
         </Panel>
 
         <Panel title="Kill Switch">
-          <p className="text-sm text-muted-foreground mb-4">Bloqueia imediatamente start do bot. Prioridade sobre .env.</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Bloqueia imediatamente start do bot. Prioridade sobre .env.
+          </p>
           <div className="flex items-center justify-between rounded-xl bg-white/[0.03] border border-white/5 p-4">
             <div>
-              <div className="font-medium">{data.system.kill_switch ? "ATIVO — bot bloqueado" : "Inativo"}</div>
-              <div className="text-xs text-muted-foreground mt-1">Use em emergência ou manutenção</div>
+              <div className="font-medium">
+                {data.system.kill_switch ? "ATIVO — bot bloqueado" : "Inativo"}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Use em emergência ou manutenção
+              </div>
             </div>
             <Toggle
               checked={data.system.kill_switch}
@@ -92,12 +146,20 @@ function Page() {
 
         <Panel title="Exchanges Conectadas" className="lg:col-span-2">
           {data.exchanges.map((e) => (
-            <div key={e.name} className="flex items-center justify-between border-t border-white/5 first:border-t-0 py-3">
+            <div
+              key={e.name}
+              className="flex items-center justify-between border-t border-white/5 first:border-t-0 py-3"
+            >
               <div className="flex items-center gap-3">
-                <span className={`h-2 w-2 rounded-full ${e.connected ? "bg-success" : "bg-destructive"}`} />
+                <span
+                  className={`h-2 w-2 rounded-full ${e.connected ? "bg-success" : "bg-destructive"}`}
+                />
                 <div>
                   <div className="text-sm font-medium">{e.name}</div>
-                  <div className="text-[11px] text-muted-foreground">{e.connected ? "conectada" : "desconectada"}{e.active ? " · ativa" : ""}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {e.connected ? "conectada" : "desconectada"}
+                    {e.active ? " · ativa" : ""}
+                  </div>
                 </div>
               </div>
             </div>
@@ -128,12 +190,21 @@ function Page() {
               {testTelegram.isPending ? "Enviando…" : "Testar Telegram"}
             </button>
           </div>
-          {testMsg && <p className={`text-xs mt-3 ${testMsg.includes("Falha") ? "text-destructive" : "text-success"}`}>{testMsg}</p>}
+          {testMsg && (
+            <p
+              className={`text-xs mt-3 ${testMsg.includes("Falha") ? "text-destructive" : "text-success"}`}
+            >
+              {testMsg}
+            </p>
+          )}
         </Panel>
 
         <Panel title="Notificações" className="lg:col-span-2">
           {Object.entries(data.notifications).map(([key, on]) => (
-            <div key={key} className="flex items-center justify-between border-t border-white/5 first:border-t-0 py-3">
+            <div
+              key={key}
+              className="flex items-center justify-between border-t border-white/5 first:border-t-0 py-3"
+            >
               <span className="text-sm">{NOTIF_LABELS[key] ?? key}</span>
               <Toggle
                 checked={on}
@@ -149,8 +220,8 @@ function Page() {
 
         <Panel title="Reset de dados" className="lg:col-span-2">
           <p className="text-sm text-muted-foreground mb-4">
-            Apaga resultados de backtest, cache de candles e/ou histórico do paper trading.
-            A matriz salva no navegador também é limpa. Esta ação não pode ser desfeita.
+            Apaga resultados de backtest, cache de candles e/ou histórico do paper trading. A matriz
+            salva no navegador também é limpa. Esta ação não pode ser desfeita.
           </p>
           <div className="space-y-3 mb-5">
             <label className="flex items-start gap-3 rounded-xl bg-white/[0.03] border border-white/5 p-4 cursor-pointer">
@@ -163,7 +234,8 @@ function Page() {
               <div>
                 <div className="text-sm font-medium">Relatórios de backtest</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  Remove todos os arquivos em <code className="text-[11px]">data/reports/</code> e a matriz local
+                  Remove todos os arquivos em <code className="text-[11px]">data/reports/</code> e a
+                  matriz local
                 </div>
               </div>
             </label>

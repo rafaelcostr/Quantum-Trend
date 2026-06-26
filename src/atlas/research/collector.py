@@ -55,7 +55,7 @@ def load_or_download(config: AtlasConfig, force: bool = False) -> pd.DataFrame:
             if not _cache_needs_refresh(df, config):
                 return df
             logger.info(
-                "Cache %s incompleto (%s candles) — baixando historico completo",
+                "Cache %s incompleto (%s candles) — baixando histórico completo",
                 cache.name,
                 len(df),
             )
@@ -66,7 +66,7 @@ def load_or_download(config: AtlasConfig, force: bool = False) -> pd.DataFrame:
         config.exchange.symbol,
         config.exchange.timeframe,
         years,
-        "historico completo" if years <= 0 else f"ultimos {years} anos",
+        "histórico completo" if years <= 0 else f"últimos {years} anos",
     )
     df = fetch_ohlcv_history(
         config.exchange.symbol,

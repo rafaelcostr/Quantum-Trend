@@ -37,14 +37,19 @@ export function MarketRegimePanel({ regime }: { regime: MarketRegimeSnapshot | u
   if (!regime) {
     return (
       <Panel title="Regime de Mercado">
-        <p className="text-sm text-muted-foreground">Regime indisponível — reinicie a API Python.</p>
+        <p className="text-sm text-muted-foreground">
+          Regime indisponível — reinicie a API Python.
+        </p>
       </Panel>
     );
   }
 
   const accent = ACCENT_STYLES[regime.accent] ?? ACCENT_STYLES.warning;
   const Icon = REGIME_ICONS[regime.market_type] ?? Minus;
-  const route = regime.strategies_route as "/estrategias-alta" | "/estrategias-baixa" | "/estrategias-lateral";
+  const route = regime.strategies_route as
+    | "/estrategias-alta"
+    | "/estrategias-baixa"
+    | "/estrategias-lateral";
 
   return (
     <Panel
@@ -64,14 +69,20 @@ export function MarketRegimePanel({ regime }: { regime: MarketRegimeSnapshot | u
         </div>
       ) : (
         <div className="space-y-5">
-          <div className={`relative overflow-hidden rounded-2xl border border-white/10 p-5 bg-gradient-to-br ${accent.glow} to-white/[0.02]`}>
+          <div
+            className={`relative overflow-hidden rounded-2xl border border-white/10 p-5 bg-gradient-to-br ${accent.glow} to-white/[0.02]`}
+          >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${accent.badge}`}>
+                <div
+                  className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${accent.badge}`}
+                >
                   <Icon className="h-7 w-7" />
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Tendência sugerida</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Tendência sugerida
+                  </div>
                   <div className="text-2xl font-semibold">{regime.label}</div>
                   <div className="text-sm text-muted-foreground mt-1 max-w-xl">{regime.reason}</div>
                 </div>
@@ -80,15 +91,26 @@ export function MarketRegimePanel({ regime }: { regime: MarketRegimeSnapshot | u
                 to={route}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 border border-white/10 px-4 py-2.5 text-sm font-medium hover:bg-white/15 transition shrink-0"
               >
-                Ver {regime.label === "Alta" ? "Estratégias de Alta" : regime.label === "Baixa" ? "Estratégias de Baixa" : "Estratégias Laterais"}
+                Ver{" "}
+                {regime.label === "Alta"
+                  ? "Estratégias de Alta"
+                  : regime.label === "Baixa"
+                    ? "Estratégias de Baixa"
+                    : "Estratégias Laterais"}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Metric label="Preço" value={regime.close != null ? `$${regime.close.toLocaleString()}` : "—"} />
-            <Metric label="EMA 200" value={regime.ema200 != null ? `$${regime.ema200.toLocaleString()}` : "—"} />
+            <Metric
+              label="Preço"
+              value={regime.close != null ? `$${regime.close.toLocaleString()}` : "—"}
+            />
+            <Metric
+              label="EMA 200"
+              value={regime.ema200 != null ? `$${regime.ema200.toLocaleString()}` : "—"}
+            />
             <Metric label="ADX" value={regime.adx != null ? regime.adx.toFixed(1) : "—"} />
             <Metric
               label="vs EMA200"
@@ -101,11 +123,14 @@ export function MarketRegimePanel({ regime }: { regime: MarketRegimeSnapshot | u
           </div>
 
           <div className="rounded-xl bg-white/[0.03] border border-white/5 p-4 text-sm">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Recomendação</div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+              Recomendação
+            </div>
             <p>{regime.suggestion}</p>
             {regime.enabled_slots > 0 && (
               <p className="text-xs text-muted-foreground mt-2">
-                Slots paper: {regime.matching_slots}/{regime.enabled_slots} compatíveis com o regime atual
+                Slots paper: {regime.matching_slots}/{regime.enabled_slots} compatíveis com o regime
+                atual
                 {regime.active_market_labels.length > 0 && (
                   <> · ativos: {regime.active_market_labels.join(", ")}</>
                 )}

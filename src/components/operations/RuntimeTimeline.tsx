@@ -40,11 +40,16 @@ const DECISION_CLS: Record<string, string> = {
 
 export function RuntimeTimeline({ events }: { events: TimelineEventView[] }) {
   return (
-    <Panel title="Timeline do runtime" subtitle="Eventos cronológicos · ticks · execuções · decisões">
+    <Panel
+      title="Timeline do runtime"
+      subtitle="Eventos cronológicos · ticks · execuções · decisões"
+    >
       <ul className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
         <AnimatePresence initial={false}>
           {events.length === 0 ? (
-            <li className="text-sm text-muted-foreground text-center py-8">Aguardando eventos do runtime…</li>
+            <li className="text-sm text-muted-foreground text-center py-8">
+              Aguardando eventos do runtime…
+            </li>
           ) : (
             events.map((ev) => {
               const Icon = ICONS[ev.icon];
@@ -62,7 +67,9 @@ export function RuntimeTimeline({ events }: { events: TimelineEventView[] }) {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="text-[10px] num text-muted-foreground">{ev.timeLabel}</div>
+                          <div className="text-[10px] num text-muted-foreground">
+                            {ev.timeLabel}
+                          </div>
                           {ev.symbol && (
                             <div className="text-xs font-semibold mt-0.5">{ev.symbol}</div>
                           )}
@@ -71,7 +78,9 @@ export function RuntimeTimeline({ events }: { events: TimelineEventView[] }) {
                           )}
                         </div>
                         {ev.score != null && (
-                          <span className="text-[10px] num chip shrink-0">{Math.round(ev.score)}/100</span>
+                          <span className="text-[10px] num chip shrink-0">
+                            {Math.round(ev.score)}/100
+                          </span>
                         )}
                       </div>
 
@@ -80,7 +89,10 @@ export function RuntimeTimeline({ events }: { events: TimelineEventView[] }) {
                       {ev.timeframes && ev.timeframes.length > 0 && (
                         <div className="mt-2 space-y-0.5 font-mono text-[11px]">
                           {ev.timeframes.map((tf) => (
-                            <div key={tf.tf} className={tf.ok ? "text-success" : "text-muted-foreground"}>
+                            <div
+                              key={tf.tf}
+                              className={tf.ok ? "text-success" : "text-muted-foreground"}
+                            >
                               {tf.tf} {tf.ok ? "✅" : "❌"} {tf.label}
                             </div>
                           ))}
@@ -94,7 +106,9 @@ export function RuntimeTimeline({ events }: { events: TimelineEventView[] }) {
                       )}
 
                       {ev.decision && (
-                        <div className={`mt-2 text-xs font-medium ${DECISION_CLS[ev.decision] ?? ""}`}>
+                        <div
+                          className={`mt-2 text-xs font-medium ${DECISION_CLS[ev.decision] ?? ""}`}
+                        >
                           Decisão: {ev.decision}
                         </div>
                       )}
@@ -111,7 +125,9 @@ export function RuntimeTimeline({ events }: { events: TimelineEventView[] }) {
                         </ul>
                       )}
 
-                      <span className="inline-block mt-2 text-[9px] uppercase tracking-wider chip opacity-70">{ev.tag}</span>
+                      <span className="inline-block mt-2 text-[9px] uppercase tracking-wider chip opacity-70">
+                        {ev.tag}
+                      </span>
                     </div>
                   </div>
                 </motion.li>

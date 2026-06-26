@@ -10,7 +10,14 @@ type Props = {
   loading?: boolean;
 };
 
-export function PositionsPnLPanel({ positions, stats, risk, capital, drawdownPct, loading }: Props) {
+export function PositionsPnLPanel({
+  positions,
+  stats,
+  risk,
+  capital,
+  drawdownPct,
+  loading,
+}: Props) {
   const dailyPnl = risk?.settings.daily_pnl ?? stats.pnl;
   const tradesToday = risk?.settings.trades_today ?? stats.trades_today;
   const winRate = stats.win_rate_pct;
@@ -55,14 +62,20 @@ export function PositionsPnLPanel({ positions, stats, risk, capital, drawdownPct
                       <td className="px-2 py-2.5 text-xs text-muted-foreground">{p.strategy}</td>
                       <td className="px-2 py-2.5 text-right num">${p.entry.toLocaleString()}</td>
                       <td className="px-2 py-2.5 text-right num">${p.current.toLocaleString()}</td>
-                      <td className={`px-2 py-2.5 text-right num ${up ? "text-success" : "text-destructive"}`}>
+                      <td
+                        className={`px-2 py-2.5 text-right num ${up ? "text-success" : "text-destructive"}`}
+                      >
                         {up ? "+" : ""}
                         {p.pnl_pct.toFixed(2)}%
                       </td>
-                      <td className={`px-2 py-2.5 text-right num ${up ? "text-success" : "text-destructive"}`}>
+                      <td
+                        className={`px-2 py-2.5 text-right num ${up ? "text-success" : "text-destructive"}`}
+                      >
                         {up ? "+" : ""}${p.pnl.toFixed(2)}
                       </td>
-                      <td className="px-2 py-2.5 text-right num text-primary">{Math.round(stats.alignment_score)}</td>
+                      <td className="px-2 py-2.5 text-right num text-primary">
+                        {Math.round(stats.alignment_score)}
+                      </td>
                       <td className="px-2 py-2.5 text-xs">—</td>
                       <td className="px-2 py-2.5">
                         <span className="chip text-success text-[10px]">Operando</span>
@@ -78,13 +91,20 @@ export function PositionsPnLPanel({ positions, stats, risk, capital, drawdownPct
 
       <Panel title="Resumo financeiro">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <Metric label="Capital" value={`$${capital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
+          <Metric
+            label="Capital"
+            value={`$${capital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+          />
           <Metric
             label="Lucro diário"
             value={`${dailyPnl >= 0 ? "+" : ""}$${Math.abs(dailyPnl).toFixed(0)}`}
             tone={dailyPnl >= 0 ? "success" : "danger"}
           />
-          <Metric label="Drawdown" value={`${drawdownPct != null ? drawdownPct.toFixed(1) : "—"}%`} tone="warning" />
+          <Metric
+            label="Drawdown"
+            value={`${drawdownPct != null ? drawdownPct.toFixed(1) : "—"}%`}
+            tone="warning"
+          />
           <Metric label="Operações hoje" value={String(tradesToday)} />
           <Metric label="Win rate" value={`${winRate.toFixed(0)}%`} />
           <Metric label="Profit factor" value={stats.profit_factor.toFixed(2)} />
@@ -104,7 +124,13 @@ function Metric({
   tone?: "success" | "danger" | "warning";
 }) {
   const cls =
-    tone === "success" ? "text-success" : tone === "danger" ? "text-destructive" : tone === "warning" ? "text-warning" : "";
+    tone === "success"
+      ? "text-success"
+      : tone === "danger"
+        ? "text-destructive"
+        : tone === "warning"
+          ? "text-warning"
+          : "";
   return (
     <div className="rounded-xl bg-white/[0.03] border border-white/5 p-3">
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>

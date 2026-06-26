@@ -2,13 +2,9 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-import {
-  buildResultsFromDisk,
-  isResultsPath,
-} from "./lib/atlas-disk-reports";
+import { buildResultsFromDisk, isResultsPath } from "./lib/atlas-disk-reports";
 
-const ATLAS_API_ORIGIN =
-  process.env.VITE_ATLAS_API_ORIGIN ?? "http://127.0.0.1:8000";
+const ATLAS_API_ORIGIN = process.env.VITE_ATLAS_API_ORIGIN ?? "http://127.0.0.1:8000";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;

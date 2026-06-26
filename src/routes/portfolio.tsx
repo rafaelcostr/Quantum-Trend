@@ -20,7 +20,11 @@ function PortfolioPage() {
     );
   }
   if ((isError && !data) || !data) {
-    return <div className="text-destructive text-sm">{error instanceof Error ? error.message : "Erro ao carregar portfolio."}</div>;
+    return (
+      <div className="text-destructive text-sm">
+        {error instanceof Error ? error.message : "Erro ao carregar portfolio."}
+      </div>
+    );
   }
 
   return (

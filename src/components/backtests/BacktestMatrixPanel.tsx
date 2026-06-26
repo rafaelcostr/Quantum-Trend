@@ -1,7 +1,17 @@
 import { Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useState } from "react";
-import type { BacktestBatchItem, BacktestMatrixGroup, BacktestMatrixResponse, OperatedBase } from "@/lib/api";
-import { buildMatrixGroups, filterMatrixByAsset, splitMatrixByAsset } from "@/lib/backtest-matrix-groups";
+import type {
+  BacktestBatchItem,
+  BacktestMatrixGroup,
+  BacktestMatrixResponse,
+  OperatedBase,
+} from "@/lib/api";
+import {
+  buildMatrixGroups,
+  filterMatrixByAsset,
+  splitMatrixByAsset,
+} from "@/lib/backtest-matrix-groups";
+import { formatReturn } from "@/lib/backtest-format";
 import { formatBacktestPeriodShort, formatTradesWithPeriod } from "@/lib/backtest-period";
 import { ApiError } from "@/lib/api";
 import { TrendingDown, TrendingUp, ArrowLeftRight } from "lucide-react";
@@ -18,12 +28,6 @@ const ASSET_TABS: { id: OperatedBase; label: string; color: string }[] = [
   { id: "ETH", label: "ETH/USDT", color: "#627EEA" },
 ];
 
-export function formatReturn(value: number | undefined) {
-  if (value == null) return "—";
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(1)}%`;
-}
-
 const GROUP_META: Record<
   BacktestMatrixGroup["market_type"],
   { badge: string; badgeLabel: string; icon: typeof TrendingUp }
@@ -34,7 +38,11 @@ const GROUP_META: Record<
 };
 
 function inferMarketType(strategy: string): BacktestMatrixGroup["market_type"] {
-  if (strategy.includes("short") || strategy.includes("_bear") || strategy.includes("breakout_down")) {
+  if (
+    strategy.includes("short") ||
+    strategy.includes("_bear") ||
+    strategy.includes("breakout_down")
+  ) {
     return "bear";
   }
   if (
@@ -46,8 +54,6 @@ function inferMarketType(strategy: string): BacktestMatrixGroup["market_type"] {
   }
   return "bull";
 }
-
-export { buildMatrixGroups } from "@/lib/backtest-matrix-groups";
 
 export function BacktestMatrixTable({
   items,
@@ -76,7 +82,10 @@ export function BacktestMatrixTable({
             <th className="px-3 py-2 text-right">Score</th>
             <th className="px-3 py-2 text-right">PF</th>
             <th className="px-3 py-2 text-right">DD%</th>
-            <th className="px-3 py-2 text-right" title="Operações fechadas no intervalo de candles do backtest">
+            <th
+              className="px-3 py-2 text-right"
+              title="Operações fechadas no intervalo de candles do backtest"
+            >
               Trades
             </th>
           </tr>
@@ -106,32 +115,44 @@ export function BacktestMatrixTable({
             return (
               <Fragment key={`${rowAsset}-${row.strategy}-${row.timeframe}`}>
                 <tr
-                  onClick={
-                    onSelect
-                      ? () => onSelect(isSelected ? null : rowSelection)
-                      : undefined
-                  }
+                  onClick={onSelect ? () => onSelect(isSelected ? null : rowSelection) : undefined}
                   className={`border-t border-white/5 ${onSelect ? "cursor-pointer transition-colors" : ""} ${
-                    isSelected ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : onSelect ? "hover:bg-white/[0.03]" : ""
+                    isSelected
+                      ? "bg-primary/10 ring-1 ring-inset ring-primary/40"
+                      : onSelect
+                        ? "hover:bg-white/[0.03]"
+                        : ""
                   } ${noTrades ? "opacity-80" : ""}`}
                 >
                   <td className="px-3 py-2">
                     {row.strategy_label}
                     {noTrades && (
-                      <span className="ml-2 text-[10px] uppercase text-amber-400/80">sem trades</span>
+                      <span className="ml-2 text-[10px] uppercase text-amber-400/80">
+                        sem trades
+                      </span>
                     )}
                   </td>
                   <td className="px-3 py-2 uppercase">{row.timeframe}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap" title={formatBacktestPeriodShort(row)}>
+                  <td
+                    className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap"
+                    title={formatBacktestPeriodShort(row)}
+                  >
                     {formatBacktestPeriodShort(row)}
                   </td>
                   <td className={`px-3 py-2 text-right num font-semibold ${tone}`}>
                     {noTrades ? "0% · inativo" : formatReturn(row.metrics?.total_return_pct)}
                   </td>
                   <td className="px-3 py-2 text-right num">{row.metrics?.atlas_score ?? "—"}</td>
-                  <td className="px-3 py-2 text-right num">{noTrades ? "—" : (row.metrics?.profit_factor ?? "—")}</td>
-                  <td className="px-3 py-2 text-right num">{noTrades ? "—" : (row.metrics?.max_drawdown_pct ?? "—")}</td>
-                  <td className="px-3 py-2 text-right num" title={formatTradesWithPeriod(trades, row)}>
+                  <td className="px-3 py-2 text-right num">
+                    {noTrades ? "—" : (row.metrics?.profit_factor ?? "—")}
+                  </td>
+                  <td className="px-3 py-2 text-right num">
+                    {noTrades ? "—" : (row.metrics?.max_drawdown_pct ?? "—")}
+                  </td>
+                  <td
+                    className="px-3 py-2 text-right num"
+                    title={formatTradesWithPeriod(trades, row)}
+                  >
                     {formatTradesWithPeriod(trades, row)}
                   </td>
                 </tr>
@@ -170,7 +191,9 @@ function BacktestMatrixGroupSection({
     <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Icon className={`h-4 w-4 ${group.market_type === "bear" ? "text-destructive" : group.market_type === "range" ? "text-warning" : "text-success"}`} />
+          <Icon
+            className={`h-4 w-4 ${group.market_type === "bear" ? "text-destructive" : group.market_type === "range" ? "text-warning" : "text-success"}`}
+          />
           <h3 className="text-sm font-semibold">{group.label}</h3>
           <span className={meta.badge}>{meta.badgeLabel}</span>
         </div>
@@ -191,7 +214,12 @@ function BacktestMatrixGroupSection({
           <span className="num">{formatReturn(group.best_return.metrics?.total_return_pct)}</span>
         </div>
       )}
-      <BacktestMatrixTable items={group.items} selected={selected} onSelect={onSelect} asset={asset} />
+      <BacktestMatrixTable
+        items={group.items}
+        selected={selected}
+        onSelect={onSelect}
+        asset={asset}
+      />
     </div>
   );
 }
@@ -207,25 +235,30 @@ export function BacktestMatrixGroupedSummary({
   onSelect?: (row: BacktestMatrixSelection | null) => void;
   assetLabel?: string;
 }) {
-  const asset = selected?.base_asset ?? (matrix.items[0]?.base_asset ?? "BTC");
+  const asset = selected?.base_asset ?? matrix.items[0]?.base_asset ?? "BTC";
   const groups = buildMatrixGroups(matrix.items);
 
   return (
     <div className="space-y-6">
       <div className="text-sm text-muted-foreground">
-        {matrix.total} combinações{assetLabel ? ` · ${assetLabel}` : ""} · separadas por mercado (Alta / Baixa / Lateral)
+        {matrix.total} combinações{assetLabel ? ` · ${assetLabel}` : ""} · separadas por mercado
+        (Alta / Baixa / Lateral)
       </div>
       <p className="text-xs text-muted-foreground">
-        <strong>Clique em uma linha</strong> para abrir o gráfico logo abaixo dela (clique de novo para fechar).
-        Verde = trade positivo · vermelho = negativo.{" "}
-        <strong>Período simulado</strong> = intervalo de candles usado no backtest (histórico baixado da Binance).
-        <strong> Trades</strong> = operações fechadas nesse intervalo — não confundir com tempo real de operação.
+        <strong>Clique em uma linha</strong> para abrir o gráfico logo abaixo dela (clique de novo
+        para fechar). Verde = trade positivo · vermelho = negativo.{" "}
+        <strong>Período simulado</strong> = intervalo de candles usado no backtest (histórico
+        baixado da Binance).
+        <strong> Trades</strong> = operações fechadas nesse intervalo — não confundir com tempo real
+        de operação.
       </p>
       {matrix.best_return && (
         <div className="rounded-xl bg-success/10 border border-success/30 p-3 text-sm">
           Maior retorno geral: <strong>{matrix.best_return.strategy_label}</strong> ·{" "}
           {matrix.best_return.timeframe.toUpperCase()} ·{" "}
-          <span className="num text-success">{formatReturn(matrix.best_return.metrics?.total_return_pct)}</span>
+          <span className="num text-success">
+            {formatReturn(matrix.best_return.metrics?.total_return_pct)}
+          </span>
         </div>
       )}
       {groups.map((group) => (
@@ -294,12 +327,16 @@ export function BacktestMatrixAssetTabs({
                 }
               }}
               className={`text-sm px-4 py-2 rounded-lg transition flex items-center gap-2 ${
-                isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-white"
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-white"
               }`}
             >
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tab.color }} />
               {tab.label}
-              <span className={`text-xs num ${isActive ? "opacity-90" : "opacity-60"}`}>({count})</span>
+              <span className={`text-xs num ${isActive ? "opacity-90" : "opacity-60"}`}>
+                ({count})
+              </span>
             </button>
           );
         })}
@@ -307,8 +344,8 @@ export function BacktestMatrixAssetTabs({
 
       {activeMatrix.total === 0 ? (
         <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center text-sm text-muted-foreground">
-          Nenhum backtest salvo para <strong className="text-white">{tabMeta.label}</strong>. Rode &quot;Testar todas&quot; com
-          esse ativo selecionado em Backtests.
+          Nenhum backtest salvo para <strong className="text-white">{tabMeta.label}</strong>. Rode
+          &quot;Testar todas&quot; com esse ativo selecionado em Backtests.
         </div>
       ) : (
         <BacktestMatrixGroupedSummary

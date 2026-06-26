@@ -143,7 +143,7 @@ def run_backtest_config(
 def run_compare(project_root: Path, reports_dir: str = "data/reports", top: int = 20) -> dict[str, Any]:
     report_paths = discover_reports(project_root / reports_dir)
     if not report_paths:
-        return {"ok": False, "error": "Nenhum relatorio. Rode um backtest primeiro."}
+        return {"ok": False, "error": "Nenhum relatório. Rode um backtest primeiro."}
 
     rows: list[dict[str, Any]] = []
     for path in report_paths:

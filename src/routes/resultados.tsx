@@ -5,12 +5,23 @@ import { StatCard } from "@/components/widgets/StatCard";
 import {
   BacktestMatrixAssetTabs,
   BacktestMatrixError,
-  BacktestMatrixSelection,
-  formatReturn,
+  type BacktestMatrixSelection,
 } from "@/components/backtests/BacktestMatrixPanel";
+import { formatReturn } from "@/lib/backtest-format";
 import { filterMatrixByAsset } from "@/lib/backtest-matrix-groups";
 import { Wallet, Target, Gauge, Activity, TrendingUp, ShieldAlert } from "lucide-react";
-import { Area, AreaChart, Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 import { useBacktestMatrix, useResults, useBacktestActiveJob } from "@/lib/queries";
 import type { BacktestBatchItem, BacktestMetrics, ResultsResponse } from "@/lib/api";
 import { formatBacktestPeriodLong } from "@/lib/backtest-period";
@@ -53,8 +64,16 @@ function Page() {
     const pick =
       (btc.best_return && { ...btc.best_return, base_asset: "BTC" as const }) ||
       (eth.best_return && { ...eth.best_return, base_asset: "ETH" as const }) ||
-      (btc.items[0] && { strategy: btc.items[0].strategy, timeframe: btc.items[0].timeframe, base_asset: "BTC" as const }) ||
-      (eth.items[0] && { strategy: eth.items[0].strategy, timeframe: eth.items[0].timeframe, base_asset: "ETH" as const });
+      (btc.items[0] && {
+        strategy: btc.items[0].strategy,
+        timeframe: btc.items[0].timeframe,
+        base_asset: "BTC" as const,
+      }) ||
+      (eth.items[0] && {
+        strategy: eth.items[0].strategy,
+        timeframe: eth.items[0].timeframe,
+        base_asset: "ETH" as const,
+      });
     if (pick) {
       setSelected({
         strategy: pick.strategy,
@@ -62,7 +81,7 @@ function Page() {
         base_asset: pick.base_asset,
       });
     }
-  }, [matrix.data, items.length]);
+  }, [matrix.data, items.length, selected]);
 
   const selectedItem = assetItems.find(
     (i) => i.strategy === selected?.strategy && i.timeframe === selected?.timeframe,
@@ -110,7 +129,9 @@ function Page() {
                 <code className="text-secondary">data/reports/</code>.
               </p>
             )}
-            <p className="text-xs text-muted-foreground">Clique numa linha para ver o detalhe abaixo.</p>
+            <p className="text-xs text-muted-foreground">
+              Clique numa linha para ver o detalhe abaixo.
+            </p>
             {matrix.data && (
               <BacktestMatrixAssetTabs
                 matrix={matrix.data}
@@ -153,7 +174,9 @@ function Page() {
                 Resultado:{" "}
                 <span
                   className={`num font-semibold ${
-                    (selectedItem.metrics?.total_return_pct ?? 0) >= 0 ? "text-success" : "text-destructive"
+                    (selectedItem.metrics?.total_return_pct ?? 0) >= 0
+                      ? "text-success"
+                      : "text-destructive"
                   }`}
                 >
                   {formatReturn(selectedItem.metrics?.total_return_pct)}
@@ -169,14 +192,19 @@ function Page() {
           {selectedItem?.metrics ? (
             <DetailMetrics
               key={`${selectedItem.strategy}-${selectedItem.timeframe}`}
-              title={results.data?.title ?? `${selectedItem.strategy_label} · ${selectedItem.timeframe.toUpperCase()}`}
+              title={
+                results.data?.title ??
+                `${selectedItem.strategy_label} · ${selectedItem.timeframe.toUpperCase()}`
+              }
               metrics={selectedItem.metrics}
               period={selectedItem}
               charts={apiMatchesSelection ? results.data : undefined}
               apiStale={!!results.data && !apiMatchesSelection && !results.isFetching}
             />
           ) : (
-            <p className="text-sm text-muted-foreground">Selecione uma estratégia na tabela acima.</p>
+            <p className="text-sm text-muted-foreground">
+              Selecione uma estratégia na tabela acima.
+            </p>
           )}
         </Panel>
       )}
@@ -218,9 +246,10 @@ function DetailMetrics({
 
       {noTrades && (
         <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
-          <strong>Nenhum trade fechado</strong> neste backtest ({m.trades} operações). A estratégia não entrou
-          em posição no gráfico/timeframe escolhido — por isso lucro, win rate e gráficos ficam zerados ou vazios.
-          Tente <strong>4H</strong> ou outra estratégia na tabela acima (ex.: Range Hunter v1 · 1D teve 7 trades).
+          <strong>Nenhum trade fechado</strong> neste backtest ({m.trades} operações). A estratégia
+          não entrou em posição no gráfico/timeframe escolhido — por isso lucro, win rate e gráficos
+          ficam zerados ou vazios. Tente <strong>4H</strong> ou outra estratégia na tabela acima
+          (ex.: Range Hunter v1 · 1D teve 7 trades).
         </div>
       )}
 
@@ -233,86 +262,181 @@ function DetailMetrics({
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <StatCard
           label="Lucro Líquido"
-          value={noTrades ? "0,0%" : `${m.total_return_pct >= 0 ? "+" : ""}${m.total_return_pct.toFixed(1)}%`}
+          value={
+            noTrades
+              ? "0,0%"
+              : `${m.total_return_pct >= 0 ? "+" : ""}${m.total_return_pct.toFixed(1)}%`
+          }
           delta={noTrades ? 0 : m.total_return_pct}
           icon={Wallet}
           accent="success"
         />
-        <StatCard label="Win Rate" value={formatMetric(m.win_rate_pct, m.trades, "%")} delta={noTrades ? 0 : m.win_rate_pct} icon={Target} accent="success" />
-        <StatCard label="Profit Factor" value={formatMetric(m.profit_factor, m.trades)} delta={noTrades ? 0 : m.profit_factor} icon={Gauge} accent="primary" />
-        <StatCard label="Sharpe Ratio" value={formatMetric(m.sharpe, m.trades)} delta={noTrades ? 0 : m.sharpe} icon={TrendingUp} accent="secondary" />
-        <StatCard label="Drawdown" value={formatMetric(m.max_drawdown_pct, m.trades, "%")} delta={noTrades ? 0 : -m.max_drawdown_pct} icon={ShieldAlert} accent="warning" />
-        <StatCard label="Trades" value={String(m.trades ?? 0)} delta={m.trades} icon={Activity} accent="primary" />
+        <StatCard
+          label="Win Rate"
+          value={formatMetric(m.win_rate_pct, m.trades, "%")}
+          delta={noTrades ? 0 : m.win_rate_pct}
+          icon={Target}
+          accent="success"
+        />
+        <StatCard
+          label="Profit Factor"
+          value={formatMetric(m.profit_factor, m.trades)}
+          delta={noTrades ? 0 : m.profit_factor}
+          icon={Gauge}
+          accent="primary"
+        />
+        <StatCard
+          label="Sharpe Ratio"
+          value={formatMetric(m.sharpe, m.trades)}
+          delta={noTrades ? 0 : m.sharpe}
+          icon={TrendingUp}
+          accent="secondary"
+        />
+        <StatCard
+          label="Drawdown"
+          value={formatMetric(m.max_drawdown_pct, m.trades, "%")}
+          delta={noTrades ? 0 : -m.max_drawdown_pct}
+          icon={ShieldAlert}
+          accent="warning"
+        />
+        <StatCard
+          label="Trades"
+          value={String(m.trades ?? 0)}
+          delta={m.trades}
+          icon={Activity}
+          accent="primary"
+        />
       </div>
       {periodLine && (
         <p className="text-xs text-muted-foreground mt-3">
           {m.trades ?? 0} operações fechadas no período acima
           {(period?.period_days ?? charts?.period_days)
-            ? ` (~${Math.round((period?.period_days ?? charts?.period_days ?? 0) / 365.25 * 10) / 10} anos de mercado simulado)`
+            ? ` (~${Math.round(((period?.period_days ?? charts?.period_days ?? 0) / 365.25) * 10) / 10} anos de mercado simulado)`
             : ""}
           .
         </p>
       )}
 
-      {charts && charts.monthly_returns.length === 0 && charts.distribution.every((d) => d.n === 0) && !noTrades && (
-        <p className="text-xs text-muted-foreground mt-4">Sem dados mensais para exibir.</p>
-      )}
+      {charts &&
+        charts.monthly_returns.length === 0 &&
+        charts.distribution.every((d) => d.n === 0) &&
+        !noTrades && (
+          <p className="text-xs text-muted-foreground mt-4">Sem dados mensais para exibir.</p>
+        )}
 
-      {charts && (charts.monthly_returns.length > 0 || charts.distribution.some((d) => d.n > 0)) && (
-        <>
-          <div className="mt-6 h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={charts.equity_curve} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
-                <defs>
-                  <linearGradient id="eqr" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.55} />
-                    <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                <XAxis dataKey="day" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "rgba(12,16,28,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12 }} />
-                <Area type="monotone" dataKey="equity" stroke="#60a5fa" strokeWidth={2.5} fill="url(#eqr)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+      {charts &&
+        (charts.monthly_returns.length > 0 || charts.distribution.some((d) => d.n > 0)) && (
+          <>
+            <div className="mt-6 h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={charts.equity_curve}
+                  margin={{ top: 10, right: 10, bottom: 0, left: -10 }}
+                >
+                  <defs>
+                    <linearGradient id="eqr" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.55} />
+                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fill: "#64748b", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: "#64748b", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(12,16,28,0.95)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 12,
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="equity"
+                    stroke="#60a5fa"
+                    strokeWidth={2.5}
+                    fill="url(#eqr)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-            <Panel title="Retorno Mensal" subtitle="Variação % da equity em cada mês calendário (ex.: Abr/24)">
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={charts.monthly_returns}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="m" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: "rgba(12,16,28,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12 }} />
-                    <Bar dataKey="r" radius={[6, 6, 0, 0]}>
-                      {charts.monthly_returns.map((d, i) => (
-                        <Cell key={i} fill={d.r >= 0 ? "#22C55E" : "#EF4444"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Panel>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              <Panel
+                title="Retorno Mensal"
+                subtitle="Variação % da equity em cada mês calendário (ex.: Abr/24)"
+              >
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={charts.monthly_returns}>
+                      <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                      <XAxis
+                        dataKey="m"
+                        tick={{ fill: "#64748b", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "#64748b", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "rgba(12,16,28,0.95)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          borderRadius: 12,
+                        }}
+                      />
+                      <Bar dataKey="r" radius={[6, 6, 0, 0]}>
+                        {charts.monthly_returns.map((d, i) => (
+                          <Cell key={i} fill={d.r >= 0 ? "#22C55E" : "#EF4444"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Panel>
 
-            <Panel title="Distribuição de Trades">
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={charts.distribution}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="bucket" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: "rgba(12,16,28,0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12 }} />
-                    <Bar dataKey="n" radius={[6, 6, 0, 0]} fill="#7C3AED" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Panel>
-          </div>
-        </>
-      )}
+              <Panel title="Distribuição de Trades">
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={charts.distribution}>
+                      <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                      <XAxis
+                        dataKey="bucket"
+                        tick={{ fill: "#64748b", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "#64748b", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "rgba(12,16,28,0.95)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          borderRadius: 12,
+                        }}
+                      />
+                      <Bar dataKey="n" radius={[6, 6, 0, 0]} fill="#7C3AED" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Panel>
+            </div>
+          </>
+        )}
     </>
   );
 }

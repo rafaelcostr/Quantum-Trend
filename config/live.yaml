@@ -7,12 +7,16 @@ exchange:
   demo: false
   limit: 500
 strategy:
-  name: mm200_trend_v1
+  name: breakout_high20_v1
   params:
-    mm20_period: 20
-    mm200_period: 200
-    warmup_bars: 205
-    stop_below_mm200_pct: 0.02
+    breakout_lookback: 20
+    volume_mult: 1.2
+    stop_pct: 0.025
+    min_adx: 15
+    warmup_bars: 210
+    ema_fast: 20
+    ema_slow: 200
+    adx_period: 14
 risk:
   initial_capital: 10000.0
   risk_per_trade: 0.01

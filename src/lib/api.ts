@@ -97,8 +97,7 @@ async function request<T>(path: string, init?: RequestInit & { timeoutMs?: numbe
 }
 
 export const api = {
-  health: () =>
-    request<HealthResponse>("/health"),
+  health: () => request<HealthResponse>("/health"),
   dashboard: () => request<DashboardResponse>("/dashboard", { timeoutMs: 35_000 }),
   quantumStatus: () => request<QuantumStatus>("/quantum/status", { timeoutMs: 30_000 }),
   portfolio: () => request<PortfolioResponse>("/portfolio", { timeoutMs: 35_000 }),
@@ -119,7 +118,9 @@ export const api = {
   intelligence: () => request<IntelligenceResponse>("/intelligence", { timeoutMs: 15_000 }),
   intelligenceAnalysis: (strategy?: string) =>
     request<IntelligenceAnalysis | null>(
-      strategy ? `/intelligence/analysis?strategy=${encodeURIComponent(strategy)}` : "/intelligence/analysis",
+      strategy
+        ? `/intelligence/analysis?strategy=${encodeURIComponent(strategy)}`
+        : "/intelligence/analysis",
       { timeoutMs: 60_000 },
     ),
   botStatus: () => request<BotStatus>("/bot/status"),
@@ -143,20 +144,22 @@ export const api = {
   operationsFeed: (limit = 100) =>
     request<OperationsFeedResponse>(`/operations/feed?limit=${limit}`, { timeoutMs: 45_000 }),
   backtest: (opts: BacktestOptions = {}) =>
-    request<{ metrics: BacktestMetrics; report_path: string; strategy?: string; timeframe?: string }>(
-      "/backtest",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          strategy: opts.strategy ?? "mm200_trend_v2",
-          timeframe: opts.timeframe ?? "4h",
-          quote: opts.quote ?? "USDT",
-          base_asset: opts.base_asset ?? "BTC",
-          config_path: opts.config_path,
-        }),
-      },
-    ),
+    request<{
+      metrics: BacktestMetrics;
+      report_path: string;
+      strategy?: string;
+      timeframe?: string;
+    }>("/backtest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        strategy: opts.strategy ?? "mm200_trend_v2",
+        timeframe: opts.timeframe ?? "4h",
+        quote: opts.quote ?? "USDT",
+        base_asset: opts.base_asset ?? "BTC",
+        config_path: opts.config_path,
+      }),
+    }),
   walkforward: (opts: BacktestOptions = {}, train_pct = 0.7) =>
     request<{ ok: boolean; report_path: string }>("/research/walkforward", {
       method: "POST",
@@ -313,7 +316,8 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
-  testTelegram: () => request<{ ok: boolean; configured: boolean }>("/alerts/test", { method: "POST" }),
+  testTelegram: () =>
+    request<{ ok: boolean; configured: boolean }>("/alerts/test", { method: "POST" }),
   resetSystem: (body: SystemResetRequest) =>
     request<SystemResetResponse>("/system/reset", {
       method: "POST",
@@ -322,10 +326,12 @@ export const api = {
     }),
   platformStatus: () => request<PlatformStatus>("/platform/status", { timeoutMs: 60_000 }),
   ackRiskLock: () => request<{ ok: boolean }>("/platform/ack-risk", { method: "POST" }),
-  runStressTest: () => request<{ ok: boolean; reports: unknown[] }>("/platform/stress-test", { method: "POST" }),
+  runStressTest: () =>
+    request<{ ok: boolean; reports: unknown[] }>("/platform/stress-test", { method: "POST" }),
 };
 
 export type OperatedBase = "BTC" | "ETH";
+export type MarketType = "bull" | "bear" | "range";
 
 export type BacktestOptions = {
   strategy?: string;
@@ -412,10 +418,13 @@ export type OperationalUpdate = {
 
 export type PaperSlotConfig = {
   strategy: string;
+  strategy_label?: string;
   timeframe: OperationalTimeframe;
   quote?: string;
   base?: OperatedBase;
+  symbol?: string;
   enabled: boolean;
+  key?: string;
 };
 
 export type BotInstance = {
@@ -462,10 +471,33 @@ export type Strategy = {
   pf: number;
   dd: number;
   status: string;
-  market_type?: string;
-  strategy_category?: string;
+  market_type?: MarketType;
+  strategy_category?: MarketType;
   trades?: number;
   strategy_type?: string;
+};
+
+export type PlatformEngineStatus = {
+  binance_latency_ms?: number | null;
+  broker_status?: string | null;
+  recovery_status?: string | null;
+  [key: string]: unknown;
+};
+
+export type PlatformRecoveryStatus = {
+  ok?: boolean;
+  position_source?: string | null;
+  reconciled_at?: string | null;
+  issues?: string[];
+  [key: string]: unknown;
+};
+
+export type PlatformDataQualityStatus = {
+  score?: number | null;
+  candle_count?: number | null;
+  last_candle_ts?: string | null;
+  issues?: string[];
+  [key: string]: unknown;
 };
 
 export type JournalEntry = {
@@ -600,9 +632,21 @@ export type QuantumStatus = {
   entry_module?: string;
   entry_confidence?: number;
   entry_result?: string;
-  module_status?: Record<string, { active?: boolean; triggered?: boolean; confidence?: number | null; reason?: string }>;
+  module_status?: Record<
+    string,
+    { active?: boolean; triggered?: boolean; confidence?: number | null; reason?: string }
+  >;
   module_health?: Record<string, number>;
-  module_backtest_stats?: Record<string, { trades: number; win_rate_pct: number; profit_factor: number; max_drawdown_pct: number; health_score: number }>;
+  module_backtest_stats?: Record<
+    string,
+    {
+      trades: number;
+      win_rate_pct: number;
+      profit_factor: number;
+      max_drawdown_pct: number;
+      health_score: number;
+    }
+  >;
   rejected_modules?: { module: string; confidence: number; reason: string; detail?: string }[];
   updated_at?: string;
 };
@@ -683,9 +727,9 @@ export type PlatformStatus = {
     risk_locked: boolean;
     risk_lock_reason?: string;
   };
-  recovery: Record<string, unknown>;
-  data_quality: Record<string, unknown>;
-  engine: Record<string, unknown>;
+  recovery: PlatformRecoveryStatus;
+  data_quality: PlatformDataQualityStatus;
+  engine: PlatformEngineStatus;
   alerts: {
     total: number;
     groups: {
@@ -710,6 +754,7 @@ export type PlatformStatus = {
 
 export type MarketRegimeSnapshot = {
   available: boolean;
+  stale?: boolean;
   symbol: string;
   timeframe: string;
   market_type: "bull" | "bear" | "range";
@@ -738,6 +783,7 @@ export type MarketRegimeSnapshot = {
   }[];
   warning: string | null;
   error: string | null;
+  stale_snapshot?: MarketRegimeSnapshot | null;
 };
 
 export type DashboardResponse = {
@@ -1049,22 +1095,13 @@ export type SettingsResponse = {
     bot_mode: "paper" | "live";
   };
   operational?: {
-    strategies: { id: string; name: string }[];
+    strategies: Strategy[];
     timeframes: string[];
     quotes: string[];
     bases?: OperatedBase[];
     max_slots?: number;
     max_slots_per_base?: number;
-    slots?: {
-      strategy: string;
-      strategy_label: string;
-      timeframe: string;
-      quote: string;
-      base?: OperatedBase;
-      symbol?: string;
-      enabled: boolean;
-      key: string;
-    }[];
+    slots?: PaperSlotConfig[];
     active: {
       strategy: string;
       strategy_label: string;

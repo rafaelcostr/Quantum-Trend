@@ -51,7 +51,9 @@ function PairCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-semibold text-lg">{market.pair}</div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">{market.label} · Spot Binance</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            {market.label} · Spot Binance
+          </div>
         </div>
         {ticker ? (
           <span className={cn("chip shrink-0", up ? "text-success" : "text-destructive")}>
@@ -63,9 +65,7 @@ function PairCard({
         ) : null}
       </div>
 
-      <div className="num text-3xl mt-4">
-        {ticker ? `$${formatPrice(ticker.price)}` : "—"}
-      </div>
+      <div className="num text-3xl mt-4">{ticker ? `$${formatPrice(ticker.price)}` : "—"}</div>
 
       <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
         <LineChart className="h-3.5 w-3.5" />
@@ -122,7 +122,11 @@ function ChartBlock({
         </div>
       ) : (
         <Suspense fallback={null}>
-          <StrategyMarketChart key={`${pair}-${timeframe}`} data={chart.data} className="h-[560px] w-full" />
+          <StrategyMarketChart
+            key={`${pair}-${timeframe}`}
+            data={chart.data}
+            className="h-[560px] w-full"
+          />
         </Suspense>
       )}
       <MarketChartLegend />
@@ -184,7 +188,9 @@ function Page() {
                 onClick={() => setTimeframe(tf)}
                 className={cn(
                   "px-4 py-2 text-xs font-medium transition",
-                  timeframe === tf ? "bg-primary text-white" : "bg-white/5 text-muted-foreground hover:bg-white/10",
+                  timeframe === tf
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-muted-foreground hover:bg-white/10",
                 )}
               >
                 {marketTimeframeLabel(tf)}
@@ -200,8 +206,9 @@ function Page() {
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] px-6 py-10 text-center text-sm text-muted-foreground">
-          Selecione <strong className="text-foreground">BTC/USDT</strong> ou <strong className="text-foreground">ETH/USDT</strong>{" "}
-          para carregar o gráfico com médias, bandas de Bollinger e Supertrend.
+          Selecione <strong className="text-foreground">BTC/USDT</strong> ou{" "}
+          <strong className="text-foreground">ETH/USDT</strong> para carregar o gráfico com médias,
+          bandas de Bollinger e Supertrend.
         </div>
       )}
     </div>

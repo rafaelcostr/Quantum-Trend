@@ -19,7 +19,9 @@ export function resolveRunningAsset(
   return null;
 }
 
-export function resolveRunningLabel(progress: BacktestAllProgress | null | undefined): string | null {
+export function resolveRunningLabel(
+  progress: BacktestAllProgress | null | undefined,
+): string | null {
   if (!progress) return null;
   if (progress.asset_label) return progress.asset_label;
   const asset = resolveRunningAsset(progress);

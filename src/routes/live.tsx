@@ -22,12 +22,10 @@ function LivePage() {
   const [confirm, setConfirm] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  if ((isLoading || isPending) && !data) return <div className="text-muted-foreground text-sm">Carregando gates live…</div>;
+  if ((isLoading || isPending) && !data)
+    return <div className="text-muted-foreground text-sm">Carregando gates live…</div>;
   if (error && !data) {
-    const detail =
-      error instanceof Error
-        ? error.message.slice(0, 400)
-        : "Resposta vazia da API.";
+    const detail = error instanceof Error ? error.message.slice(0, 400) : "Resposta vazia da API.";
     return (
       <div className="text-destructive text-sm space-y-2">
         <p>Erro ao carregar trading live.</p>
@@ -111,14 +109,18 @@ function LivePage() {
           <div>
             <div className="font-medium">Opt-in obrigatório</div>
             <div className="text-muted-foreground mt-1">
-              Defina <code className="text-secondary">ATLAS_ALLOW_LIVE=1</code> no <code className="text-secondary">.env</code> e reinicie a API antes de operar capital real.
+              Defina <code className="text-secondary">ATLAS_ALLOW_LIVE=1</code> no{" "}
+              <code className="text-secondary">.env</code> e reinicie a API antes de operar capital
+              real.
             </div>
           </div>
         </div>
       )}
 
       {errMsg && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{errMsg}</div>
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {errMsg}
+        </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -126,11 +128,15 @@ function LivePage() {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Modo</span>
-              <span className={isLive ? "text-destructive font-medium" : ""}>{botSnap.mode ?? "paper"}</span>
+              <span className={isLive ? "text-destructive font-medium" : ""}>
+                {botSnap.mode ?? "paper"}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Rodando</span>
-              <span className={botSnap.running ? "text-success" : ""}>{botSnap.running ? "Sim" : "Não"}</span>
+              <span className={botSnap.running ? "text-success" : ""}>
+                {botSnap.running ? "Sim" : "Não"}
+              </span>
             </div>
             {botSnap.instance_count != null && botSnap.instance_count > 0 && (
               <div className="flex justify-between">
@@ -160,7 +166,9 @@ function LivePage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Par / TF</span>
-                  <span>{config.symbol} · {config.timeframe}</span>
+                  <span>
+                    {config.symbol} · {config.timeframe}
+                  </span>
                 </div>
               </>
             )}
@@ -169,7 +177,9 @@ function LivePage() {
               <span>{config.use_exchange_stop ? "Sim" : "Não"}</span>
             </div>
             {botSnap.last_error && (
-              <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-2 text-xs text-destructive">{botSnap.last_error}</div>
+              <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-2 text-xs text-destructive">
+                {botSnap.last_error}
+              </div>
             )}
           </div>
         </Panel>
@@ -216,7 +226,9 @@ function LivePage() {
         title="Mesa ao vivo"
         action={
           botSnap.running ? (
-            <Link to="/operacoes" className="chip text-success hover:underline">tela completa</Link>
+            <Link to="/operacoes" className="chip text-success hover:underline">
+              tela completa
+            </Link>
           ) : (
             <span className="chip text-muted-foreground">bot parado</span>
           )
@@ -226,16 +238,32 @@ function LivePage() {
           <OperationsFeed data={feed.data} compact />
         ) : (
           <p className="text-sm text-muted-foreground">
-            Feed indisponível. Reinicie a API e use <strong>Iniciar Paper</strong> para ver ticks em tempo real na demo enquanto os gates live não passam.
+            Feed indisponível. Reinicie a API e use <strong>Iniciar Paper</strong> para ver ticks em
+            tempo real na demo enquanto os gates live não passam.
           </p>
         )}
       </Panel>
 
       <Panel title="Fluxo recomendado">
         <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-          <li>Backtest + walk-forward com score L1 ≥ 75 (<Link to="/ia" className="text-primary hover:underline">IA de Seleção</Link>)</li>
-          <li>Paper trading na Binance Demo por pelo menos {gates.min_paper_days} dias (<Link to="/validacao" className="text-primary hover:underline">Validação Demo</Link>)</li>
-          <li>Configure <code className="text-secondary">BINANCE_LIVE_*</code> e <code className="text-secondary">ATLAS_ALLOW_LIVE=1</code></li>
+          <li>
+            Backtest + walk-forward com score L1 ≥ 75 (
+            <Link to="/ia" className="text-primary hover:underline">
+              IA de Seleção
+            </Link>
+            )
+          </li>
+          <li>
+            Paper trading na Binance Demo por pelo menos {gates.min_paper_days} dias (
+            <Link to="/validacao" className="text-primary hover:underline">
+              Validação Demo
+            </Link>
+            )
+          </li>
+          <li>
+            Configure <code className="text-secondary">BINANCE_LIVE_*</code> e{" "}
+            <code className="text-secondary">ATLAS_ALLOW_LIVE=1</code>
+          </li>
           <li>Inicie live nesta tela — ordens reais com stop na exchange</li>
         </ol>
       </Panel>
