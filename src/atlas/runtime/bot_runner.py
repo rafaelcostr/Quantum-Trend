@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 
 from atlas.core.config import AtlasConfig, default_config_for_mode
-from atlas.core.log import logger
+from atlas.core.log import log_event, logger
 from atlas.core.models import TradingMode
 from atlas.runtime.engine import TradingEngine
 from atlas.runtime.risk_store import apply_risk_to_engine
@@ -58,6 +58,16 @@ class BotRunner:
             daemon=True,
         )
         self._thread.start()
+        log_event(
+            20,
+            "bot_runner.started",
+            module="runtime.bot_runner",
+            slot=self.slot_key,
+            strategy=cfg.strategy.name,
+            timeframe=cfg.exchange.timeframe,
+            symbol=cfg.exchange.symbol,
+            mode=cfg.mode.value,
+        )
         logger.info(
             "Bot runner iniciado (%s, %s · %s)",
             cfg.mode.value,
@@ -66,9 +76,21 @@ class BotRunner:
         )
 
     def stop(self) -> None:
+        slot = self.slot_key
+        engine = self._engine
         self._stop.set()
         if self._thread:
             self._thread.join(timeout=8)
+        log_event(
+            20,
+            "bot_runner.stopped",
+            module="runtime.bot_runner",
+            slot=slot,
+            strategy=engine.config.strategy.name if engine else None,
+            timeframe=engine.config.exchange.timeframe if engine else None,
+            symbol=engine.config.exchange.symbol if engine else None,
+            mode=engine.config.mode.value if engine else None,
+        )
         self._thread = None
         self._engine = None
         self._mode = None
@@ -120,6 +142,17 @@ class BotRunner:
                 from atlas.platform.orchestrator import platform_orchestrator
 
                 platform_orchestrator.on_error(engine, str(exc))
+                log_event(
+                    40,
+                    "bot_runner.tick.failed",
+                    module="runtime.bot_runner",
+                    slot=self.slot_key,
+                    strategy=engine.config.strategy.name,
+                    timeframe=engine.config.exchange.timeframe,
+                    symbol=engine.config.exchange.symbol,
+                    mode=engine.config.mode.value,
+                    error=str(exc)[:240],
+                )
                 logger.exception("Erro no tick (%s): %s", self.slot_key, exc)
             self._stop.wait(poll)
 

@@ -7,10 +7,12 @@ import time
 import pandas as pd
 
 from atlas.brokers.binance import fetch_public_candles
+from atlas.core.external import classify_external_error
 from atlas.core.indicators import add_indicators
+from atlas.core.log import log_event
 from atlas.core.symbols import build_symbol, validate_operated_base
 
-_CHART_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
+_CHART_CACHE: dict[tuple[str, str], tuple[float, dict, str]] = {}
 _CHART_TTL = 90.0
 _WARMUP_BARS = 220
 _DISPLAY_BARS = 240
@@ -36,19 +38,51 @@ def get_market_chart_payload(*, base: str = "BTC", quote: str = "USDT", timefram
     now = time.time()
     cached = _CHART_CACHE.get(key)
     if cached and (now - cached[0]) < _CHART_TTL:
-        return cached[1]
+        return {**cached[1], "stale": False, "last_success_at": cached[2], "ttl_seconds": _CHART_TTL}
 
     limit = _WARMUP_BARS + _DISPLAY_BARS
-    candles = fetch_public_candles(symbol, tf, limit=min(limit, 500))
+    try:
+        candles = fetch_public_candles(symbol, tf, limit=min(limit, 500))
+    except Exception as exc:
+        info = classify_external_error(exc)
+        log_event(
+            30,
+            "market_chart.fetch.failed",
+            module="services.market_chart",
+            symbol=symbol,
+            timeframe=tf,
+            error_kind=info.kind,
+            retryable=info.retryable,
+        )
+        if cached:
+            return {
+                **cached[1],
+                "stale": True,
+                "last_success_at": cached[2],
+                "ttl_seconds": _CHART_TTL,
+                "error": info.model_dump(),
+            }
+        return {
+            "symbol": symbol,
+            "base": base_u,
+            "timeframe": tf,
+            "bars": [],
+            "stale": False,
+            "last_success_at": None,
+            "ttl_seconds": _CHART_TTL,
+            "error": info.model_dump(),
+        }
     if len(candles) < 50:
         payload = {
             "symbol": symbol,
             "base": base_u,
             "timeframe": tf,
             "bars": [],
+            "stale": False,
+            "last_success_at": None,
+            "ttl_seconds": _CHART_TTL,
             "error": "Histórico insuficiente da Binance.",
         }
-        _CHART_CACHE[key] = (now, payload)
         return payload
 
     df = pd.DataFrame(
@@ -82,13 +116,17 @@ def get_market_chart_payload(*, base: str = "BTC", quote: str = "USDT", timefram
             }
         )
 
+    updated_at = pd.Timestamp.utcnow().isoformat()
     payload = {
         "symbol": symbol,
         "base": base_u,
         "timeframe": tf,
         "bars": bars,
         "indicators": ["ema20", "ema200", "bb_upper", "bb_mid", "bb_lower", "supertrend"],
-        "updated_at": pd.Timestamp.utcnow().isoformat(),
+        "updated_at": updated_at,
+        "stale": False,
+        "last_success_at": updated_at,
+        "ttl_seconds": _CHART_TTL,
     }
-    _CHART_CACHE[key] = (now, payload)
+    _CHART_CACHE[key] = (now, payload, updated_at)
     return payload

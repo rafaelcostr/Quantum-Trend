@@ -24,7 +24,7 @@ from atlas.services.terminal import (
     get_intelligence_summary,
     get_journal_entries,
     get_live_payload,
-    get_markets,
+    get_markets_payload,
     get_reports_payload,
     get_results_payload,
     get_risk_payload,
@@ -104,6 +104,53 @@ class SystemResetRequest(BaseModel):
     paper_demo: bool = False
 
 
+class CacheStatusResponse(BaseModel):
+    stale: bool = False
+    ttl_seconds: float | None = None
+    age_seconds: float | None = None
+    last_success_at: str | None = None
+    error: dict | str | None = None
+
+
+class HealthResponse(BaseModel):
+    status: str
+    version: str
+    bot_running: bool
+    bot_mode: str
+    kill_switch: bool
+    binance_demo_configured: bool
+    binance_demo_connected: bool
+    active_strategy: str | None = None
+    active_timeframe: str | None = None
+    bot_instances: int = 0
+
+
+class MarketTickerResponse(BaseModel):
+    symbol: str
+    price: float
+    change_pct: float
+    volume_24h: float
+    sparkline: list[float] = []
+
+
+class MarketsResponse(BaseModel):
+    items: list[MarketTickerResponse]
+    cache: CacheStatusResponse
+
+
+class MarketChartResponse(BaseModel):
+    symbol: str
+    base: str
+    timeframe: str
+    bars: list[dict]
+    indicators: list[str] | None = None
+    updated_at: str | None = None
+    stale: bool = False
+    last_success_at: str | None = None
+    ttl_seconds: float | None = None
+    error: dict | str | None = None
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="Quantum-Trend API", version=__version__)
@@ -115,24 +162,24 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.get("/api/health")
-    def health() -> dict:
+    @app.get("/api/health", response_model=HealthResponse)
+    def health() -> HealthResponse:
         from atlas.brokers.binance import credentials_configured, demo_api_connected
 
         snap = bot_state.snapshot()
         cfg = operational_options()["active"]
-        return {
-            "status": "ok",
-            "version": __version__,
-            "bot_running": snap.get("running", False),
-            "bot_mode": snap.get("mode", "paper"),
-            "kill_switch": settings.kill_switch_active,
-            "binance_demo_configured": credentials_configured(live=False),
-            "binance_demo_connected": demo_api_connected(),
-            "active_strategy": cfg.get("strategy"),
-            "active_timeframe": cfg.get("timeframe"),
-            "bot_instances": snap.get("instance_count", 0),
-        }
+        return HealthResponse(
+            status="ok",
+            version=__version__,
+            bot_running=bool(snap.get("running", False)),
+            bot_mode=str(snap.get("mode", "paper")),
+            kill_switch=settings.kill_switch_active,
+            binance_demo_configured=credentials_configured(live=False),
+            binance_demo_connected=demo_api_connected(),
+            active_strategy=cfg.get("strategy"),
+            active_timeframe=cfg.get("timeframe"),
+            bot_instances=int(snap.get("instance_count", 0) or 0),
+        )
 
     @app.get("/api/dashboard")
     def dashboard() -> dict:
@@ -191,15 +238,17 @@ def create_app() -> FastAPI:
         clear_dashboard_cache()
         return {"ok": True, "reports": reports}
 
-    @app.get("/api/markets")
-    def markets() -> dict:
-        return {"items": get_markets()}
+    @app.get("/api/markets", response_model=MarketsResponse)
+    def markets() -> MarketsResponse:
+        return MarketsResponse.model_validate(get_markets_payload())
 
-    @app.get("/api/markets/chart")
-    def market_chart(base: str = "BTC", quote: str = "USDT", timeframe: str = "4h") -> dict:
+    @app.get("/api/markets/chart", response_model=MarketChartResponse)
+    def market_chart(base: str = "BTC", quote: str = "USDT", timeframe: str = "4h") -> MarketChartResponse:
         from atlas.services.market_chart import get_market_chart_payload
 
-        return get_market_chart_payload(base=base, quote=quote, timeframe=timeframe)
+        return MarketChartResponse.model_validate(
+            get_market_chart_payload(base=base, quote=quote, timeframe=timeframe)
+        )
 
     @app.get("/api/backtests/chart")
     def backtest_chart(

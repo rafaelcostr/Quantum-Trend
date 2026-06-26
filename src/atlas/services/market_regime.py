@@ -8,7 +8,9 @@ import pandas as pd
 
 from atlas.brokers.binance import fetch_public_candles
 from atlas.core.config import AtlasConfig
+from atlas.core.external import classify_external_error
 from atlas.core.indicators import add_indicators_from_params, row_to_indicator_snapshot
+from atlas.core.log import log_event
 from atlas.core.models import Candle, IndicatorSnapshot
 from atlas.runtime.operational_config import load_paper_slots
 from atlas.runtime.state import active_config
@@ -40,7 +42,7 @@ REGIME_ACCENT: dict[str, str] = {
     "range": "warning",
 }
 
-_REGIME_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
+_REGIME_CACHE: dict[tuple[str, str], tuple[float, dict, str]] = {}
 _REGIME_TTL = 120.0
 
 
@@ -141,6 +143,8 @@ def get_market_regime_snapshot(cfg: AtlasConfig | None = None) -> dict:
         "price_vs_ema_pct": None,
         "candle_at": None,
         "updated_at": datetime.now(timezone.utc).isoformat(),
+        "last_success_at": None,
+        "ttl_seconds": _REGIME_TTL,
         "aligned_with_bot": True,
         "enabled_slots": 0,
         "matching_slots": 0,
@@ -155,18 +159,27 @@ def get_market_regime_snapshot(cfg: AtlasConfig | None = None) -> dict:
     try:
         candles = fetch_public_candles(symbol, timeframe, limit=500)
     except Exception as exc:
-        base["error"] = str(exc)[:240]
+        info = classify_external_error(exc)
+        log_event(
+            30,
+            "market_regime.fetch.failed",
+            module="services.market_regime",
+            symbol=symbol,
+            timeframe=timeframe,
+            error_kind=info.kind,
+            retryable=info.retryable,
+        )
+        base["error"] = info.model_dump()
         base["reason"] = "Não foi possível obter candles da Binance (rede ou símbolo)."
         if cached and (now - cached[0]) < _REGIME_TTL:
             base["stale"] = True
             base["stale_snapshot"] = cached[1]
-        _REGIME_CACHE[cache_key] = (now, base)
+            base["last_success_at"] = cached[2]
         return base
 
     if len(candles) < 210:
         base["error"] = f"Poucos candles ({len(candles)}) para EMA200."
         base["reason"] = "Histórico insuficiente para calcular EMA200."
-        _REGIME_CACHE[cache_key] = (now, base)
         return base
 
     df = pd.DataFrame(
@@ -207,6 +220,7 @@ def get_market_regime_snapshot(cfg: AtlasConfig | None = None) -> dict:
             "adx": round(float(adx), 2) if adx is not None else None,
             "price_vs_ema_pct": vs_ema,
             "candle_at": candle.timestamp.isoformat(),
+            "last_success_at": datetime.now(timezone.utc).isoformat(),
             "aligned_with_bot": alignment["aligned_with_bot"],
             "enabled_slots": alignment["enabled_count"],
             "matching_slots": alignment["matching_count"],
@@ -217,5 +231,5 @@ def get_market_regime_snapshot(cfg: AtlasConfig | None = None) -> dict:
             "stale_snapshot": None,
         }
     )
-    _REGIME_CACHE[cache_key] = (now, base)
+    _REGIME_CACHE[cache_key] = (now, base, base["last_success_at"])
     return base

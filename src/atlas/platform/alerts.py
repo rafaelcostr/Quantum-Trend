@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from atlas.core.log import log_event
 from atlas.platform.models import AlertSeverity
 from atlas.platform.store import append_alert, load_platform_state
 
@@ -32,8 +33,14 @@ def emit_alert(
             alerts = get_alerts()
             if alerts.configured:
                 alerts.send(f"🚨 <b>CRÍTICO</b> [{category}]\n{message}")
-        except Exception:
-            pass
+        except Exception as exc:
+            log_event(
+                30,
+                "platform.alert.telegram.failed",
+                module="platform.alerts",
+                category=category,
+                error=str(exc)[:240],
+            )
     return record
 
 

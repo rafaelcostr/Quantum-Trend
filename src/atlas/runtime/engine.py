@@ -9,6 +9,7 @@ import pandas as pd
 
 from atlas.brokers.binance import BinanceDemoBroker, BinanceLiveBroker
 from atlas.core.config import AtlasConfig
+from atlas.core.log import log_event
 from atlas.core.indicators import add_indicators_from_params, row_to_indicator_snapshot
 from atlas.core.models import (
     Candle,
@@ -78,6 +79,17 @@ class TradingEngine:
         self.last_error: str | None = None
         self.ticks = 0
         self._last_context = None
+        log_event(
+            20,
+            "engine.initialized",
+            module="runtime.engine",
+            strategy=self.config.strategy.name,
+            timeframe=self.config.exchange.timeframe,
+            symbol=self.config.exchange.symbol,
+            mode=self.config.mode.value,
+            reconcile_source=self._reconcile_meta.get("source"),
+            reconcile_warning=self._reconcile_meta.get("warning"),
+        )
 
     @staticmethod
     def _require_api_credentials(mode: TradingMode) -> None:
@@ -175,12 +187,32 @@ class TradingEngine:
         if fill is not None:
             payload["fill"] = fill
         self.journal.log(event, self.config.exchange.symbol, **payload)
+        log_event(
+            20,
+            "engine.trade.logged",
+            module="runtime.engine",
+            event=event,
+            strategy=self.config.strategy.name,
+            timeframe=self.config.exchange.timeframe,
+            symbol=self.config.exchange.symbol,
+            mode=self.config.mode.value,
+        )
 
     def process_once(self) -> dict:
         from atlas.platform.orchestrator import platform_orchestrator
 
         self.ticks += 1
         self.last_tick_at = datetime.now(timezone.utc)
+        log_event(
+            10,
+            "engine.tick.start",
+            module="runtime.engine",
+            strategy=self.config.strategy.name,
+            timeframe=self.config.exchange.timeframe,
+            symbol=self.config.exchange.symbol,
+            mode=self.config.mode.value,
+            tick=self.ticks,
+        )
         ind_df = self._execution_dataframe()
         if len(ind_df) < self.warmup + 2:
             update_runtime_snapshot(bot_phase="analisando", strategy=self.strategy.name)
@@ -203,12 +235,34 @@ class TradingEngine:
         position = self._position
         signal, ctx = self._evaluate_signal(ind_df, idx, candle, position)
         result = {"status": "ok", "signal": signal.action.value, "reason": signal.reason}
+        log_event(
+            20,
+            "engine.signal.evaluated",
+            module="runtime.engine",
+            strategy=self.config.strategy.name,
+            timeframe=self.config.exchange.timeframe,
+            symbol=self.config.exchange.symbol,
+            mode=self.config.mode.value,
+            signal=signal.action.value,
+            reason=signal.reason,
+            in_position=bool(position),
+        )
 
         try:
             cash = self.broker.get_balance()
         except Exception as exc:
             cash = self.config.risk.initial_capital
             result["balance_warning"] = str(exc)
+            log_event(
+                30,
+                "engine.balance.failed",
+                module="runtime.engine",
+                strategy=self.config.strategy.name,
+                timeframe=self.config.exchange.timeframe,
+                symbol=self.config.exchange.symbol,
+                mode=self.config.mode.value,
+                error=str(exc)[:240],
+            )
 
         mark = candle.close
         if position and (position.side == Side.SHORT or position.metadata.get("position_kind") == "short"):
@@ -433,10 +487,31 @@ class TradingEngine:
                     self._last_reconcile = time.monotonic()
                     if periodic_meta.get("action") not in (None, "ok"):
                         self.journal.log("reconcile", self.config.exchange.symbol, **periodic_meta)
+                        log_event(
+                            30,
+                            "engine.reconcile.action",
+                            module="runtime.engine",
+                            strategy=self.config.strategy.name,
+                            timeframe=self.config.exchange.timeframe,
+                            symbol=self.config.exchange.symbol,
+                            mode=self.config.mode.value,
+                            action=periodic_meta.get("action"),
+                            warning=periodic_meta.get("warning"),
+                        )
                 outcome = self.process_once()
                 self.journal.log("tick", self.config.exchange.symbol, **outcome)
             except Exception as exc:
                 self.last_error = str(exc)
                 self.journal.log("error", self.config.exchange.symbol, error=str(exc))
+                log_event(
+                    40,
+                    "engine.tick.failed",
+                    module="runtime.engine",
+                    strategy=self.config.strategy.name,
+                    timeframe=self.config.exchange.timeframe,
+                    symbol=self.config.exchange.symbol,
+                    mode=self.config.mode.value,
+                    error=str(exc)[:240],
+                )
                 self.alerts.error(self.config.exchange.symbol, str(exc), self.config.mode.value)
             time.sleep(poll)

@@ -7,9 +7,11 @@ from atlas.brokers.binance import (
     fetch_account_snapshot,
     fetch_tickers_cached,
     live_api_connected,
+    tickers_cache_status,
 )
 from atlas.core.config import default_config_for_mode, default_paper_config
 from atlas.core.env import get_settings
+from atlas.core.log import log_event
 from atlas.core.models import DashboardStats, StrategyDTO, TradingMode
 from atlas.intelligence.dashboard import radar_from_metrics, strategy_status
 from atlas.research.backtester import load_latest_report
@@ -494,6 +496,16 @@ def get_markets() -> list[dict]:
     ]
 
 
+def get_markets_payload() -> dict:
+    from atlas.core.symbols import operated_market_watchlist
+
+    symbols = operated_market_watchlist()
+    return {
+        "items": [t.model_dump() for t in fetch_tickers_cached(symbols=symbols, include_sparkline=False)],
+        "cache": tickers_cache_status(symbols=symbols, include_sparkline=False),
+    }
+
+
 def _paper_trade_stats() -> dict:
     entries = journal_entries(mode=TradingMode.PAPER)
     return trade_stats(entries)
@@ -619,8 +631,15 @@ def get_results_payload(
             d0 = date.fromisoformat(period_start)
             d1 = date.fromisoformat(period_end)
             period_days = max(1, (d1 - d0).days)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            log_event(
+                10,
+                "terminal.results.period_parse.failed",
+                module="services.terminal",
+                strategy=strategy,
+                timeframe=timeframe,
+                error=str(exc)[:240],
+            )
     return {
         "title": f"{strategy_display_name(strategy)} · {symbol} · {timeframe}",
         "strategy": strategy,

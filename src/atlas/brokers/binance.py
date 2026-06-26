@@ -3,12 +3,14 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 
 import ccxt
 import pandas as pd
 
 from atlas.core.env import get_settings
-from atlas.core.log import logger
+from atlas.core.external import ExternalErrorInfo, classify_external_error
+from atlas.core.log import log_event, logger
 from atlas.core.models import Candle, MarketTicker, Order, OrderResult, Position, Side
 from atlas.core.symbols import operated_market_watchlist
 
@@ -256,13 +258,30 @@ def _sparkline_from_ticker(t: dict) -> list[float]:
     return [40 + (c - lo) / (hi - lo) * 20 for c in points]
 
 
+def _log_external_failure(event: str, exc: Exception, **fields: Any) -> ExternalErrorInfo:
+    info = classify_external_error(exc)
+    log_event(
+        30,
+        event,
+        error_kind=info.kind,
+        retryable=info.retryable,
+        message=info.message,
+        **fields,
+    )
+    return info
+
+
 def fetch_tickers(symbols: list[str] | None = None, *, include_sparkline: bool = True) -> list[MarketTicker]:
     symbols = symbols or WATCHLIST
     ex = _public_exchange()
     try:
         tickers = ex.fetch_tickers(symbols)
     except Exception as exc:
-        logger.warning("fetch_tickers falhou: %s", exc)
+        _LAST_TICKERS_ERROR[(tuple(symbols), include_sparkline)] = _log_external_failure(
+            "external.binance.fetch_tickers.failed",
+            exc,
+            symbols=",".join(symbols),
+        )
         return []
 
     out: list[MarketTicker] = []
@@ -283,7 +302,8 @@ def fetch_tickers(symbols: list[str] | None = None, *, include_sparkline: bool =
     return out
 
 
-_TICKERS_CACHE: dict[tuple[tuple[str, ...], bool], tuple[float, list[MarketTicker]]] = {}
+_TICKERS_CACHE: dict[tuple[tuple[str, ...], bool], tuple[float, list[MarketTicker], str]] = {}
+_LAST_TICKERS_ERROR: dict[tuple[tuple[str, ...], bool], ExternalErrorInfo] = {}
 _TICKERS_TTL = 30.0
 
 
@@ -298,11 +318,36 @@ def fetch_tickers_cached(
     now = time.time()
     cached = _TICKERS_CACHE.get(key)
     if cached and (now - cached[0]) < ttl:
+        _LAST_TICKERS_ERROR.pop(key, None)
         return cached[1]
     result = fetch_tickers(symbols, include_sparkline=include_sparkline)
     if result:
-        _TICKERS_CACHE[key] = (now, result)
+        _TICKERS_CACHE[key] = (now, result, datetime.now(timezone.utc).isoformat())
+        _LAST_TICKERS_ERROR.pop(key, None)
+        return result
+    if cached:
+        return cached[1]
     return result
+
+
+def tickers_cache_status(
+    symbols: list[str] | None = None,
+    *,
+    include_sparkline: bool = True,
+    ttl: float = _TICKERS_TTL,
+) -> dict[str, Any]:
+    symbols = symbols or WATCHLIST
+    key = (tuple(symbols), include_sparkline)
+    cached = _TICKERS_CACHE.get(key)
+    error = _LAST_TICKERS_ERROR.get(key)
+    age = (time.time() - cached[0]) if cached else None
+    return {
+        "ttl_seconds": ttl,
+        "stale": bool(error and cached),
+        "age_seconds": round(age, 2) if age is not None else None,
+        "last_success_at": cached[2] if cached else None,
+        "error": error.model_dump() if error else None,
+    }
 
 
 def _sparkline(symbol: str, points: int = 20) -> list[float]:
@@ -350,7 +395,14 @@ def fetch_last_price(symbol: str = "BTC/USDT") -> float:
             _LAST_PRICE_CACHE[symbol] = (price, now)
         return price
     except Exception as exc:
-        logger.debug("fetch_last_price falhou para %s: %s", symbol, exc)
+        info = classify_external_error(exc)
+        log_event(
+            10,
+            "external.binance.fetch_last_price.failed",
+            symbol=symbol,
+            error_kind=info.kind,
+            message=info.message,
+        )
         return cached[0] if cached else 0.0
 
 
@@ -364,6 +416,12 @@ def fetch_account_snapshot(symbol: str = "BTC/USDT", *, live: bool = False, forc
 
     ex = _live_exchange() if live else _demo_exchange()
     if ex is None:
+        log_event(
+            30,
+            "external.binance.credentials.missing",
+            mode="live" if live else "paper",
+            symbol=symbol,
+        )
         return None
     try:
         balance = ex.fetch_balance()
@@ -387,7 +445,12 @@ def fetch_account_snapshot(symbol: str = "BTC/USDT", *, live: bool = False, forc
         return snap
     except Exception as exc:
         label = "live" if live else "demo"
-        logger.warning("fetch_account_snapshot (%s) falhou: %s", label, exc)
+        _log_external_failure(
+            "external.binance.fetch_account_snapshot.failed",
+            exc,
+            mode=label,
+            symbol=symbol,
+        )
         return None
 
 
@@ -405,7 +468,7 @@ def market_buy_quote(symbol: str, quote_amount: float) -> dict | None:
             symbol, "market", "buy", None, None, {"quoteOrderQty": round(quote_amount, 2)}
         )
     except Exception as exc:
-        logger.warning("market_buy falhou: %s", exc)
+        _log_external_failure("external.binance.market_buy.failed", exc, symbol=symbol)
         return None
 
 
@@ -416,7 +479,7 @@ def market_sell_base(symbol: str, base_amount: float) -> dict | None:
     try:
         return ex.create_market_sell_order(symbol, base_amount)
     except Exception as exc:
-        logger.warning("market_sell falhou: %s", exc)
+        _log_external_failure("external.binance.market_sell.failed", exc, symbol=symbol)
         return None
 
 
@@ -521,7 +584,8 @@ class BinanceDemoBroker:
         try:
             self._exchange().cancel_order(order_id, self.symbol)
             return True
-        except Exception:
+        except Exception as exc:
+            _log_external_failure("external.binance.cancel_order.failed", exc, order_id=order_id)
             return False
 
     def fetch_open_orders(self, symbol: str) -> list[dict]:
@@ -541,6 +605,7 @@ class BinanceDemoBroker:
                 )
             return out
         except Exception as exc:
+            _log_external_failure("external.binance.fetch_open_orders.failed", exc, symbol=symbol)
             return [{"error": str(exc)}]
 
 

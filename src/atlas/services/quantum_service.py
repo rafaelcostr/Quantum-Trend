@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
+from atlas.core.log import log_event
 from atlas.core.models import TradingMode
 from atlas.quantum.health import StrategyHealthMonitor
 from atlas.quantum.portfolio import build_portfolio_snapshot
@@ -61,7 +62,13 @@ def get_quantum_status() -> dict:
                     continue
                 try:
                     parsed.append(Trade.model_validate(raw))
-                except Exception:
+                except Exception as exc:
+                    log_event(
+                        10,
+                        "quantum.trade_parse.skipped",
+                        module="services.quantum_service",
+                        error=str(exc)[:240],
+                    )
                     continue
             curve = []
             for row in report.get("equity_curve") or []:
@@ -80,8 +87,14 @@ def get_quantum_status() -> dict:
             if parsed:
                 health = StrategyHealthMonitor().evaluate(parsed, equity_curve=curve)
                 health_score = health.health_score
-        except Exception:
-            pass
+        except Exception as exc:
+            log_event(
+                30,
+                "quantum.status.health_from_report.failed",
+                module="services.quantum_service",
+                strategy=cfg.strategy.name,
+                error=str(exc)[:240],
+            )
 
     payload = {
         "strategy": cfg.strategy.name,

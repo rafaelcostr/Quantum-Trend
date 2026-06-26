@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from atlas.core.env import project_root
+from atlas.core.log import log_event
 from atlas.research.report_metadata import period_from_report_path, period_from_report_raw
 from atlas.dashboard.actions import run_backtest_dashboard
 from atlas.strategies.metadata import (
@@ -47,8 +48,14 @@ def metrics_from_backtest_result(result: dict[str, Any]) -> dict[str, Any]:
             try:
                 raw = json.loads(path.read_text(encoding="utf-8"))
                 atlas_score = float(raw.get("metrics", {}).get("atlas_score", 0))
-            except (json.JSONDecodeError, OSError, TypeError, ValueError):
-                pass
+            except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
+                log_event(
+                    10,
+                    "backtest_batch.report_metrics_parse.failed",
+                    module="services.backtest_batch",
+                    report_path=report_path,
+                    error=str(exc)[:240],
+                )
     return {
         "total_return_pct": round(float(result.get("net_profit_pct", 0)) * 100, 2),
         "profit_factor": round(float(result.get("profit_factor", 0)), 2),
