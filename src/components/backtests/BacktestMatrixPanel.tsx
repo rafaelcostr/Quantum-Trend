@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { BacktestBatchItem, BacktestMatrixGroup, BacktestMatrixResponse, OperatedBase } from "@/lib/api";
 import { buildMatrixGroups, filterMatrixByAsset, splitMatrixByAsset } from "@/lib/backtest-matrix-groups";
 import { formatBacktestPeriodShort, formatTradesWithPeriod } from "@/lib/backtest-period";
 import { ApiError } from "@/lib/api";
 import { TrendingDown, TrendingUp, ArrowLeftRight } from "lucide-react";
+import { BacktestInlineChart } from "@/components/backtests/BacktestChartPanel";
 
 export type BacktestMatrixSelection = {
   strategy: string;
@@ -56,7 +57,7 @@ export function BacktestMatrixTable({
 }: {
   items: BacktestBatchItem[];
   selected?: BacktestMatrixSelection | null;
-  onSelect?: (row: BacktestMatrixSelection) => void;
+  onSelect?: (row: BacktestMatrixSelection | null) => void;
   asset?: OperatedBase;
 }) {
   if (!items.length) {
@@ -97,43 +98,51 @@ export function BacktestMatrixTable({
               selected?.strategy === row.strategy &&
               selected?.timeframe === row.timeframe &&
               (selected?.base_asset ?? "BTC") === rowAsset;
+            const rowSelection: BacktestMatrixSelection = {
+              strategy: row.strategy,
+              timeframe: row.timeframe,
+              base_asset: rowAsset,
+            };
             return (
-              <tr
-                key={`${rowAsset}-${row.strategy}-${row.timeframe}`}
-                onClick={
-                  onSelect
-                    ? () =>
-                        onSelect({
-                          strategy: row.strategy,
-                          timeframe: row.timeframe,
-                          base_asset: rowAsset,
-                        })
-                    : undefined
-                }
-                className={`border-t border-white/5 ${onSelect ? "cursor-pointer transition-colors" : ""} ${
-                  isSelected ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : onSelect ? "hover:bg-white/[0.03]" : ""
-                } ${noTrades ? "opacity-80" : ""}`}
-              >
-                <td className="px-3 py-2">
-                  {row.strategy_label}
-                  {noTrades && (
-                    <span className="ml-2 text-[10px] uppercase text-amber-400/80">sem trades</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 uppercase">{row.timeframe}</td>
-                <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap" title={formatBacktestPeriodShort(row)}>
-                  {formatBacktestPeriodShort(row)}
-                </td>
-                <td className={`px-3 py-2 text-right num font-semibold ${tone}`}>
-                  {noTrades ? "0% · inativo" : formatReturn(row.metrics?.total_return_pct)}
-                </td>
-                <td className="px-3 py-2 text-right num">{row.metrics?.atlas_score ?? "—"}</td>
-                <td className="px-3 py-2 text-right num">{noTrades ? "—" : (row.metrics?.profit_factor ?? "—")}</td>
-                <td className="px-3 py-2 text-right num">{noTrades ? "—" : (row.metrics?.max_drawdown_pct ?? "—")}</td>
-                <td className="px-3 py-2 text-right num" title={formatTradesWithPeriod(trades, row)}>
-                  {formatTradesWithPeriod(trades, row)}
-                </td>
-              </tr>
+              <Fragment key={`${rowAsset}-${row.strategy}-${row.timeframe}`}>
+                <tr
+                  onClick={
+                    onSelect
+                      ? () => onSelect(isSelected ? null : rowSelection)
+                      : undefined
+                  }
+                  className={`border-t border-white/5 ${onSelect ? "cursor-pointer transition-colors" : ""} ${
+                    isSelected ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : onSelect ? "hover:bg-white/[0.03]" : ""
+                  } ${noTrades ? "opacity-80" : ""}`}
+                >
+                  <td className="px-3 py-2">
+                    {row.strategy_label}
+                    {noTrades && (
+                      <span className="ml-2 text-[10px] uppercase text-amber-400/80">sem trades</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 uppercase">{row.timeframe}</td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap" title={formatBacktestPeriodShort(row)}>
+                    {formatBacktestPeriodShort(row)}
+                  </td>
+                  <td className={`px-3 py-2 text-right num font-semibold ${tone}`}>
+                    {noTrades ? "0% · inativo" : formatReturn(row.metrics?.total_return_pct)}
+                  </td>
+                  <td className="px-3 py-2 text-right num">{row.metrics?.atlas_score ?? "—"}</td>
+                  <td className="px-3 py-2 text-right num">{noTrades ? "—" : (row.metrics?.profit_factor ?? "—")}</td>
+                  <td className="px-3 py-2 text-right num">{noTrades ? "—" : (row.metrics?.max_drawdown_pct ?? "—")}</td>
+                  <td className="px-3 py-2 text-right num" title={formatTradesWithPeriod(trades, row)}>
+                    {formatTradesWithPeriod(trades, row)}
+                  </td>
+                </tr>
+                {isSelected && (
+                  <tr>
+                    <td colSpan={8} className="p-0 align-top">
+                      <BacktestInlineChart selection={rowSelection} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           })}
         </tbody>
@@ -150,7 +159,7 @@ function BacktestMatrixGroupSection({
 }: {
   group: BacktestMatrixGroup;
   selected?: BacktestMatrixSelection | null;
-  onSelect?: (row: BacktestMatrixSelection) => void;
+  onSelect?: (row: BacktestMatrixSelection | null) => void;
   asset?: OperatedBase;
 }) {
   if (!group.items.length) return null;
@@ -195,7 +204,7 @@ export function BacktestMatrixGroupedSummary({
 }: {
   matrix: BacktestMatrixResponse;
   selected?: BacktestMatrixSelection | null;
-  onSelect?: (row: BacktestMatrixSelection) => void;
+  onSelect?: (row: BacktestMatrixSelection | null) => void;
   assetLabel?: string;
 }) {
   const asset = selected?.base_asset ?? (matrix.items[0]?.base_asset ?? "BTC");
@@ -207,8 +216,8 @@ export function BacktestMatrixGroupedSummary({
         {matrix.total} combinações{assetLabel ? ` · ${assetLabel}` : ""} · separadas por mercado (Alta / Baixa / Lateral)
       </div>
       <p className="text-xs text-muted-foreground">
-        <strong>Clique em uma linha</strong> para abrir o gráfico completo do período simulado com todas as entradas
-        marcadas (verde = trade positivo, vermelho = negativo).{" "}
+        <strong>Clique em uma linha</strong> para abrir o gráfico logo abaixo dela (clique de novo para fechar).
+        Verde = trade positivo · vermelho = negativo.{" "}
         <strong>Período simulado</strong> = intervalo de candles usado no backtest (histórico baixado da Binance).
         <strong> Trades</strong> = operações fechadas nesse intervalo — não confundir com tempo real de operação.
       </p>
@@ -251,7 +260,7 @@ export function BacktestMatrixAssetTabs({
 }: {
   matrix: BacktestMatrixResponse;
   selected?: BacktestMatrixSelection | null;
-  onSelect?: (row: BacktestMatrixSelection) => void;
+  onSelect?: (row: BacktestMatrixSelection | null) => void;
   defaultAsset?: OperatedBase;
 }) {
   const byAsset = splitMatrixByAsset(matrix);
@@ -280,13 +289,8 @@ export function BacktestMatrixAssetTabs({
               type="button"
               onClick={() => {
                 setActive(tab.id);
-                const slice = filterMatrixByAsset(matrix, tab.id);
-                if (slice.best_return && onSelect) {
-                  onSelect({
-                    strategy: slice.best_return.strategy,
-                    timeframe: slice.best_return.timeframe,
-                    base_asset: tab.id,
-                  });
+                if (selected?.base_asset && selected.base_asset !== tab.id) {
+                  onSelect?.(null);
                 }
               }}
               className={`text-sm px-4 py-2 rounded-lg transition flex items-center gap-2 ${

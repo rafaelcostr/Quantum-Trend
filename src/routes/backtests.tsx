@@ -7,7 +7,6 @@ import {
   BacktestMatrixError,
   type BacktestMatrixSelection,
 } from "@/components/backtests/BacktestMatrixPanel";
-import { BacktestChartPanel } from "@/components/backtests/BacktestChartPanel";
 import {
   useRunBacktest,
   useRunBacktestAll,
@@ -78,17 +77,6 @@ function Page() {
   );
   const savedMatrix = matrix.data;
   const liveBatch = backtestAll.data;
-
-  useEffect(() => {
-    if (!savedMatrix?.items.length || matrixSelection) return;
-    const row = savedMatrix.best_return ?? savedMatrix.items.find((i) => i.ok) ?? savedMatrix.items[0];
-    if (!row) return;
-    setMatrixSelection({
-      strategy: row.strategy,
-      timeframe: row.timeframe,
-      base_asset: (row.base_asset ?? baseAsset) as OperatedBase,
-    });
-  }, [savedMatrix, matrixSelection, baseAsset]);
 
   return (
     <div className="space-y-8">
@@ -164,7 +152,6 @@ function Page() {
               selected={matrixSelection}
               onSelect={setMatrixSelection}
             />
-            {matrixSelection && <BacktestChartPanel selection={matrixSelection} />}
           </div>
         )}
 

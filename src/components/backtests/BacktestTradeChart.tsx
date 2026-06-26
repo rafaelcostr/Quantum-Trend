@@ -1,8 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ColorType,
   createChart,
   type CandlestickData,
+  type IChartApi,
+  type ISeriesApi,
   type SeriesMarker,
   type Time,
 } from "lightweight-charts";
@@ -56,76 +58,115 @@ function chartMarkers(markers: BacktestChartMarker[]): SeriesMarker<Time>[] {
 
 export function BacktestTradeChart({ data, className }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
+    setRenderError(null);
     const wrap = wrapRef.current;
     if (!wrap || !data.bars.length) return;
 
-    wrap.innerHTML = "";
-    const container = document.createElement("div");
-    container.style.width = "100%";
-    container.style.height = "100%";
-    wrap.appendChild(container);
+    let chart: IChartApi | null = null;
+    let candleSeries: ISeriesApi<"Candlestick"> | null = null;
+    let ro: ResizeObserver | null = null;
 
-    const chart = createChart(container, {
-      width: wrap.clientWidth,
-      height: wrap.clientHeight || 520,
-      layout: {
-        background: { type: ColorType.Solid, color: "rgba(5, 8, 16, 1)" },
-        textColor: "#94a3b8",
-      },
-      grid: {
-        vertLines: { color: "rgba(255,255,255,0.06)" },
-        horzLines: { color: "rgba(255,255,255,0.06)" },
-      },
-      rightPriceScale: { borderColor: "rgba(255,255,255,0.08)" },
-      timeScale: { borderColor: "rgba(255,255,255,0.08)", timeVisible: true, secondsVisible: false },
-      crosshair: { mode: 1 },
-    });
+    try {
+      wrap.innerHTML = "";
+      const container = document.createElement("div");
+      container.style.width = "100%";
+      container.style.height = "100%";
+      wrap.appendChild(container);
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: "#22c55e",
-      downColor: "#ef4444",
-      borderUpColor: "#22c55e",
-      borderDownColor: "#ef4444",
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
-    });
+      const height = wrap.clientHeight > 0 ? wrap.clientHeight : 560;
 
-    const candles: CandlestickData<Time>[] = data.bars.map((b) => ({
-      time: toTime(b.t),
-      open: b.o,
-      high: b.h,
-      low: b.l,
-      close: b.c,
-    }));
+      chart = createChart(container, {
+        width: wrap.clientWidth || container.clientWidth || 800,
+        height,
+        layout: {
+          background: { type: ColorType.Solid, color: "rgba(5, 8, 16, 1)" },
+          textColor: "#94a3b8",
+        },
+        grid: {
+          vertLines: { color: "rgba(255,255,255,0.06)" },
+          horzLines: { color: "rgba(255,255,255,0.06)" },
+        },
+        rightPriceScale: { borderColor: "rgba(255,255,255,0.08)" },
+        timeScale: { borderColor: "rgba(255,255,255,0.08)", timeVisible: true, secondsVisible: false },
+        crosshair: { mode: 1 },
+      });
 
-    candleSeries.setData(candles);
+      candleSeries = chart.addCandlestickSeries({
+        upColor: "#22c55e",
+        downColor: "#ef4444",
+        borderUpColor: "#22c55e",
+        borderDownColor: "#ef4444",
+        wickUpColor: "#22c55e",
+        wickDownColor: "#ef4444",
+      });
 
-    if (data.markers.length > 0) {
-      candleSeries.setMarkers(chartMarkers(data.markers));
+      const candles: CandlestickData<Time>[] = data.bars.map((b) => ({
+        time: toTime(b.t),
+        open: b.o,
+        high: b.h,
+        low: b.l,
+        close: b.c,
+      }));
+
+      candleSeries.setData(candles);
+
+      if (data.markers.length > 0) {
+        try {
+          candleSeries.setMarkers(chartMarkers(data.markers));
+        } catch {
+          /* markers opcionais — mantém candles visíveis */
+        }
+      }
+
+      chart.timeScale().fitContent();
+
+      ro = new ResizeObserver(() => {
+        if (!chart || !wrap) return;
+        chart.applyOptions({
+          width: wrap.clientWidth || 800,
+          height: wrap.clientHeight > 0 ? wrap.clientHeight : 560,
+        });
+      });
+      ro.observe(wrap);
+    } catch (err) {
+      setRenderError(err instanceof Error ? err.message : "Falha ao renderizar gráfico.");
     }
 
-    chart.timeScale().fitContent();
-
-    const ro = new ResizeObserver(() => {
-      chart.applyOptions({ width: wrap.clientWidth, height: wrap.clientHeight || 520 });
-    });
-    ro.observe(wrap);
-
     return () => {
-      ro.disconnect();
-      chart.remove();
+      ro?.disconnect();
+      chart?.remove();
+      if (wrap) wrap.innerHTML = "";
     };
   }, [data]);
 
   if (!data.bars.length) {
     return (
-      <div className={className ?? "h-[520px] flex items-center justify-center text-sm text-muted-foreground px-6 text-center"}>
+      <div
+        className={
+          className ??
+          "h-[520px] flex items-center justify-center text-sm text-muted-foreground px-6 text-center"
+        }
+      >
         {data.error ?? "Sem candles para este backtest."}
       </div>
     );
   }
 
-  return <div ref={wrapRef} className={className ?? "h-[520px] w-full"} />;
+  if (renderError) {
+    return (
+      <div
+        className={
+          className ??
+          "h-[520px] flex items-center justify-center text-sm text-destructive px-6 text-center"
+        }
+      >
+        {renderError}
+      </div>
+    );
+  }
+
+  return <div ref={wrapRef} className={className ?? "h-[520px] w-full min-h-[420px]"} />;
 }
