@@ -16,6 +16,7 @@ class TradingMode(str, Enum):
 class Side(str, Enum):
     BUY = "buy"
     SELL = "sell"
+    SHORT = "short"
     LONG = "LONG"  # compat UI
 
 
@@ -23,6 +24,8 @@ class SignalAction(str, Enum):
     HOLD = "hold"
     ENTER_LONG = "enter_long"
     EXIT_LONG = "exit_long"
+    ENTER_SHORT = "enter_short"
+    EXIT_SHORT = "exit_short"
 
 
 class Candle(BaseModel):
@@ -107,7 +110,13 @@ class Position(BaseModel):
     strategy: str = ""
 
     @property
+    def is_short(self) -> bool:
+        return self.side in (Side.SHORT, Side.SELL) and self.metadata.get("position_kind") == "short"
+
+    @property
     def pnl(self) -> float:
+        if self.side in (Side.SHORT,) or self.metadata.get("position_kind") == "short":
+            return (self.entry_price - self.current_price) * self.quantity
         if self.side in (Side.BUY, Side.LONG):
             return (self.current_price - self.entry_price) * self.quantity
         return (self.entry_price - self.current_price) * self.quantity
@@ -116,6 +125,8 @@ class Position(BaseModel):
     def pnl_pct(self) -> float:
         if self.entry_price <= 0:
             return 0.0
+        if self.side in (Side.SHORT,) or self.metadata.get("position_kind") == "short":
+            return (self.entry_price / self.current_price - 1) * 100 if self.current_price > 0 else 0.0
         if self.side in (Side.BUY, Side.LONG):
             return (self.current_price / self.entry_price - 1) * 100
         return (1 - self.current_price / self.entry_price) * 100
@@ -260,6 +271,10 @@ class StrategyDTO(BaseModel):
     dd: float
     status: str
     id: str = ""
+    market_type: str = "bull"
+    strategy_category: str = "bull"
+    trades: int = 0
+    strategy_type: str = ""
 
 
 class DashboardStats(BaseModel):

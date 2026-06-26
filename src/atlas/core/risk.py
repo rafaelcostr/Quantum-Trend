@@ -69,7 +69,7 @@ class RiskManager:
     ) -> RiskDecision:
         if self.kill_switch:
             return RiskDecision(False, "kill switch active")
-        if signal.action != SignalAction.ENTER_LONG:
+        if signal.action not in (SignalAction.ENTER_LONG, SignalAction.ENTER_SHORT):
             return RiskDecision(False, "not an entry signal")
         if portfolio.position is not None:
             return RiskDecision(False, "position already open")
@@ -93,7 +93,7 @@ class RiskManager:
         return RiskDecision(True, "approved", quantity=qty)
 
     def approve_exit(self, signal: Signal, portfolio: PortfolioState) -> RiskDecision:
-        if signal.action != SignalAction.EXIT_LONG:
+        if signal.action not in (SignalAction.EXIT_LONG, SignalAction.EXIT_SHORT):
             return RiskDecision(False, "not an exit signal")
         if portfolio.position is None:
             return RiskDecision(False, "no open position")

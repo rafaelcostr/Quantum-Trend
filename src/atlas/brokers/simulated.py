@@ -61,6 +61,19 @@ class SimulatedBroker:
         notional = price * order.quantity
         fee = self._fee(notional)
         if order.side == Side.BUY:
+            if self.position is not None and (
+                self.position.side == Side.SHORT or self.position.metadata.get("position_kind") == "short"
+            ):
+                cost = notional + fee
+                self.cash -= cost
+                self.position = None
+                return OrderResult(
+                    success=True,
+                    order_id=f"sim-cover-{self._cursor}",
+                    filled_price=price,
+                    filled_quantity=order.quantity,
+                    fee=fee,
+                )
             cost = notional + fee
             if cost > self.cash:
                 return OrderResult(success=False, message="insufficient cash")
@@ -77,6 +90,26 @@ class SimulatedBroker:
             return OrderResult(
                 success=True,
                 order_id=f"sim-{self._cursor}",
+                filled_price=price,
+                filled_quantity=order.quantity,
+                fee=fee,
+            )
+        if order.side == Side.SHORT:
+            proceeds = notional - fee
+            self.cash += proceeds
+            self.position = Position(
+                symbol=order.symbol,
+                side=Side.SHORT,
+                quantity=order.quantity,
+                entry_price=price,
+                entry_time=candle.timestamp,
+                stop_price=order.stop_price,
+                target_price=None,
+                metadata={"position_kind": "short"},
+            )
+            return OrderResult(
+                success=True,
+                order_id=f"sim-short-{self._cursor}",
                 filled_price=price,
                 filled_quantity=order.quantity,
                 fee=fee,
@@ -124,5 +157,7 @@ class SimulatedBroker:
 
     def equity(self, mark_price: float) -> float:
         if self.position:
+            if self.position.side == Side.SHORT or self.position.metadata.get("position_kind") == "short":
+                return self.cash + (self.position.entry_price - mark_price) * self.position.quantity
             return self.cash + self.position.quantity * mark_price
         return self.cash

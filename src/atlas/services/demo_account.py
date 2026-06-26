@@ -20,7 +20,7 @@ def journal_entries(*, mode: TradingMode = TradingMode.PAPER) -> list[dict]:
 def open_entry_from_journal(*, mode: TradingMode, symbol: str) -> dict[str, Any] | None:
     journal = Journal(database_url="", mode=mode)
     open_entry: dict[str, Any] | None = None
-    for ev in journal.fetch_events(symbol=symbol, limit=5000):
+    for ev in journal.fetch_events(symbol=symbol, limit=800):
         if ev.get("event") == "entry":
             open_entry = ev
         elif ev.get("event") == "exit":

@@ -10,10 +10,11 @@ import {
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { PageHeader, Panel } from "@/components/ui/page";
+import { MarketRegimePanel } from "@/components/dashboard/MarketRegimePanel";
 import { InstitutionalPanel } from "@/components/platform/InstitutionalPanel";
 import { QuantumEntryModulesPanel } from "@/components/quantum/QuantumEntryModulesPanel";
 import { StatCard } from "@/components/widgets/StatCard";
-import { isBrowser, useBotToggle, useDashboard } from "@/lib/queries";
+import { useBotToggle, useDashboard } from "@/lib/queries";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,15 +49,14 @@ function Dashboard() {
   const [range, setRange] = useState<RangeKey>("30D");
   const [botErr, setBotErr] = useState<string | null>(null);
 
-  if (!isBrowser || isPending) {
+  if (isPending && !data) {
     return (
       <div className="text-muted-foreground text-sm space-y-2 py-12 text-center">
         <p>Carregando dashboard…</p>
-        <p className="text-xs opacity-70">Com 3 bots paper a API pode levar até ~30s. Aguarde.</p>
       </div>
     );
   }
-  if (isError || !data) {
+  if (isError && !data) {
     const msg = error instanceof Error ? error.message : "Erro desconhecido";
     return (
       <div className="text-destructive text-sm space-y-2">
@@ -65,8 +65,9 @@ function Dashboard() {
       </div>
     );
   }
+  if (!data) return null;
 
-  const { stats, equity_curve, drawdown_curve = [], radar_data, positions, flow, spark_up, spark_down, spark_mix, account, quantum, platform } = data;
+  const { stats, equity_curve, drawdown_curve = [], radar_data, positions, flow, spark_up, spark_down, spark_mix, account, quantum, market_regime, platform } = data;
   const equityDisplay = filterEquity(equity_curve, range);
   const isLive = stats.bot_mode === "live" && stats.bot_running;
   const phaseLabel = stats.bot_phase.charAt(0).toUpperCase() + stats.bot_phase.slice(1);
@@ -89,8 +90,14 @@ function Dashboard() {
         }
         actions={
           <div className="flex gap-2 flex-wrap">
-            <Link to="/estrategias" className="rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm hover:bg-white/10 transition">
-              Estratégias
+            <Link to="/estrategias-alta" className="rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm hover:bg-white/10 transition">
+              Estratégias de Alta
+            </Link>
+            <Link to="/estrategias-baixa" className="rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm hover:bg-white/10 transition">
+              Estratégias de Baixa
+            </Link>
+            <Link to="/estrategias-lateral" className="rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm hover:bg-white/10 transition">
+              Estratégias Laterais
             </Link>
             <Link to="/live" className="rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm hover:bg-white/10 transition">
               Trading Live
@@ -138,6 +145,7 @@ function Dashboard() {
         <StatCard label="Posições Abertas" value={String(stats.open_positions)} icon={Activity} accent="destructive" data={spark_down} />
       </div>
 
+      <MarketRegimePanel regime={market_regime} />
       <InstitutionalPanel platform={platform} />
       <QuantumEntryModulesPanel quantum={quantum} />
 

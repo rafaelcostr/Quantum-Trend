@@ -1,16 +1,19 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Brain, FlaskConical, BarChart3, MonitorPlay, LineChart,
+  LayoutDashboard, FlaskConical, BarChart3, MonitorPlay, LineChart,
   ShieldCheck, Bot, NotebookPen, FileBarChart, Globe2, Settings, Rocket,
-  Search, Bell, ChevronDown, Moon, Wallet,
+  Search, Bell, ChevronDown, Moon, Wallet, TrendingUp, TrendingDown, ArrowLeftRight,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
+import { BotUptimeTimer } from "@/components/operations/BotUptimeTimer";
 import { useBotStatus, useHealth, useSettings } from "@/lib/queries";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/estrategias", label: "Estratégias", icon: Brain },
+  { to: "/estrategias-alta", label: "Estratégias de Alta", icon: TrendingUp },
+  { to: "/estrategias-baixa", label: "Estratégias de Baixa", icon: TrendingDown },
+  { to: "/estrategias-lateral", label: "Estratégias Laterais", icon: ArrowLeftRight },
   { to: "/backtests", label: "Backtests", icon: FlaskConical },
   { to: "/validacao", label: "Paper Trading", icon: MonitorPlay },
   { to: "/portfolio", label: "Portfolio", icon: Wallet },
@@ -75,8 +78,23 @@ function Sidebar() {
             <span className={`h-2 w-2 rounded-full ${running ? (mode === "live" ? "bg-destructive" : "bg-success animate-pulse") : "bg-muted-foreground"}`} />
             {running ? (mode === "live" ? "Bot LIVE" : instanceCount > 1 ? `${instanceCount} bots paper` : "Bot paper") : "Bot parado"}
           </div>
-          <div className="mt-2 num text-xl">{running ? "Ativo" : "—"}</div>
-          <div className="text-[11px] text-muted-foreground">{modeLabel}{running && instanceCount > 1 ? ` · ${instanceCount} engines` : ""}</div>
+          <div className="mt-2 num text-xl">
+            {running ? (
+              <BotUptimeTimer startedAt={bot.data?.started_at} running={running} className="text-xl font-semibold text-success" />
+            ) : (
+              "—"
+            )}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {running ? (
+              <>
+                Tempo ligado
+                {instanceCount > 1 ? ` · ${instanceCount} engines` : ""}
+              </>
+            ) : (
+              modeLabel
+            )}
+          </div>
         </div>
       </div>
     </aside>

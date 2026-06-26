@@ -1,69 +1,209 @@
+import { Suspense, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { ExternalLink, LineChart, Loader2 } from "lucide-react";
+import { MarketChartLegend } from "@/components/markets/MarketChartLegend";
+import { StrategyMarketChart } from "@/components/markets/StrategyMarketChart";
 import { PageHeader, Panel } from "@/components/ui/page";
-import { isBrowser, useMarkets } from "@/lib/queries";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import { cn } from "@/lib/utils";
+import {
+  MARKET_TIMEFRAMES,
+  OPERATED_MARKETS,
+  type MarketTimeframe,
+  marketTimeframeLabel,
+} from "@/lib/operated-markets";
+import { isBrowser, useMarketChart, useMarkets } from "@/lib/queries";
+import { tradingViewChartUrl } from "@/lib/tradingview-chart";
+import type { MarketTicker } from "@/lib/api";
 
 export const Route = createFileRoute("/mercados")({
   head: () => ({ meta: [{ title: "Mercados · Quantum-Trend" }] }),
   component: Page,
 });
 
-function Page() {
-  const { data, isPending, error, isError } = useMarkets();
+function formatPrice(price: number): string {
+  return price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 4 : 2 });
+}
 
-  if (!isBrowser || isPending) {
-    return <div className="text-muted-foreground text-sm">Carregando mercados…</div>;
-  }
-  if (isError || !data) {
-    const msg = error instanceof Error ? error.message : "Erro desconhecido";
-    return (
-      <div className="text-destructive text-sm space-y-2">
-        <p>Erro ao carregar mercados. Confirme que a API Python está ativa (<code className="text-secondary">python -m atlas.cli api</code>).</p>
-        <p className="text-xs text-muted-foreground">{msg.slice(0, 240)}</p>
+function PairCard({
+  market,
+  ticker,
+  loading,
+  selected,
+  onSelect,
+}: {
+  market: (typeof OPERATED_MARKETS)[number];
+  ticker?: MarketTicker;
+  loading: boolean;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const up = (ticker?.change_pct ?? 0) >= 0;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "glass rounded-2xl p-5 text-left w-full transition hover:scale-[1.01] hover:border-primary/40 border",
+        selected ? "border-primary/60 ring-2 ring-primary/30 bg-primary/5" : "border-transparent",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold text-lg">{market.pair}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">{market.label} · Spot Binance</div>
+        </div>
+        {ticker ? (
+          <span className={cn("chip shrink-0", up ? "text-success" : "text-destructive")}>
+            {up ? "+" : ""}
+            {ticker.change_pct.toFixed(2)}%
+          </span>
+        ) : loading ? (
+          <span className="chip shrink-0 text-muted-foreground animate-pulse">…</span>
+        ) : null}
       </div>
-    );
+
+      <div className="num text-3xl mt-4">
+        {ticker ? `$${formatPrice(ticker.price)}` : "—"}
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+        <LineChart className="h-3.5 w-3.5" />
+        Clique para ver candles + EMA20 + EMA200 + Bollinger + Supertrend
+      </div>
+    </button>
+  );
+}
+
+function ChartBlock({
+  base,
+  pair,
+  timeframe,
+  price,
+}: {
+  base: string;
+  pair: string;
+  timeframe: MarketTimeframe;
+  price?: number;
+}) {
+  const chart = useMarketChart(base, timeframe, true);
+  const tvUrl = tradingViewChartUrl(pair, timeframe);
+
+  return (
+    <Panel
+      className="p-0 overflow-hidden"
+      title={`Gráfico · ${pair}`}
+      subtitle="Candles · EMA20 · EMA200 · Bollinger 20·2 · Supertrend 10·3"
+      action={
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {price != null && (
+            <span className="chip num text-sm hidden sm:inline-flex">${formatPrice(price)}</span>
+          )}
+          <a
+            href={tvUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10"
+          >
+            Abrir no TradingView
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      }
+    >
+      {chart.isPending && !chart.data ? (
+        <div className="h-[560px] flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Carregando candles e indicadores…
+        </div>
+      ) : chart.isError || !chart.data ? (
+        <div className="h-[560px] flex items-center justify-center text-sm text-destructive px-6 text-center">
+          Erro ao carregar gráfico. Confirme a API Python e conexão com a Binance.
+        </div>
+      ) : (
+        <Suspense fallback={null}>
+          <StrategyMarketChart key={`${pair}-${timeframe}`} data={chart.data} className="h-[560px] w-full" />
+        </Suspense>
+      )}
+      <MarketChartLegend />
+    </Panel>
+  );
+}
+
+function Page() {
+  const markets = useMarkets();
+  const [openedPair, setOpenedPair] = useState<string | null>(null);
+  const [timeframe, setTimeframe] = useState<MarketTimeframe>("4h");
+
+  const tickerByBase = useMemo(() => {
+    const map = new Map<string, MarketTicker>();
+    for (const item of markets.data?.items ?? []) {
+      map.set(item.symbol.toUpperCase(), item);
+    }
+    return map;
+  }, [markets.data?.items]);
+
+  const selectedMarket = openedPair
+    ? (OPERATED_MARKETS.find((m) => m.pair === openedPair) ?? OPERATED_MARKETS[0])
+    : null;
+  const selectedTicker = selectedMarket ? tickerByBase.get(selectedMarket.base) : undefined;
+
+  if (!isBrowser) {
+    return <div className="text-muted-foreground text-sm">Carregando mercados…</div>;
   }
 
   return (
-    <div className="space-y-8">
-      <PageHeader title="Mercados" subtitle="Cobertura global em tempo real — spot via Binance." />
+    <div className="space-y-6">
+      <PageHeader
+        title="Mercados"
+        subtitle="BTC/USDT e ETH/USDT — gráfico nativo com os mesmos indicadores calculados no backtest."
+      />
 
       <Panel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {data.items.map((a) => {
-            const up = a.change_pct >= 0;
-            const color = up ? "#22C55E" : "#EF4444";
-            const chartData = a.sparkline.map((y, j) => ({ x: j, y }));
-            return (
-              <div key={a.symbol} className="glass rounded-2xl p-4 hover:scale-[1.02] transition">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold">{a.symbol}/USDT</div>
-                    <div className="text-[11px] text-muted-foreground">Spot · Binance</div>
-                  </div>
-                  <span className={`chip ${up ? "text-success" : "text-destructive"}`}>
-                    {up ? "+" : ""}{a.change_pct.toFixed(2)}%
-                  </span>
-                </div>
-                <div className="num text-2xl mt-3">${a.price.toLocaleString(undefined, { maximumFractionDigits: a.price < 1 ? 4 : 2 })}</div>
-                <div className="h-14 mt-2 -mx-2">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
-                      <defs>
-                        <linearGradient id={`m-${a.symbol}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={color} stopOpacity={0.45} />
-                          <stop offset="100%" stopColor={color} stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <Area type="monotone" dataKey="y" stroke={color} strokeWidth={2} fill={`url(#m-${a.symbol})`} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {OPERATED_MARKETS.map((market) => (
+            <PairCard
+              key={market.pair}
+              market={market}
+              ticker={tickerByBase.get(market.base)}
+              loading={markets.isPending && !markets.data}
+              selected={openedPair === market.pair}
+              onSelect={() => setOpenedPair(market.pair)}
+            />
+          ))}
         </div>
       </Panel>
+
+      {selectedMarket ? (
+        <div className="space-y-3">
+          <div className="flex rounded-lg border border-white/10 overflow-hidden w-fit">
+            {MARKET_TIMEFRAMES.map((tf) => (
+              <button
+                key={tf}
+                type="button"
+                onClick={() => setTimeframe(tf)}
+                className={cn(
+                  "px-4 py-2 text-xs font-medium transition",
+                  timeframe === tf ? "bg-primary text-white" : "bg-white/5 text-muted-foreground hover:bg-white/10",
+                )}
+              >
+                {marketTimeframeLabel(tf)}
+              </button>
+            ))}
+          </div>
+          <ChartBlock
+            base={selectedMarket.base}
+            pair={selectedMarket.pair}
+            timeframe={timeframe}
+            price={selectedTicker?.price}
+          />
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] px-6 py-10 text-center text-sm text-muted-foreground">
+          Selecione <strong className="text-foreground">BTC/USDT</strong> ou <strong className="text-foreground">ETH/USDT</strong>{" "}
+          para carregar o gráfico com médias, bandas de Bollinger e Supertrend.
+        </div>
+      )}
     </div>
   );
 }

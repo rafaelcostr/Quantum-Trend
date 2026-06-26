@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from atlas.core.config import AtlasConfig, load_config
-from atlas.core.symbols import quote_from_symbol, report_name_stem
+from atlas.core.symbols import build_symbol, quote_from_symbol, report_name_stem
 from atlas.intelligence.analyzer import analyze_path
 from atlas.intelligence.compare_report import export_all_reports
 from atlas.intelligence.metrics import discover_reports
@@ -24,12 +24,14 @@ def _apply_research_options(
     *,
     timeframe: str | None = None,
     quote: str | None = None,
+    base_asset: str | None = None,
 ) -> AtlasConfig:
     cfg = config.model_copy(deep=True)
     if timeframe:
         cfg.exchange.timeframe = timeframe.lower()
-    if quote:
-        cfg.exchange.symbol = f"BTC/{quote.upper()}"
+    base = (base_asset or cfg.exchange.symbol.split("/")[0]).upper()
+    q = (quote or quote_from_symbol(cfg.exchange.symbol)).upper()
+    cfg.exchange.symbol = build_symbol(base, q)
     return cfg
 
 
@@ -40,8 +42,14 @@ def run_download(
     force: bool = False,
     timeframe: str | None = None,
     quote: str | None = None,
+    base_asset: str | None = None,
 ) -> dict[str, Any]:
-    config = _apply_research_options(load_config(project_root / config_rel), timeframe=timeframe, quote=quote)
+    config = _apply_research_options(
+        load_config(project_root / config_rel),
+        timeframe=timeframe,
+        quote=quote,
+        base_asset=base_asset,
+    )
     cache_file = project_root / cache_path(config)
     had_cache = cache_file.is_file()
     df = load_or_download(config, force=force)
@@ -64,8 +72,14 @@ def run_backtest_dashboard(
     *,
     timeframe: str | None = None,
     quote: str | None = None,
+    base_asset: str | None = None,
 ) -> dict[str, Any]:
-    config = _apply_research_options(load_config(project_root / config_rel), timeframe=timeframe, quote=quote)
+    config = _apply_research_options(
+        load_config(project_root / config_rel),
+        timeframe=timeframe,
+        quote=quote,
+        base_asset=base_asset,
+    )
     return run_backtest_config(project_root, config, output_dir=output_dir, config_file=config_rel)
 
 
@@ -96,7 +110,8 @@ def run_backtest_config(
     warmup = int(config.strategy.params.get("warmup_bars", 205))
     bh_return = compute_buy_hold_return(df, warmup, config.risk.initial_capital)
     quote = quote_from_symbol(config.exchange.symbol)
-    report_name = report_name_stem(config.strategy.name, config.exchange.timeframe, quote)
+    base = config.exchange.symbol.split("/")[0]
+    report_name = report_name_stem(config.strategy.name, config.exchange.timeframe, quote, base)
     path = save_report(
         result_bt,
         report,

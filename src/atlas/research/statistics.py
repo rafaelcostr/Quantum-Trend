@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from atlas.core.config import AtlasConfig
-from atlas.core.symbols import quote_from_symbol
+from atlas.core.symbols import quote_from_symbol, report_json_basename
 from atlas.research.engine_backtest import BacktestResult
 from atlas.research.report_metadata import build_report_metadata, remove_stale_reports
 
@@ -115,17 +115,25 @@ def save_report(
     from atlas.core.symbols import parse_strategy_from_report_name
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    strategy_name = timeframe = quote = None
+    strategy_name = timeframe = quote = base = None
     if config is not None:
         strategy_name = config.strategy.name
         timeframe = config.exchange.timeframe
         quote = quote_from_symbol(config.exchange.symbol)
+        base = config.exchange.symbol.split("/")[0].upper()
     else:
-        strategy_name, timeframe, quote = parse_strategy_from_report_name(name)
+        strategy_name, timeframe, quote, base = parse_strategy_from_report_name(name)
         quote = quote or "USDT"
+        base = base or "BTC"
 
     if strategy_name and timeframe and quote and strategy_name != "unknown":
-        remove_stale_reports(out_dir, strategy=strategy_name, timeframe=timeframe, quote=quote)
+        remove_stale_reports(
+            out_dir,
+            strategy=strategy_name,
+            timeframe=timeframe,
+            quote=quote,
+            base=base,
+        )
 
     payload: dict = {
         "statistics": report.to_dict(),
@@ -159,6 +167,6 @@ def save_report(
             payload["module_stats"] = module_stats
             if payload.get("metadata"):
                 payload["metadata"]["module_stats"] = module_stats
-    path = out_dir / f"{name}.json"
+    path = out_dir / report_json_basename(name)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path

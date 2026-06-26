@@ -157,7 +157,8 @@ def run_backtest_from_yaml(config_path: str) -> tuple[BacktestMetrics, Path]:
     result = run_backtest_engine(config, df)
     report = compute_statistics(result)
     quote = quote_from_symbol(config.exchange.symbol)
-    name = report_name_stem(config.strategy.name, config.exchange.timeframe, quote)
+    base = config.exchange.symbol.split("/")[0]
+    name = report_name_stem(config.strategy.name, config.exchange.timeframe, quote, base)
     out_dir = project_root() / "data" / "reports"
     path = save_report(
         result, report, out_dir, name=name, config=config,

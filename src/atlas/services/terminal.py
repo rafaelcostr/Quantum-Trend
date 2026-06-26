@@ -14,6 +14,7 @@ from atlas.core.models import DashboardStats, StrategyDTO, TradingMode
 from atlas.intelligence.dashboard import radar_from_metrics, strategy_status
 from atlas.research.backtester import load_latest_report
 from atlas.research.reports import load_report_by_strategy_timeframe
+from atlas.core.symbols import quote_from_symbol
 from atlas.services.demo_account import (
     account_breakdown,
     build_equity_curve,
@@ -29,6 +30,7 @@ from atlas.runtime.system_store import get_runtime_system
 from atlas.runtime.journal import Journal
 from atlas.runtime.state import active_config, bot_state, build_positions
 from atlas.runtime.live_gates import evaluate_live_gates
+from atlas.services.market_regime import get_market_regime_snapshot
 from atlas.services.quantum_service import compute_drawdown_curve, get_quantum_status
 from atlas.platform.service import get_platform_dashboard_payload
 from atlas.strategies.mm200_trend_v2 import strategy_display_name
@@ -43,11 +45,23 @@ from atlas.services.analytics import (
 
 _DASHBOARD_CACHE: dict | None = None
 _DASHBOARD_CACHE_AT: float = 0.0
-_DASHBOARD_TTL = 60.0
+_DASHBOARD_TTL = 75.0
 
 _INTELLIGENCE_CACHE: dict | None = None
 _INTELLIGENCE_CACHE_AT: float = 0.0
-_INTELLIGENCE_TTL = 60.0
+_INTELLIGENCE_TTL = 120.0
+
+_VALIDATION_CACHE: dict | None = None
+_VALIDATION_CACHE_AT: float = 0.0
+_VALIDATION_TTL = 30.0
+
+_RISK_CACHE: dict | None = None
+_RISK_CACHE_AT: float = 0.0
+_RISK_TTL = 25.0
+
+_JOURNAL_CACHE: list[dict] | None = None
+_JOURNAL_CACHE_AT: float = 0.0
+_JOURNAL_TTL = 15.0
 
 
 def clear_dashboard_cache() -> None:
@@ -62,9 +76,21 @@ def clear_intelligence_cache() -> None:
     _INTELLIGENCE_CACHE_AT = 0.0
 
 
-def _journal_realized_pnl(*, mode: TradingMode = TradingMode.PAPER) -> float:
-    entries = journal_entries(mode=mode)
-    return round(sum(float(e.get("pnl", 0)) for e in entries), 2)
+def clear_risk_cache() -> None:
+    global _RISK_CACHE, _RISK_CACHE_AT
+    _RISK_CACHE = None
+    _RISK_CACHE_AT = 0.0
+
+
+def clear_journal_cache() -> None:
+    global _JOURNAL_CACHE, _JOURNAL_CACHE_AT
+    _JOURNAL_CACHE = None
+    _JOURNAL_CACHE_AT = 0.0
+
+
+def _journal_realized_pnl(*, mode: TradingMode = TradingMode.PAPER, entries: list[dict] | None = None) -> float:
+    rows = entries if entries is not None else journal_entries(mode=mode)
+    return round(sum(float(e.get("pnl", 0)) for e in rows), 2)
 
 
 def _resolve_account(
@@ -72,12 +98,13 @@ def _resolve_account(
     live_active: bool,
     symbol: str,
     journal_mode: TradingMode,
+    entries: list[dict] | None = None,
 ) -> tuple[float, float, float, str, str, dict | None]:
     if live_active:
         snap = demo_snapshot(symbol, live=True) if credentials_configured(live=True) else None
         if snap:
             balance = snap.equity_usdt
-            pnl = _journal_realized_pnl(mode=TradingMode.LIVE)
+            pnl = _journal_realized_pnl(mode=TradingMode.LIVE, entries=entries)
             cost_basis = balance - pnl
             pnl_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
             return balance, pnl, pnl_pct, "binance_live", "Binance Live", account_breakdown(snap)
@@ -91,7 +118,7 @@ def _resolve_account(
     snap = demo_snapshot(symbol, live=False)
     if snap:
         balance = snap.equity_usdt
-        pnl = _journal_realized_pnl(mode=journal_mode)
+        pnl = _journal_realized_pnl(mode=journal_mode, entries=entries)
         cost_basis = balance - pnl
         pnl_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
         return balance, pnl, pnl_pct, "binance_demo", "Binance Demo", account_breakdown(snap)
@@ -113,6 +140,7 @@ def get_dashboard_payload() -> dict:
         live_active=live_active,
         symbol=cfg.exchange.symbol,
         journal_mode=journal_mode,
+        entries=entries,
     )
 
     metrics = paper_metrics_for_dashboard(entries, balance) if balance > 0 else {
@@ -139,6 +167,7 @@ def get_dashboard_payload() -> dict:
 
     live_gates = evaluate_live_gates()
     quantum = get_quantum_status()
+    market_regime = get_market_regime_snapshot(cfg)
     positions = build_positions()
     stats = DashboardStats(
         balance=round(balance, 2),
@@ -170,7 +199,8 @@ def get_dashboard_payload() -> dict:
         "flow": _promotion_flow(flow_metrics, live_gates, has_backtest=bool(report)),
         "account": breakdown,
         "quantum": quantum,
-        "platform": get_platform_dashboard_payload(),
+        "market_regime": market_regime,
+        "platform": get_platform_dashboard_payload(quantum=quantum),
         "spark_up": _spark_from_equity(equity_display, up=True),
         "spark_down": _spark_from_equity(equity_display, up=False),
         "spark_mix": _spark_from_equity(equity_display, up=None),
@@ -243,18 +273,32 @@ def _promotion_flow(metrics: dict, live_gates: dict | None = None, *, has_backte
 
 def get_strategies() -> list[StrategyDTO]:
     cfg = active_config()
-    from atlas.strategies.metadata import is_entry_module_legacy, is_legacy_strategy
+    from atlas.strategies.metadata import (
+        get_market_type,
+        get_strategy_category,
+        get_strategy_metadata,
+        is_bear_strategy,
+        is_entry_module_legacy,
+        is_legacy_strategy,
+        is_range_strategy,
+    )
 
     out: list[StrategyDTO] = []
     for name in list_strategies(include_legacy=True):
         report = load_latest_report(name)
         legacy = is_legacy_strategy(name)
         entry_legacy = is_entry_module_legacy(name)
+        bear = is_bear_strategy(name)
+        market_type = get_market_type(name)
+        category = get_strategy_category(name)
+        strategy_type = get_strategy_metadata(name).get("type", "")
         if report:
             m = report["metrics"]
             score = float(m.get("atlas_score", 0))
             status = strategy_status(score, float(m.get("profit_factor", 0)), float(m.get("max_drawdown_pct", 0)))
-            if entry_legacy:
+            if bear:
+                status = f"Bear · {status}"
+            elif entry_legacy:
                 status = f"Módulo QTP · {status}"
             elif legacy:
                 status = f"Legado · {status}"
@@ -266,6 +310,10 @@ def get_strategies() -> list[StrategyDTO]:
                     pf=float(m.get("profit_factor", 0)),
                     dd=float(m.get("max_drawdown_pct", 0)),
                     status=status,
+                    market_type=market_type,
+                    strategy_category=category,
+                    trades=int(m.get("total_trades", 0)),
+                    strategy_type=strategy_type,
                 )
             )
         elif name == cfg.strategy.name:
@@ -277,15 +325,20 @@ def get_strategies() -> list[StrategyDTO]:
                     pf=0.0,
                     dd=0.0,
                     status=(
-                        "Módulo QTP · sem backtest"
+                        "Bear · sem backtest"
+                        if bear
+                        else "Módulo QTP · sem backtest"
                         if entry_legacy
                         else "Legado · sem backtest"
                         if legacy
                         else "Sem backtest"
                     ),
+                    market_type=market_type,
+                    strategy_category=category,
+                    strategy_type=strategy_type,
                 )
             )
-        elif not legacy and not entry_legacy:
+        elif not legacy and not entry_legacy and not bear:
             out.append(
                 StrategyDTO(
                     id=name,
@@ -294,12 +347,48 @@ def get_strategies() -> list[StrategyDTO]:
                     pf=0.0,
                     dd=0.0,
                     status="Backtest pendente",
+                    market_type=market_type,
+                    strategy_category=category,
+                    strategy_type=strategy_type,
+                )
+            )
+        elif bear:
+            out.append(
+                StrategyDTO(
+                    id=name,
+                    name=strategy_display_name(name),
+                    winrate=0.0,
+                    pf=0.0,
+                    dd=0.0,
+                    status="Bear · sem backtest",
+                    market_type=market_type,
+                    strategy_category=category,
+                    strategy_type=strategy_type,
+                )
+            )
+        elif is_range_strategy(name):
+            out.append(
+                StrategyDTO(
+                    id=name,
+                    name=strategy_display_name(name),
+                    winrate=0.0,
+                    pf=0.0,
+                    dd=0.0,
+                    status="Lateral · sem backtest",
+                    market_type=market_type,
+                    strategy_category=category,
+                    strategy_type=strategy_type,
                 )
             )
     return out
 
 
 def get_journal_entries() -> list[dict]:
+    global _JOURNAL_CACHE, _JOURNAL_CACHE_AT
+    now = time.time()
+    if _JOURNAL_CACHE is not None and (now - _JOURNAL_CACHE_AT) < _JOURNAL_TTL:
+        return _JOURNAL_CACHE
+
     mode = bot_state.mode if bot_state.running else TradingMode.PAPER
     events = Journal(database_url="", mode=mode).fetch_events(limit=300)
     enriched: list[dict] = []
@@ -322,44 +411,87 @@ def get_journal_entries() -> list[dict]:
             }
         )
     if enriched:
+        _JOURNAL_CACHE = enriched
+        _JOURNAL_CACHE_AT = now
         return enriched
-    return journal_entries(mode=mode)
+    fallback = journal_entries(mode=mode)
+    _JOURNAL_CACHE = fallback
+    _JOURNAL_CACHE_AT = now
+    return fallback
 
 
 def get_intelligence_summary() -> dict:
+    """Resumo leve para a página IA — ranking a partir de relatórios salvos (sem análise L1/L2/L3)."""
     global _INTELLIGENCE_CACHE, _INTELLIGENCE_CACHE_AT
     now = time.time()
     if _INTELLIGENCE_CACHE and (now - _INTELLIGENCE_CACHE_AT) < _INTELLIGENCE_TTL:
         return _INTELLIGENCE_CACHE
 
-    from atlas.services.intelligence_service import enrich_intelligence_summary
+    from atlas.services.backtest_batch import load_backtest_matrix_from_reports
+    from atlas.services.intelligence_selection import build_selection_payload
 
-    strategies = get_strategies()
-    tickers = fetch_tickers_cached(include_sparkline=False)
-    best = max(strategies, key=lambda s: s.pf) if strategies else None
-    heatmap = [
-        {"sym": t.symbol, "score": int(min(100, max(0, 50 + t.change_pct * 5)))}
-        for t in tickers
-    ]
+    matrix = load_backtest_matrix_from_reports()
+    items = matrix.get("items") or []
+    by_strategy: dict[str, dict] = {}
+    for item in items:
+        if not item.get("ok"):
+            continue
+        sid = str(item.get("strategy") or "")
+        if not sid:
+            continue
+        metrics = item.get("metrics") or {}
+        pf = float(metrics.get("profit_factor") or 0)
+        prev = by_strategy.get(sid)
+        if prev is None or pf > float(prev.get("pf") or 0):
+            by_strategy[sid] = {
+                "id": sid,
+                "name": item.get("strategy_label") or strategy_display_name(sid),
+                "pf": round(pf, 2),
+                "winrate": round(float(metrics.get("win_rate_pct") or 0), 1),
+                "dd": round(float(metrics.get("max_drawdown_pct") or 0), 1),
+                "status": "Backtest",
+            }
+
+    strategies = sorted(by_strategy.values(), key=lambda s: float(s["pf"]), reverse=True)
+    best = strategies[0] if strategies else None
+
+    heatmap: list[dict] = []
+    by_asset = matrix.get("by_asset") or {}
+    for sym in ("BTC", "ETH"):
+        slice_ = by_asset.get(sym) or {}
+        best_item = slice_.get("best_score") or slice_.get("best_return")
+        atlas = 50
+        if isinstance(best_item, dict):
+            atlas = int(float((best_item.get("metrics") or {}).get("atlas_score") or 50))
+        heatmap.append({"sym": sym, "score": max(0, min(100, atlas))})
+    if not heatmap:
+        heatmap = [{"sym": "BTC", "score": 50}, {"sym": "ETH", "score": 50}]
+
     cfg = active_config()
     report = load_latest_report(cfg.strategy.name)
     score = int(float(report["metrics"]["atlas_score"])) if report and report.get("metrics") else 0
+
     payload = {
-        "strategies_evaluated": len(list_strategies()),
-        "best_strategy": best.name if best else "—",
-        "best_score": int(best.pf * 30) if best else 0,
+        "strategies_evaluated": len(by_strategy) or len(list_strategies()),
+        "best_strategy": best["name"] if best else "—",
+        "best_score": int(float(best["pf"]) * 30) if best else 0,
         "overall_score": score,
-        "strategies": [s.model_dump() for s in strategies],
+        "strategies": strategies,
         "heatmap": heatmap,
+        "selection": build_selection_payload(matrix),
     }
-    result = enrich_intelligence_summary(payload, cfg.strategy.name)
-    _INTELLIGENCE_CACHE = result
+    _INTELLIGENCE_CACHE = payload
     _INTELLIGENCE_CACHE_AT = now
-    return result
+    return payload
 
 
 def get_markets() -> list[dict]:
-    return [t.model_dump() for t in fetch_tickers_cached(include_sparkline=True)]
+    from atlas.core.symbols import operated_market_watchlist
+
+    return [
+        t.model_dump()
+        for t in fetch_tickers_cached(operated_market_watchlist(), include_sparkline=False)
+    ]
 
 
 def _paper_trade_stats() -> dict:
@@ -368,6 +500,11 @@ def _paper_trade_stats() -> dict:
 
 
 def get_validation_payload() -> dict:
+    global _VALIDATION_CACHE, _VALIDATION_CACHE_AT
+    now = time.time()
+    if _VALIDATION_CACHE and (now - _VALIDATION_CACHE_AT) < _VALIDATION_TTL:
+        return _VALIDATION_CACHE
+
     from atlas.quantum.gates import promotion_checklist_paper
 
     cfg = default_paper_config()
@@ -392,7 +529,7 @@ def get_validation_payload() -> dict:
     passed = sum(1 for c in criteria if c["ok"])
     score = min(100, int(passed / max(len(criteria), 1) * 100))
 
-    return {
+    payload = {
         "score": score,
         "criteria_passed": passed,
         "criteria_total": len(criteria),
@@ -413,16 +550,24 @@ def get_validation_payload() -> dict:
         "spark_down": _spark_from_equity(equity, False),
         "spark_mix": _spark_from_equity(equity, None),
     }
+    _VALIDATION_CACHE = payload
+    _VALIDATION_CACHE_AT = now
+    return payload
 
 
 def get_risk_payload() -> dict:
+    global _RISK_CACHE, _RISK_CACHE_AT
+    now = time.time()
+    if _RISK_CACHE and (now - _RISK_CACHE_AT) < _RISK_TTL:
+        return _RISK_CACHE
+
     cfg = active_config()
     risk = get_risk_settings()
     live = bot_state.running and bot_state.mode == TradingMode.LIVE
     snap = fetch_account_snapshot(cfg.exchange.symbol, live=live)
     balance = snap.equity_usdt if snap else 0.0
     r = risk.to_dict()
-    return {
+    payload = {
         "settings": r,
         "balance": round(balance, 2),
         "summary": {
@@ -439,19 +584,32 @@ def get_risk_payload() -> dict:
         ],
         "alert": "Drawdown elevado" if r["consecutive_losses"] >= r["pause_after_losses"] else None,
     }
+    _RISK_CACHE = payload
+    _RISK_CACHE_AT = now
+    return payload
 
 
-def get_results_payload(*, strategy: str | None = None, timeframe: str | None = None) -> dict:
+def get_results_payload(
+    *,
+    strategy: str | None = None,
+    timeframe: str | None = None,
+    base_asset: str = "BTC",
+) -> dict:
     cfg = active_config()
     strategy = strategy or cfg.strategy.name
     timeframe = (timeframe or cfg.exchange.timeframe).lower()
-    symbol = cfg.exchange.symbol
+    base = base_asset.upper()
+    symbol = f"{base}/{quote_from_symbol(cfg.exchange.symbol)}"
     if strategy != cfg.strategy.name or timeframe != cfg.exchange.timeframe.lower():
-        meta = load_report_by_strategy_timeframe(strategy, timeframe)
+        meta = load_report_by_strategy_timeframe(strategy, timeframe, base=base)
         if meta and meta.get("metadata", {}).get("market"):
             symbol = str(meta["metadata"]["market"])
 
-    metrics, trades, equity = load_trades_for_results(strategy=strategy, timeframe=timeframe)
+    metrics, trades, equity = load_trades_for_results(
+        strategy=strategy,
+        timeframe=timeframe,
+        base=base,
+    )
     period_start = equity[0]["day"] if equity else None
     period_end = equity[-1]["day"] if equity else None
     period_days = None

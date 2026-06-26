@@ -13,11 +13,22 @@ def test_build_operational_config_usdc_1d():
         PROJECT_ROOT,
         strategy_name="mm200_trend_v2",
         quote_asset="USDC",
+        base_asset="ETH",
         timeframe="1d",
     )
-    assert config.exchange.symbol == "BTC/USDC"
+    assert config.exchange.symbol == "ETH/USDC"
     assert config.exchange.timeframe == "1d"
     assert config.strategy.name == "mm200_trend_v2"
+
+
+def test_build_operational_config_btc_default():
+    config = build_operational_config(
+        PROJECT_ROOT,
+        strategy_name="mm200_trend_v2",
+        quote_asset="USDT",
+        timeframe="4h",
+    )
+    assert config.exchange.symbol == "BTC/USDT"
 
 
 def test_discover_strategy_configs():

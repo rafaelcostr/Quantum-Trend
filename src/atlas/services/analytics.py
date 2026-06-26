@@ -108,12 +108,13 @@ def load_trades_for_results(
     strategy: str | None = None,
     timeframe: str | None = None,
     quote: str = "USDT",
+    base: str = "BTC",
 ) -> tuple[dict, list[QuickTrade], list[dict]]:
     cfg = active_config()
     strategy = strategy or cfg.strategy.name
     timeframe = (timeframe or cfg.exchange.timeframe).lower()
 
-    report = load_report_by_strategy_timeframe(strategy, timeframe, quote=quote)
+    report = load_report_by_strategy_timeframe(strategy, timeframe, quote=quote, base=base)
     if report:
         metrics = report["metrics"]
         trades = [trade_from_report_row(t) for t in report.get("trades", [])]

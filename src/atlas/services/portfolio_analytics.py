@@ -23,7 +23,13 @@ STRATEGY_SHORT: dict[str, str] = {
 
 _PORTFOLIO_CACHE: dict | None = None
 _PORTFOLIO_CACHE_AT: float = 0.0
-_PORTFOLIO_TTL = 30.0
+_PORTFOLIO_TTL = 45.0
+
+
+def peek_portfolio_cache() -> dict | None:
+    if _PORTFOLIO_CACHE and (time.time() - _PORTFOLIO_CACHE_AT) < _PORTFOLIO_TTL:
+        return _PORTFOLIO_CACHE
+    return None
 
 
 def clear_portfolio_cache() -> None:

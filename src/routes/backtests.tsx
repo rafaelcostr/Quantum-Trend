@@ -1,13 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader, Panel } from "@/components/ui/page";
+import { BacktestRunningBanner } from "@/components/backtests/BacktestRunningBanner";
 import {
+  BacktestMatrixAssetTabs,
   BacktestMatrixError,
-  BacktestMatrixSummary,
+  type BacktestMatrixSelection,
 } from "@/components/backtests/BacktestMatrixPanel";
-import { useRunBacktest, useRunBacktestAll, useRunWalkforward, useSettings, useBacktestMatrix } from "@/lib/queries";
-import type { BacktestOptions, BacktestAllProgress, OperationalTimeframe } from "@/lib/api";
+import { BacktestChartPanel } from "@/components/backtests/BacktestChartPanel";
+import {
+  useRunBacktest,
+  useRunBacktestAll,
+  useRunWalkforward,
+  useSettings,
+  useStrategies,
+  useBacktestMatrix,
+  useBacktestActiveJob,
+} from "@/lib/queries";
+import type { BacktestOptions, BacktestAllProgress, OperationalTimeframe, OperatedBase } from "@/lib/api";
 import { ApiError } from "@/lib/api";
+import { resolveRunningAsset, resolveRunningLabel } from "@/lib/backtest-running";
 import { Layers, Play, GitBranch } from "lucide-react";
 
 export const Route = createFileRoute("/backtests")({
@@ -15,71 +27,128 @@ export const Route = createFileRoute("/backtests")({
   component: Page,
 });
 
+const MATRIX_STRATEGY_COUNT = 15;
+const MATRIX_TIMEFRAMES = 3;
+const MATRIX_TOTAL = MATRIX_STRATEGY_COUNT * MATRIX_TIMEFRAMES;
+
 function Page() {
   const settings = useSettings();
+  const strategiesQuery = useStrategies();
   const matrix = useBacktestMatrix();
+  const activeJob = useBacktestActiveJob();
   const [batchProgress, setBatchProgress] = useState<BacktestAllProgress | null>(null);
   const backtest = useRunBacktest();
   const backtestAll = useRunBacktestAll(setBatchProgress);
   const walkforward = useRunWalkforward();
   const active = settings.data?.operational?.active;
-  const [strategy, setStrategy] = useState(active?.strategy ?? "mm200_trend_v2");
+  const [strategy, setStrategy] = useState(active?.strategy ?? "pullback_ema20_v1");
   const [timeframe, setTimeframe] = useState<OperationalTimeframe>(
     (active?.timeframe as OperationalTimeframe) ?? "4h",
   );
+  const [baseAsset, setBaseAsset] = useState<OperatedBase>("BTC");
+  const [matrixSelection, setMatrixSelection] = useState<BacktestMatrixSelection | null>(null);
 
-  const opts: BacktestOptions = { strategy, timeframe, quote: "USDT" };
-  const strategies = settings.data?.operational?.strategies ?? [];
+  const remoteRunning = activeJob.data?.active && activeJob.data.status === "running";
+  const runningProgress: BacktestAllProgress | null = backtestAll.isPending
+    ? batchProgress ?? (remoteRunning ? activeJob.data : null)
+    : remoteRunning
+      ? activeJob.data
+      : null;
+  const runningAsset = resolveRunningAsset(runningProgress);
+  const runningLabel = resolveRunningLabel(runningProgress);
+  const isRunning = !!runningProgress && runningProgress.status === "running";
+
+  useEffect(() => {
+    if (isRunning && runningAsset) {
+      setBaseAsset(runningAsset);
+    }
+  }, [isRunning, runningAsset]);
+
+  useEffect(() => {
+    if (backtestAll.isError) setBatchProgress(null);
+  }, [backtestAll.isError]);
+
+  const opts: BacktestOptions = { strategy, timeframe, quote: "USDT", base_asset: baseAsset };
+  const strategyItems = strategiesQuery.data?.items ?? settings.data?.operational?.strategies ?? [];
+  const bullItems = strategyItems.filter((s) => (s.market_type ?? s.strategy_category) === "bull");
+  const bearItems = strategyItems.filter((s) => (s.market_type ?? s.strategy_category) === "bear");
+  const rangeItems = strategyItems.filter((s) => (s.market_type ?? s.strategy_category) === "range");
+  const otherItems = strategyItems.filter(
+    (s) => !["bull", "bear", "range"].includes(s.market_type ?? s.strategy_category ?? ""),
+  );
   const savedMatrix = matrix.data;
   const liveBatch = backtestAll.data;
+
+  useEffect(() => {
+    if (!savedMatrix?.items.length || matrixSelection) return;
+    const row = savedMatrix.best_return ?? savedMatrix.items.find((i) => i.ok) ?? savedMatrix.items[0];
+    if (!row) return;
+    setMatrixSelection({
+      strategy: row.strategy,
+      timeframe: row.timeframe,
+      base_asset: (row.base_asset ?? baseAsset) as OperatedBase,
+    });
+  }, [savedMatrix, matrixSelection, baseAsset]);
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Laboratório de Backtests"
-        subtitle="Teste estratégias em 1H, 4H ou 1D — offline, sem alterar saldo demo."
+        subtitle="Teste estratégias em 1H, 4H ou 1D — offline, sem alterar saldo demo. Resultados separados por Alta, Baixa e Lateral."
       />
 
       <Panel title="Testar todas as estratégias (1H + 4H + 1D)">
         <p className="text-sm text-muted-foreground mb-4">
-          Roda <strong>11 estratégias × 3 timeframes = 33 backtests</strong>. Pode levar vários minutos
-          (download de candles + simulação). Resultados ficam salvos e aparecem em{" "}
-          <strong>Resultados</strong> mesmo ao trocar de página.
+          Roda <strong>{MATRIX_STRATEGY_COUNT} estratégias × {MATRIX_TIMEFRAMES} timeframes = {MATRIX_TOTAL} backtests</strong>{" "}
+          (8 Alta · 3 Baixa · 4 Lateral) no ativo selecionado (BTC ou ETH). Pode levar vários minutos.
         </p>
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <label className="text-sm flex items-center gap-2">
+            <span className="text-muted-foreground text-xs">Ativo</span>
+            <select
+              value={baseAsset}
+              onChange={(e) => setBaseAsset(e.target.value as OperatedBase)}
+              disabled={isRunning}
+              className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm disabled:opacity-50"
+            >
+              <option value="BTC">BTC/USDT</option>
+              <option value="ETH">ETH/USDT</option>
+            </select>
+          </label>
+        </div>
+        {isRunning && runningAsset && runningAsset !== baseAsset && (
+          <p className="text-xs text-warning mb-3">
+            Matriz de <strong>{runningLabel ?? runningAsset}</strong> em execução — aguarde terminar
+            ou reinicie a API para trocar de ativo.
+          </p>
+        )}
         <button
           onClick={() => {
-            setBatchProgress(null);
-            backtestAll.mutate();
+            setBatchProgress({
+              status: "running",
+              completed: 0,
+              total: MATRIX_TOTAL,
+              base_asset: baseAsset,
+              quote: "USDT",
+              asset_label: `${baseAsset}/USDT`,
+              current: `Preparando matriz · ${baseAsset}/USDT…`,
+            });
+            backtestAll.mutate(baseAsset);
           }}
-          disabled={backtestAll.isPending || backtest.isPending}
+          disabled={isRunning || backtest.isPending}
           className="inline-flex items-center gap-2 rounded-2xl bg-white/5 border border-white/10 px-6 py-3 text-sm font-semibold hover:bg-white/10 disabled:opacity-50"
         >
           <Layers className="h-5 w-5" />
-          {backtestAll.isPending ? "Executando matriz 1H + 4H + 1D…" : "Testar todas · 1H, 4H e 1D"}
+          {isRunning
+            ? `Matriz ${runningLabel ?? "…"} em execução…`
+            : `Testar todas · ${baseAsset}/USDT · 1H, 4H e 1D`}
         </button>
 
-        {backtestAll.isPending && batchProgress && batchProgress.total > 0 && (
-          <div className="mt-3 space-y-2">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{batchProgress.current ?? "Preparando…"}</span>
-              <span className="num">
-                {batchProgress.completed}/{batchProgress.total}
-              </span>
-            </div>
-            <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-[#7C3AED] to-[#3B82F6] transition-all duration-500"
-                style={{
-                  width: `${Math.min(100, Math.round((batchProgress.completed / batchProgress.total) * 100))}%`,
-                }}
-              />
-            </div>
-          </div>
-        )}
+        <BacktestRunningBanner progress={runningProgress} totalFallback={MATRIX_TOTAL} />
 
-        {!backtestAll.isPending && liveBatch && liveBatch.total_runs > 0 && savedMatrix && savedMatrix.items.length > 0 && (
+        {!isRunning && backtestAll.isSuccess && liveBatch && liveBatch.total_runs > 0 && (
           <div className="mt-4 text-sm">
-            Última execução:{" "}
+            Última execução ({liveBatch.base_asset ?? "BTC"}/USDT):{" "}
             <span className="num text-success">{liveBatch.completed}</span> / {liveBatch.total_runs} concluídos
           </div>
         )}
@@ -89,14 +158,19 @@ function Page() {
         )}
 
         {savedMatrix && savedMatrix.items.length > 0 && (
-          <div className="mt-4">
-            <BacktestMatrixSummary matrix={savedMatrix} />
+          <div className="mt-4 space-y-6">
+            <BacktestMatrixAssetTabs
+              matrix={savedMatrix}
+              selected={matrixSelection}
+              onSelect={setMatrixSelection}
+            />
+            {matrixSelection && <BacktestChartPanel selection={matrixSelection} />}
           </div>
         )}
 
-        {!matrix.isLoading && !savedMatrix?.items.length && !backtestAll.isPending && (
+        {!matrix.isLoading && !savedMatrix?.items.length && !isRunning && (
           <p className="text-sm text-muted-foreground mt-4">
-            Nenhuma matriz salva ainda. Clique em &quot;Testar todas&quot; para gerar os 33 relatórios.
+            Nenhuma matriz salva ainda. Clique em &quot;Testar todas&quot; para gerar os {MATRIX_TOTAL} relatórios.
           </p>
         )}
 
@@ -105,13 +179,29 @@ function Page() {
         )}
 
         {backtestAll.isError && (
-          <p className="text-destructive text-sm mt-2">
+          <div className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <strong>Falha na matriz:</strong>{" "}
             {backtestAll.error instanceof ApiError
               ? backtestAll.error.message
               : backtestAll.error instanceof Error
                 ? backtestAll.error.message
-                : "Falha na matriz — confirme que a API está ativa (python -m atlas.cli api)."}
-          </p>
+                : "Erro desconhecido — confirme que a API está ativa (python -m atlas.cli api)."}
+          </div>
+        )}
+
+        {!backtestAll.isPending && backtestAll.isSuccess && liveBatch && (liveBatch.failed ?? 0) > 0 && (
+          <div className="mt-4 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning space-y-2">
+            <p>
+              {liveBatch.completed}/{liveBatch.total_runs} concluídos · {liveBatch.failed} falha(s).
+            </p>
+            <ul className="text-xs space-y-1 list-disc pl-4">
+              {(liveBatch.errors ?? []).slice(0, 6).map((e) => (
+                <li key={`${e.strategy}-${e.timeframe}`}>
+                  <strong>{e.strategy}</strong> · {e.timeframe.toUpperCase()} — {e.error}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </Panel>
 
@@ -124,9 +214,45 @@ function Page() {
               onChange={(e) => setStrategy(e.target.value)}
               className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm"
             >
-              {strategies.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
+              {bullItems.length > 0 && (
+                <optgroup label="Estratégias de Alta">
+                  {bullItems.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              {bearItems.length > 0 && (
+                <optgroup label="Estratégias de Baixa">
+                  {bearItems.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              {rangeItems.length > 0 && (
+                <optgroup label="Estratégias Laterais">
+                  {rangeItems.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              {otherItems.length > 0 && (
+                <optgroup label="Outras">
+                  {otherItems.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </label>
+          <label className="text-sm space-y-1">
+            <span className="text-muted-foreground text-xs">Ativo</span>
+            <select
+              value={baseAsset}
+              onChange={(e) => setBaseAsset(e.target.value as OperatedBase)}
+              className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm"
+            >
+              <option value="BTC">BTC/USDT</option>
+              <option value="ETH">ETH/USDT</option>
             </select>
           </label>
           <label className="text-sm space-y-1">
@@ -145,7 +271,7 @@ function Page() {
         {backtest.data && (
           <div className="rounded-xl bg-white/[0.03] border border-white/5 p-4 text-sm space-y-1">
             <div>
-              {backtest.data.strategy} · {backtest.data.timeframe?.toUpperCase()} — Atlas Score:{" "}
+              {backtest.data.strategy} · {baseAsset}/USDT · {backtest.data.timeframe?.toUpperCase()} — Atlas Score:{" "}
               <span className="num text-gradient-primary">{backtest.data.metrics.atlas_score}</span>
             </div>
             <div>
@@ -164,14 +290,15 @@ function Page() {
       <div className="flex flex-wrap justify-center gap-4">
         <button
           onClick={() => backtest.mutate(opts)}
-          disabled={backtest.isPending || backtestAll.isPending}
+          disabled={backtest.isPending || isRunning}
           className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#7C3AED] to-[#3B82F6] px-8 py-4 text-base font-semibold glow-primary disabled:opacity-50"
         >
-          <Play className="h-5 w-5" /> {backtest.isPending ? "Executando…" : `Backtest ${timeframe.toUpperCase()}`}
+          <Play className="h-5 w-5" />{" "}
+          {backtest.isPending ? "Executando…" : `Backtest ${baseAsset} · ${timeframe.toUpperCase()}`}
         </button>
         <button
           onClick={() => walkforward.mutate(opts)}
-          disabled={walkforward.isPending || backtestAll.isPending}
+          disabled={walkforward.isPending || isRunning}
           className="inline-flex items-center gap-2 rounded-2xl bg-white/5 border border-white/10 px-8 py-4 text-base font-semibold hover:bg-white/10 disabled:opacity-50"
         >
           <GitBranch className="h-5 w-5" /> {walkforward.isPending ? "Walk-forward…" : "Walk-forward OOS"}

@@ -10,6 +10,7 @@ import pandas as pd
 from atlas.core.env import get_settings
 from atlas.core.log import logger
 from atlas.core.models import Candle, MarketTicker, Order, OrderResult, Position, Side
+from atlas.core.symbols import operated_market_watchlist
 
 ASSET_COLORS = {
     "BTC": "#F7931A",
@@ -26,20 +27,7 @@ ASSET_COLORS = {
     "MATIC": "#8247E5",
 }
 
-WATCHLIST = [
-    "BTC/USDT",
-    "ETH/USDT",
-    "SOL/USDT",
-    "BNB/USDT",
-    "XRP/USDT",
-    "AVAX/USDT",
-    "ADA/USDT",
-    "DOGE/USDT",
-    "LINK/USDT",
-    "MATIC/USDT",
-    "DOT/USDT",
-    "ATOM/USDT",
-]
+WATCHLIST = operated_market_watchlist()
 
 
 def _public_exchange() -> ccxt.binance:
@@ -344,7 +332,7 @@ class AccountSnapshot:
 
 _SNAPSHOT_CACHE: dict[bool, AccountSnapshot | None] = {}
 _SNAPSHOT_CACHE_AT: dict[bool, float] = {}
-_SNAPSHOT_TTL = 20.0
+_SNAPSHOT_TTL = 35.0
 
 _LAST_PRICE_CACHE: dict[str, tuple[float, float]] = {}
 _LAST_PRICE_TTL = 8.0

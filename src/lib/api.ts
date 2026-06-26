@@ -99,18 +99,28 @@ async function request<T>(path: string, init?: RequestInit & { timeoutMs?: numbe
 export const api = {
   health: () =>
     request<HealthResponse>("/health"),
-  dashboard: () => request<DashboardResponse>("/dashboard", { timeoutMs: 90_000 }),
-  quantumStatus: () => request<QuantumStatus>("/quantum/status", { timeoutMs: 45_000 }),
-  portfolio: () => request<PortfolioResponse>("/portfolio", { timeoutMs: 90_000 }),
-  markets: () => request<{ items: MarketTicker[] }>("/markets", { timeoutMs: 45_000 }),
+  dashboard: () => request<DashboardResponse>("/dashboard", { timeoutMs: 35_000 }),
+  quantumStatus: () => request<QuantumStatus>("/quantum/status", { timeoutMs: 30_000 }),
+  portfolio: () => request<PortfolioResponse>("/portfolio", { timeoutMs: 35_000 }),
+  markets: () => request<{ items: MarketTicker[] }>("/markets", { timeoutMs: 12_000 }),
+  marketChart: (base: string, timeframe: string, quote = "USDT") =>
+    request<MarketChartResponse>(
+      `/markets/chart?base=${encodeURIComponent(base)}&quote=${encodeURIComponent(quote)}&timeframe=${encodeURIComponent(timeframe)}`,
+      { timeoutMs: 25_000 },
+    ),
+  backtestChart: (strategy: string, timeframe: string, baseAsset: string = "BTC", quote = "USDT") =>
+    request<BacktestChartResponse>(
+      `/backtests/chart?strategy=${encodeURIComponent(strategy)}&timeframe=${encodeURIComponent(timeframe)}&base_asset=${encodeURIComponent(baseAsset)}&quote=${encodeURIComponent(quote)}`,
+      { timeoutMs: 60_000 },
+    ),
   positions: () => request<{ items: Position[] }>("/positions", { timeoutMs: 45_000 }),
   strategies: () => request<{ items: Strategy[] }>("/strategies"),
-  journal: () => request<{ items: JournalEntry[] }>("/journal"),
-  intelligence: () => request<IntelligenceResponse>("/intelligence", { timeoutMs: 45_000 }),
+  journal: () => request<{ items: JournalEntry[] }>("/journal", { timeoutMs: 15_000 }),
+  intelligence: () => request<IntelligenceResponse>("/intelligence", { timeoutMs: 15_000 }),
   intelligenceAnalysis: (strategy?: string) =>
-    request<IntelligenceAnalysis>(
+    request<IntelligenceAnalysis | null>(
       strategy ? `/intelligence/analysis?strategy=${encodeURIComponent(strategy)}` : "/intelligence/analysis",
-      { timeoutMs: 45_000 },
+      { timeoutMs: 60_000 },
     ),
   botStatus: () => request<BotStatus>("/bot/status"),
   botStart: () => request<BotStatus>("/bot/start", { method: "POST", timeoutMs: 120_000 }),
@@ -142,6 +152,7 @@ export const api = {
           strategy: opts.strategy ?? "mm200_trend_v2",
           timeframe: opts.timeframe ?? "4h",
           quote: opts.quote ?? "USDT",
+          base_asset: opts.base_asset ?? "BTC",
           config_path: opts.config_path,
         }),
       },
@@ -154,84 +165,125 @@ export const api = {
         strategy: opts.strategy ?? "mm200_trend_v2",
         timeframe: opts.timeframe ?? "4h",
         quote: opts.quote ?? "USDT",
+        base_asset: opts.base_asset ?? "BTC",
         config_path: opts.config_path,
         train_pct,
       }),
     }),
   backtestAllStatus: (jobId: string) =>
     request<BacktestAllJobResponse>(`/backtest/all/${encodeURIComponent(jobId)}`, {
-      timeoutMs: 30_000,
+      timeoutMs: 45_000,
+    }),
+  backtestAllActive: () =>
+    request<BacktestAllJobResponse & { active?: boolean }>("/backtest/all/active", {
+      timeoutMs: 15_000,
     }),
   backtestMatrix: (quote = "USDT") =>
     request<BacktestMatrixResponse>(`/backtest/matrix?quote=${encodeURIComponent(quote)}`),
   backtestAll: async (
     quote = "USDT",
+    baseAsset: OperatedBase = "BTC",
     onProgress?: (progress: BacktestAllProgress) => void,
   ): Promise<BacktestAllResponse> => {
-    const started = await request<BacktestAllJobResponse>("/backtest/all", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ timeframes: ["1h", "4h", "1d"], quote }),
-      timeoutMs: 60_000,
-    });
-
-    if (started.status === "done" && started.total_runs != null) {
-      return started as BacktestAllResponse;
-    }
-    // API antiga (resposta síncrona sem job_id) — compatível até reiniciar o servidor
-    if (!started.job_id && started.total_runs != null) {
-      return started as BacktestAllResponse;
-    }
-
-    const jobId = started.job_id;
-    if (!jobId) {
-      throw new ApiError("Resposta inválida ao iniciar matriz de backtests.", 500);
-    }
-
     const emit = (job: BacktestAllJobResponse) => {
       onProgress?.({
         completed: job.completed,
         total: job.total,
         current: job.current ?? undefined,
         status: job.status,
+        base_asset: job.base_asset,
+        quote: job.quote,
+        asset_label: job.asset_label,
       });
     };
-    emit(started);
 
-    const deadline = Date.now() + 600_000;
-    while (Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const job = await api.backtestAllStatus(jobId);
-      emit(job);
-      if (job.status === "done") {
-        return job as BacktestAllResponse;
+    const pollUntilDone = async (jobId: string): Promise<BacktestAllResponse> => {
+      const deadline = Date.now() + 7_200_000; // 2 h — 45 backtests podem levar bastante tempo
+      let idlePolls = 0;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, idlePolls > 0 ? 2500 : 800));
+        let job: BacktestAllJobResponse;
+        try {
+          job = await api.backtestAllStatus(jobId);
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 404) {
+            throw new ApiError(
+              "Job de backtest perdido — reinicie a API Python (python -m atlas.cli api) e rode a matriz novamente.",
+              404,
+            );
+          }
+          throw err;
+        }
+        emit(job);
+        if (job.status === "done") {
+          const okCount = job.items?.filter((i) => i.ok).length ?? job.completed ?? 0;
+          if (okCount === 0 && (job.failed ?? 0) > 0) {
+            const sample = job.errors?.[0]?.error ?? "Verifique logs da API.";
+            throw new ApiError(`Matriz concluída sem sucessos. ${sample}`, 500);
+          }
+          return job as BacktestAllResponse;
+        }
+        if (job.status === "error") {
+          throw new ApiError(job.error ?? "Matriz de backtests falhou.", 500);
+        }
+        idlePolls += 1;
       }
-      if (job.status === "error") {
-        throw new ApiError(job.error ?? "Matriz de backtests falhou.", 500);
-      }
+      throw new ApiError(
+        "Tempo esgotado (2h) aguardando matriz — deixe a API rodando ou teste menos estratégias.",
+        408,
+      );
+    };
+
+    let started: BacktestAllJobResponse;
+    try {
+      started = await request<BacktestAllJobResponse>("/backtest/all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timeframes: ["1h", "4h", "1d"], quote, base_asset: baseAsset }),
+        timeoutMs: 120_000,
+      });
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError("Falha ao iniciar matriz de backtests.", 500);
     }
-    throw new ApiError(
-      "Tempo esgotado aguardando matriz — a API pode estar sobrecarregada ou offline.",
-      408,
-    );
+
+    if (started.status === "done" && started.total_runs != null) {
+      return started as BacktestAllResponse;
+    }
+    if (!started.job_id && started.total_runs != null) {
+      return started as BacktestAllResponse;
+    }
+
+    const jobId = started.job_id;
+    if (!jobId) {
+      throw new ApiError(
+        "API desatualizada ou offline — reinicie com python -m atlas.cli api e tente novamente.",
+        500,
+      );
+    }
+
+    emit(started);
+    return pollUntilDone(jobId);
   },
   validation: () => request<ValidationResponse>("/validation"),
-  risk: () => request<RiskResponse>("/risk"),
+  risk: () => request<RiskResponse>("/risk", { timeoutMs: 20_000 }),
   updateRisk: (body: Partial<RiskSettings>) =>
     request<RiskResponse>("/risk", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
-  results: (opts?: { strategy?: string; timeframe?: string }) => {
+  results: (opts?: { strategy?: string; timeframe?: string; base_asset?: OperatedBase }) => {
+    const base = opts?.base_asset ?? "BTC";
     if (opts?.strategy && opts?.timeframe) {
       return request<ResultsResponse>(
-        `/results/${encodeURIComponent(opts.strategy)}/${encodeURIComponent(opts.timeframe)}`,
+        `/results/${encodeURIComponent(opts.strategy)}/${encodeURIComponent(opts.timeframe)}?base_asset=${base}`,
       );
     }
     const params = new URLSearchParams();
     if (opts?.strategy) params.set("strategy", opts.strategy);
     if (opts?.timeframe) params.set("timeframe", opts.timeframe);
+    params.set("base_asset", base);
     const q = params.toString();
     return request<ResultsResponse>(`/results${q ? `?${q}` : ""}`);
   },
@@ -273,10 +325,13 @@ export const api = {
   runStressTest: () => request<{ ok: boolean; reports: unknown[] }>("/platform/stress-test", { method: "POST" }),
 };
 
+export type OperatedBase = "BTC" | "ETH";
+
 export type BacktestOptions = {
   strategy?: string;
   timeframe?: OperationalTimeframe;
   quote?: string;
+  base_asset?: OperatedBase;
   config_path?: string;
 };
 
@@ -284,12 +339,25 @@ export type BacktestBatchItem = {
   strategy: string;
   strategy_label: string;
   timeframe: string;
+  market_type?: "bull" | "bear" | "range";
+  base_asset?: OperatedBase;
   ok: boolean;
   config_path?: string;
   report_path?: string;
   error?: string;
   result?: "lucro" | "prejuizo" | "empate";
   metrics?: BacktestMetrics;
+  period_start?: string | null;
+  period_end?: string | null;
+  period_days?: number | null;
+};
+
+export type BacktestMatrixGroup = {
+  market_type: "bull" | "bear" | "range";
+  label: string;
+  total: number;
+  best_return?: BacktestBatchItem | null;
+  items: BacktestBatchItem[];
 };
 
 export type BacktestAllProgress = {
@@ -297,6 +365,9 @@ export type BacktestAllProgress = {
   total: number;
   current?: string;
   status: string;
+  base_asset?: OperatedBase;
+  quote?: string;
+  asset_label?: string;
 };
 
 export type BacktestAllJobResponse = BacktestAllProgress & {
@@ -310,10 +381,13 @@ export type BacktestAllResponse = {
   total_runs: number;
   completed: number;
   failed: number;
+  strategy_count?: number;
   timeframes: string[];
   quote: string;
+  base_asset?: OperatedBase;
   best: BacktestBatchItem | null;
   items: BacktestBatchItem[];
+  groups?: BacktestMatrixGroup[];
   errors: { strategy: string; timeframe: string; error: string }[];
 };
 
@@ -323,6 +397,8 @@ export type BacktestMatrixResponse = {
   best_return: BacktestBatchItem | null;
   best_score: BacktestBatchItem | null;
   items: BacktestBatchItem[];
+  groups?: BacktestMatrixGroup[];
+  by_asset?: Partial<Record<OperatedBase, Omit<BacktestMatrixResponse, "by_asset">>>;
 };
 
 export type OperationalTimeframe = "1h" | "4h" | "1d";
@@ -331,12 +407,14 @@ export type OperationalUpdate = {
   strategy: string;
   timeframe: OperationalTimeframe;
   quote?: string;
+  base_asset?: OperatedBase;
 };
 
 export type PaperSlotConfig = {
   strategy: string;
   timeframe: OperationalTimeframe;
   quote?: string;
+  base?: OperatedBase;
   enabled: boolean;
 };
 
@@ -384,6 +462,10 @@ export type Strategy = {
   pf: number;
   dd: number;
   status: string;
+  market_type?: string;
+  strategy_category?: string;
+  trades?: number;
+  strategy_type?: string;
 };
 
 export type JournalEntry = {
@@ -411,6 +493,75 @@ export type MarketTicker = {
   change_pct: number;
   volume_24h: number;
   sparkline: number[];
+};
+
+export type MarketChartBar = {
+  t: number;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  ema20?: number | null;
+  ema200?: number | null;
+  bb_upper?: number | null;
+  bb_mid?: number | null;
+  bb_lower?: number | null;
+  supertrend?: number | null;
+};
+
+export type MarketChartResponse = {
+  symbol: string;
+  base: string;
+  timeframe: string;
+  bars: MarketChartBar[];
+  indicators?: string[];
+  updated_at?: string;
+  error?: string;
+};
+
+export type BacktestChartBar = {
+  t: number;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+};
+
+export type BacktestChartMarker = {
+  t: number;
+  kind: "entry" | "exit";
+  side: "long" | "short";
+  win: boolean;
+  pnl: number;
+  pnl_pct: number;
+  price?: number | null;
+  label?: string;
+  trade_index?: number;
+};
+
+export type BacktestChartResponse = {
+  symbol: string;
+  strategy: string;
+  strategy_label: string;
+  timeframe: string;
+  base: string;
+  period_start?: string | null;
+  period_end?: string | null;
+  bar_count?: number;
+  bars: BacktestChartBar[];
+  markers: BacktestChartMarker[];
+  summary?: {
+    trades: number;
+    wins: number;
+    losses: number;
+    win_rate_pct: number;
+    total_return_pct?: number | null;
+    profit_factor?: number | null;
+    max_drawdown_pct?: number | null;
+    atlas_score?: number | null;
+  };
+  updated_at?: string;
+  error?: string;
 };
 
 export type DashboardStats = {
@@ -557,6 +708,38 @@ export type PlatformStatus = {
   updated_at?: string;
 };
 
+export type MarketRegimeSnapshot = {
+  available: boolean;
+  symbol: string;
+  timeframe: string;
+  market_type: "bull" | "bear" | "range";
+  label: string;
+  suggestion: string;
+  strategies_route: string;
+  accent: "success" | "destructive" | "warning";
+  reason: string;
+  close: number | null;
+  ema200: number | null;
+  adx: number | null;
+  price_vs_ema_pct: number | null;
+  candle_at: string | null;
+  updated_at: string;
+  aligned_with_bot: boolean;
+  enabled_slots: number;
+  matching_slots: number;
+  active_market_types: string[];
+  active_market_labels: string[];
+  slot_details: {
+    strategy: string;
+    strategy_label: string;
+    timeframe: string;
+    market_type: string;
+    operates_now: boolean;
+  }[];
+  warning: string | null;
+  error: string | null;
+};
+
 export type DashboardResponse = {
   stats: DashboardStats;
   equity_curve: { day: string; equity: number }[];
@@ -565,6 +748,7 @@ export type DashboardResponse = {
   positions: Position[];
   flow: { label: string; status: string; pct: number; color: string }[];
   quantum?: QuantumStatus;
+  market_regime?: MarketRegimeSnapshot;
   platform?: PlatformStatus;
   account?: {
     equity_usdt: number;
@@ -587,14 +771,69 @@ export type IntelligenceResponse = {
   overall_score: number;
   strategies: Strategy[];
   heatmap: { sym: string; score: number }[];
-  analysis?: {
-    strategy?: string;
-    market?: string;
-    timeframe?: string;
-    level1: Level1Snapshot;
-    level2: Level2Snapshot | null;
-    level3: Level3Snapshot | null;
+  selection?: IntelligenceSelectionPayload;
+};
+
+export type IntelligencePick = {
+  strategy: string;
+  name: string;
+  timeframe: OperationalTimeframe;
+  quote?: string;
+  base?: OperatedBase;
+  enabled: boolean;
+  market_type: "bull" | "bear" | "range";
+  atlas_score?: number | null;
+  pf?: number | null;
+  winrate?: number | null;
+  dd?: number | null;
+  return_pct?: number | null;
+  source: "backtest" | "default";
+};
+
+export type IntelligenceRankedStrategy = {
+  rank: number;
+  strategy: string;
+  name: string;
+  timeframe: OperationalTimeframe;
+  market_type: "bull" | "bear" | "range";
+  atlas_score?: number | null;
+  pf: number;
+  winrate: number;
+  dd: number;
+  return_pct: number;
+};
+
+export type IntelligencePack = {
+  id: "bull_range" | "bear_range";
+  label: string;
+  description: string;
+  route: string;
+  peer_route: string;
+  trend_type: "bull" | "bear";
+  slots: IntelligencePick[];
+  backtest_count: number;
+};
+
+export type IntelligenceAssetSelection = {
+  base: OperatedBase;
+  atlas_score: number;
+  total_backtests: number;
+  groups: {
+    bull: IntelligenceRankedStrategy[];
+    bear: IntelligenceRankedStrategy[];
+    range: IntelligenceRankedStrategy[];
   };
+  packs: {
+    bull_range: IntelligencePack;
+    bear_range: IntelligencePack;
+  };
+};
+
+export type IntelligenceSelectionPayload = {
+  slots_per_asset: number;
+  trend_slots: number;
+  range_slots: number;
+  assets: IntelligenceAssetSelection[];
 };
 
 export type MetricReading = {
@@ -813,12 +1052,16 @@ export type SettingsResponse = {
     strategies: { id: string; name: string }[];
     timeframes: string[];
     quotes: string[];
+    bases?: OperatedBase[];
     max_slots?: number;
+    max_slots_per_base?: number;
     slots?: {
       strategy: string;
       strategy_label: string;
       timeframe: string;
       quote: string;
+      base?: OperatedBase;
+      symbol?: string;
       enabled: boolean;
       key: string;
     }[];

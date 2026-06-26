@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Panel } from "@/components/ui/page";
 import type { TradeOverlay } from "@/lib/operations-terminal";
-import { tvInterval } from "@/lib/operations-terminal";
+import { buildAdvancedChartConfig, tvBinanceSymbol } from "@/lib/tradingview-chart";
 
 type Props = {
   symbol: string;
@@ -85,7 +85,7 @@ function TradeLevelOverlay({ trade, refPrice }: { trade: TradeOverlay; refPrice:
 export function LiveTradingViewChart({ symbol, timeframe, price, trades, onSelectTrade }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoverTrade, setHoverTrade] = useState<TradeOverlay | null>(null);
-  const tvSymbol = symbol.includes(":") ? symbol : `BINANCE:${symbol.replace("/", "")}`;
+  const tvSymbol = tvBinanceSymbol(symbol);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -104,28 +104,10 @@ export function LiveTradingViewChart({ symbol, timeframe, price, trades, onSelec
     script.type = "text/javascript";
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     script.async = true;
-    script.innerHTML = JSON.stringify({
-      autosize: true,
-      symbol: tvSymbol,
-      interval: tvInterval(timeframe),
-      timezone: "America/Sao_Paulo",
-      theme: "dark",
-      style: "1",
-      locale: "br",
-      backgroundColor: "rgba(5, 8, 16, 1)",
-      gridColor: "rgba(255, 255, 255, 0.06)",
-      hide_top_toolbar: false,
-      hide_legend: false,
-      allow_symbol_change: false,
-      save_image: false,
-      calendar: false,
-      hide_volume: false,
-      support_host: "https://www.tradingview.com",
-      studies: ["STD;EMA%1%2020", "STD;EMA%1%20200", "STD;Supertrend%1%1"],
-    });
+    script.innerHTML = JSON.stringify(buildAdvancedChartConfig(symbol, timeframe));
     wrap.appendChild(script);
     el.appendChild(wrap);
-  }, [tvSymbol, timeframe]);
+  }, [tvSymbol, timeframe, symbol]);
 
   const active = hoverTrade ?? trades[0] ?? null;
   const refPrice = price ?? active?.current ?? active?.entry;
@@ -134,7 +116,7 @@ export function LiveTradingViewChart({ symbol, timeframe, price, trades, onSelec
     <Panel
       className="p-0 overflow-hidden"
       title="Gráfico ao vivo"
-      subtitle="TradingView · BTCUSDT · EMA20 · EMA200 · Supertrend · Volume"
+      subtitle={`TradingView · ${symbol.replace("/", "")} · EMA20 · EMA200 · Bollinger · Supertrend · ADX · RSI`}
       action={
         price != null ? (
           <span className="chip num text-sm">${price.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>

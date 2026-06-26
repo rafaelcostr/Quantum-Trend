@@ -49,7 +49,7 @@ npm.cmd run dev
 ## Estratégias 1H, 4H e 1D
 
 1. **Backtests** — escolha estratégia + gráfico **1H**, **4H** ou **1D**
-2. **Estratégias** — até 3 slots paralelos (ex.: MM200 · 1H + MM200 · 4H + Range · 1D)
+2. **Estratégias** — até 6 slots por moeda (BTC e ETH), até 12 no total (ex.: Pullback · 4H BTC + Supertrend · 1D ETH + …)
 3. **Dashboard** — Iniciar Paper usa os slots habilitados (poll ~15s em 1H, 30s em 4H, 3600s em 1D)
 
 Configs de backtest 1D: `config/backtest_mm200_v2_1d.yaml`, `config/backtest_daily_macro_1d.yaml`
@@ -70,7 +70,7 @@ docker compose up --build
 ```powershell
 # Backtest (uma estratégia ou todas)
 python -m atlas.cli backtest --config config/backtest_mm200_v2.yaml
-python -m atlas.cli backtest-all   # 11 estratégias × 1H + 4H + 1D
+python -m atlas.cli backtest-all   # 15 estratégias × 1H + 4H + 1D
 
 # Walk-forward (gate live)
 python -m atlas.cli research walkforward --config config/backtest_mm200_v2.yaml

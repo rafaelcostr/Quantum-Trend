@@ -19,6 +19,7 @@ from atlas.core.models import (
     TradingMode,
 )
 from atlas.core.risk import RiskManager
+from atlas.strategies.market_orchestrator import gate_strategy_by_regime
 from atlas.strategies.registry import build_strategy_from_config
 
 
@@ -104,17 +105,18 @@ class Backtester:
                 prev = row_to_indicator_snapshot(self.ind_df.iloc[i - 1])
                 snap["prev_bb_width"] = prev.get("bb_width")
                 snap["prev_close"] = float(self.candles[i - 1].close)
-            extra = {"_quantum_row": row} if self.multi_timeframe else {}
-            indicators = IndicatorSnapshot(timestamp=candle.timestamp, extra=extra, **snap)
             open_trade = trades[-1] if trades and not trades[-1].is_closed else None
             position = self.broker.get_position(self.config.exchange.symbol)
             if position and open_trade and open_trade.metadata:
                 position = position.model_copy(update={"metadata": open_trade.metadata})
+
             if self.multi_timeframe and hasattr(self.strategy, "evaluate_context"):
                 ctx = self.strategy.build_context(row, candle)
                 signal = self.strategy.evaluate_context(ctx, position)
             else:
-                signal = self.strategy.evaluate(candle, indicators, position)
+                indicators = IndicatorSnapshot(timestamp=candle.timestamp, **snap)
+                gate = gate_strategy_by_regime(self.strategy.name, candle, indicators)
+                signal = gate if gate is not None else self.strategy.evaluate(candle, indicators, position)
 
             if open_trade and signal.action == SignalAction.EXIT_LONG:
                 exit_price = candle.close
@@ -129,6 +131,23 @@ class Backtester:
                     open_trade.exit_price = result.filled_price or exit_price
                     open_trade.fees += result.fee
                     gross = (open_trade.exit_price - open_trade.entry_price) * open_trade.quantity
+                    open_trade.pnl = gross - open_trade.fees
+                    if open_trade.entry_price > 0:
+                        open_trade.pnl_pct = open_trade.pnl / (open_trade.entry_price * open_trade.quantity)
+
+            elif open_trade and signal.action == SignalAction.EXIT_SHORT:
+                exit_price = candle.close
+                if position and position.stop_price and candle.high >= position.stop_price:
+                    exit_price = position.stop_price
+                elif position and position.target_price and candle.low <= position.target_price:
+                    exit_price = position.target_price
+                order = Order(symbol=self.config.exchange.symbol, side=Side.BUY, quantity=open_trade.quantity)
+                result = self.broker.place_order(order)
+                if result.success:
+                    open_trade.exit_time = candle.timestamp
+                    open_trade.exit_price = result.filled_price or exit_price
+                    open_trade.fees += result.fee
+                    gross = (open_trade.entry_price - open_trade.exit_price) * open_trade.quantity
                     open_trade.pnl = gross - open_trade.fees
                     if open_trade.entry_price > 0:
                         open_trade.pnl_pct = open_trade.pnl / (open_trade.entry_price * open_trade.quantity)
@@ -173,6 +192,41 @@ class Backtester:
                                     metadata={"reason": signal.reason, **signal.metadata},
                                 )
                             )
+
+            elif (
+                signal.action == SignalAction.ENTER_SHORT
+                and open_trade is None
+                and not self.broker._pending_entry  # noqa: SLF001
+            ):
+                portfolio = PortfolioState(
+                    cash=self.broker.cash,
+                    equity=self.broker.equity(candle.close),
+                    position=position,
+                )
+                decision = self.risk.approve_entry(signal, portfolio, candle.timestamp, candle.close)
+                if decision.approved:
+                    order = Order(
+                        symbol=self.config.exchange.symbol,
+                        side=Side.SHORT,
+                        quantity=decision.quantity,
+                        stop_price=signal.stop_price,
+                    )
+                    result = self.broker.place_order(order)
+                    if result.success and self.broker.position:
+                        trades.append(
+                            Trade(
+                                symbol=self.config.exchange.symbol,
+                                side=Side.SHORT,
+                                entry_time=candle.timestamp,
+                                entry_price=result.filled_price or candle.close,
+                                quantity=result.filled_quantity or decision.quantity,
+                                stop_price=signal.stop_price,
+                                target_price=signal.target_price,
+                                fees=result.fee,
+                                strategy=self.strategy.name,
+                                metadata={"reason": signal.reason, **signal.metadata},
+                            )
+                        )
 
             equity_curve.append((candle.timestamp, self.broker.equity(candle.close)))
 

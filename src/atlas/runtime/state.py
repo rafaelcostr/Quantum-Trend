@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -11,9 +12,14 @@ from atlas.core.models import PositionDTO, Side, TradingMode
 from atlas.monitoring.alerts import get_alerts
 from atlas.runtime.bot_runner import bot_pool
 from atlas.runtime.live_gates import evaluate_live_gates
+from atlas.core.symbols import base_from_symbol
 from atlas.runtime.operational_config import enabled_paper_configs, resolve_active_config, slot_key
 from atlas.services.demo_account import entry_price_from_event, mark_price, open_entry_from_journal
 from atlas.strategies.mm200_trend_v2 import strategy_display_name
+
+_POSITIONS_CACHE: list[PositionDTO] | None = None
+_POSITIONS_CACHE_AT: float = 0.0
+_POSITIONS_TTL = 10.0
 
 
 @dataclass
@@ -35,12 +41,21 @@ class BotState:
 
         if mode == TradingMode.LIVE:
             cfg = resolve_active_config(live_running=True)
-            configs = [(slot_key(cfg.strategy.name, cfg.exchange.timeframe), cfg)]
+            configs = [
+                (
+                    slot_key(
+                        cfg.strategy.name,
+                        cfg.exchange.timeframe,
+                        base_from_symbol(cfg.exchange.symbol),
+                    ),
+                    cfg,
+                )
+            ]
         else:
             configs = enabled_paper_configs()
             if not configs:
                 raise RuntimeError(
-                    "Nenhuma estratégia habilitada — configure até 3 em Estratégias (4H e/ou 1D)"
+                    "Nenhuma estratégia habilitada — configure até 6 em Estratégias (4H e/ou 1D)"
                 )
 
         bot_pool.start_all(mode=mode, configs=configs)
@@ -144,6 +159,11 @@ def _position_from_engine(engine, cfg, *, current: float | None = None) -> Posit
 
 
 def build_positions() -> list[PositionDTO]:
+    global _POSITIONS_CACHE, _POSITIONS_CACHE_AT
+    now = time.time()
+    if _POSITIONS_CACHE is not None and (now - _POSITIONS_CACHE_AT) < _POSITIONS_TTL:
+        return _POSITIONS_CACHE
+
     cfg = active_config()
     symbol = cfg.exchange.symbol
     base = symbol.split("/")[0]
@@ -158,6 +178,8 @@ def build_positions() -> list[PositionDTO]:
             if pos:
                 positions.append(pos)
         if positions:
+            _POSITIONS_CACHE = positions
+            _POSITIONS_CACHE_AT = now
             return positions
 
     current = mark_price(symbol)
@@ -167,9 +189,11 @@ def build_positions() -> list[PositionDTO]:
         open_ev = open_entry_from_journal(mode=mode, symbol=symbol)
         entry = entry_price_from_event(open_ev) if open_ev else None
         if entry is None:
+            _POSITIONS_CACHE = []
+            _POSITIONS_CACHE_AT = now
             return []
         pnl = (current - entry) * qty
-        return [
+        positions = [
             PositionDTO(
                 asset=base,
                 side="LONG",
@@ -181,4 +205,9 @@ def build_positions() -> list[PositionDTO]:
                 color=asset_color(base),
             )
         ]
+        _POSITIONS_CACHE = positions
+        _POSITIONS_CACHE_AT = now
+        return positions
+    _POSITIONS_CACHE = []
+    _POSITIONS_CACHE_AT = now
     return []

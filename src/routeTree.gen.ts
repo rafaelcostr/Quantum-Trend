@@ -18,6 +18,9 @@ import { Route as OperacoesRouteImport } from './routes/operacoes'
 import { Route as MercadosRouteImport } from './routes/mercados'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as IaRouteImport } from './routes/ia'
+import { Route as EstrategiasLateralRouteImport } from './routes/estrategias-lateral'
+import { Route as EstrategiasBaixaRouteImport } from './routes/estrategias-baixa'
+import { Route as EstrategiasAltaRouteImport } from './routes/estrategias-alta'
 import { Route as EstrategiasRouteImport } from './routes/estrategias'
 import { Route as DiarioRouteImport } from './routes/diario'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
@@ -69,6 +72,21 @@ const IaRoute = IaRouteImport.update({
   path: '/ia',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EstrategiasLateralRoute = EstrategiasLateralRouteImport.update({
+  id: '/estrategias-lateral',
+  path: '/estrategias-lateral',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EstrategiasBaixaRoute = EstrategiasBaixaRouteImport.update({
+  id: '/estrategias-baixa',
+  path: '/estrategias-baixa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EstrategiasAltaRoute = EstrategiasAltaRouteImport.update({
+  id: '/estrategias-alta',
+  path: '/estrategias-alta',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EstrategiasRoute = EstrategiasRouteImport.update({
   id: '/estrategias',
   path: '/estrategias',
@@ -101,6 +119,9 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof ConfiguracoesRoute
   '/diario': typeof DiarioRoute
   '/estrategias': typeof EstrategiasRoute
+  '/estrategias-alta': typeof EstrategiasAltaRoute
+  '/estrategias-baixa': typeof EstrategiasBaixaRoute
+  '/estrategias-lateral': typeof EstrategiasLateralRoute
   '/ia': typeof IaRoute
   '/live': typeof LiveRoute
   '/mercados': typeof MercadosRoute
@@ -117,6 +138,9 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof ConfiguracoesRoute
   '/diario': typeof DiarioRoute
   '/estrategias': typeof EstrategiasRoute
+  '/estrategias-alta': typeof EstrategiasAltaRoute
+  '/estrategias-baixa': typeof EstrategiasBaixaRoute
+  '/estrategias-lateral': typeof EstrategiasLateralRoute
   '/ia': typeof IaRoute
   '/live': typeof LiveRoute
   '/mercados': typeof MercadosRoute
@@ -134,6 +158,9 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRoute
   '/diario': typeof DiarioRoute
   '/estrategias': typeof EstrategiasRoute
+  '/estrategias-alta': typeof EstrategiasAltaRoute
+  '/estrategias-baixa': typeof EstrategiasBaixaRoute
+  '/estrategias-lateral': typeof EstrategiasLateralRoute
   '/ia': typeof IaRoute
   '/live': typeof LiveRoute
   '/mercados': typeof MercadosRoute
@@ -152,6 +179,9 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/diario'
     | '/estrategias'
+    | '/estrategias-alta'
+    | '/estrategias-baixa'
+    | '/estrategias-lateral'
     | '/ia'
     | '/live'
     | '/mercados'
@@ -168,6 +198,9 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/diario'
     | '/estrategias'
+    | '/estrategias-alta'
+    | '/estrategias-baixa'
+    | '/estrategias-lateral'
     | '/ia'
     | '/live'
     | '/mercados'
@@ -184,6 +217,9 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/diario'
     | '/estrategias'
+    | '/estrategias-alta'
+    | '/estrategias-baixa'
+    | '/estrategias-lateral'
     | '/ia'
     | '/live'
     | '/mercados'
@@ -201,6 +237,9 @@ export interface RootRouteChildren {
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   DiarioRoute: typeof DiarioRoute
   EstrategiasRoute: typeof EstrategiasRoute
+  EstrategiasAltaRoute: typeof EstrategiasAltaRoute
+  EstrategiasBaixaRoute: typeof EstrategiasBaixaRoute
+  EstrategiasLateralRoute: typeof EstrategiasLateralRoute
   IaRoute: typeof IaRoute
   LiveRoute: typeof LiveRoute
   MercadosRoute: typeof MercadosRoute
@@ -277,6 +316,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/estrategias-lateral': {
+      id: '/estrategias-lateral'
+      path: '/estrategias-lateral'
+      fullPath: '/estrategias-lateral'
+      preLoaderRoute: typeof EstrategiasLateralRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/estrategias-baixa': {
+      id: '/estrategias-baixa'
+      path: '/estrategias-baixa'
+      fullPath: '/estrategias-baixa'
+      preLoaderRoute: typeof EstrategiasBaixaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/estrategias-alta': {
+      id: '/estrategias-alta'
+      path: '/estrategias-alta'
+      fullPath: '/estrategias-alta'
+      preLoaderRoute: typeof EstrategiasAltaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/estrategias': {
       id: '/estrategias'
       path: '/estrategias'
@@ -321,6 +381,9 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracoesRoute: ConfiguracoesRoute,
   DiarioRoute: DiarioRoute,
   EstrategiasRoute: EstrategiasRoute,
+  EstrategiasAltaRoute: EstrategiasAltaRoute,
+  EstrategiasBaixaRoute: EstrategiasBaixaRoute,
+  EstrategiasLateralRoute: EstrategiasLateralRoute,
   IaRoute: IaRoute,
   LiveRoute: LiveRoute,
   MercadosRoute: MercadosRoute,

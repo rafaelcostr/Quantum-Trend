@@ -10,6 +10,7 @@ import type {
   QuantumStatus,
   RiskResponse,
 } from "./api";
+import { tvInterval as tvIntervalFromChart } from "./tradingview-chart";
 
 export type StrategyVisualId = "pullback" | "breakout" | "supertrend";
 export type HealthTone = "healthy" | "attention" | "degraded";
@@ -138,9 +139,9 @@ export function fmtCountdown(totalSec: number | null | undefined): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-export function fmtUptime(startedAt: string | null | undefined): string {
+export function fmtUptime(startedAt: string | null | undefined, now = Date.now()): string {
   if (!startedAt) return "—";
-  const ms = Date.now() - new Date(startedAt).getTime();
+  const ms = now - new Date(startedAt).getTime();
   if (ms < 0 || Number.isNaN(ms)) return "—";
   const h = Math.floor(ms / 3_600_000);
   const m = Math.floor((ms % 3_600_000) / 60_000);
@@ -149,13 +150,24 @@ export function fmtUptime(startedAt: string | null | undefined): string {
   return "<1m";
 }
 
+/** Cronômetro HH:MM:SS (ou Nd HH:MM:SS) — atualizar a cada 1s no client. */
+export function fmtUptimeClock(startedAt: string | null | undefined, now = Date.now()): string {
+  if (!startedAt) return "00:00:00";
+  const ms = now - new Date(startedAt).getTime();
+  if (ms < 0 || Number.isNaN(ms)) return "00:00:00";
+
+  const totalSec = Math.floor(ms / 1000);
+  const d = Math.floor(totalSec / 86_400);
+  const h = Math.floor((totalSec % 86_400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const clock = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  return d > 0 ? `${d}d ${clock}` : clock;
+}
+
 export function tvInterval(timeframe: string): string {
-  const tf = timeframe.toLowerCase();
-  if (tf === "1d" || tf === "d") return "D";
-  if (tf === "4h") return "240";
-  if (tf === "1h") return "60";
-  if (tf === "15m") return "15";
-  return "240";
+  return tvIntervalFromChart(timeframe);
 }
 
 export function healthToneFromScore(score: number): HealthTone {

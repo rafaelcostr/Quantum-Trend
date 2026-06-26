@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,6 +14,16 @@ from atlas.intelligence.research_store import load_walkforward
 from atlas.research.backtester import load_latest_report
 from atlas.runtime.journal import Journal
 from atlas.runtime.operational_config import resolve_active_config
+
+_LIVE_GATES_CACHE: dict[str, Any] | None = None
+_LIVE_GATES_CACHE_AT: float = 0.0
+_LIVE_GATES_TTL = 90.0
+
+
+def clear_live_gates_cache() -> None:
+    global _LIVE_GATES_CACHE, _LIVE_GATES_CACHE_AT
+    _LIVE_GATES_CACHE = None
+    _LIVE_GATES_CACHE_AT = 0.0
 
 
 def _level3_gate_values(strategy: str) -> dict[str, Any] | None:
@@ -80,6 +91,11 @@ def _backtest_values(cfg_strategy: str) -> dict[str, Any] | None:
 
 def evaluate_live_gates() -> dict[str, Any]:
     """Checklist obrigatório antes de habilitar trading live."""
+    global _LIVE_GATES_CACHE, _LIVE_GATES_CACHE_AT
+    now = time.time()
+    if _LIVE_GATES_CACHE and (now - _LIVE_GATES_CACHE_AT) < _LIVE_GATES_TTL:
+        return _LIVE_GATES_CACHE
+
     from atlas.runtime.state import bot_state
 
     cfg = resolve_active_config(live_running=False)
@@ -148,7 +164,7 @@ def evaluate_live_gates() -> dict[str, Any]:
         add("Relatório de backtest disponível", False, "rode um backtest primeiro")
 
     eligible = len(blocking) == 0
-    return {
+    payload = {
         "eligible": eligible,
         "checks": checks,
         "checks_passed": sum(1 for c in checks if c["ok"]),
@@ -160,3 +176,6 @@ def evaluate_live_gates() -> dict[str, Any]:
         "live_strategy": live_cfg.strategy.name,
         "requires_opt_in": True,
     }
+    _LIVE_GATES_CACHE = payload
+    _LIVE_GATES_CACHE_AT = now
+    return payload

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from atlas.quantum.core_strategy import build_quantum_trend_pro
+from atlas.strategies.bear import BEAR_STRATEGY_BUILDERS
 from atlas.strategies.bb_squeeze_v1 import BBSqueezeV1, build_bb_squeeze
 from atlas.strategies.breakout_high20_v1 import BreakoutHigh20V1, build_breakout_high20_v1
 from atlas.strategies.mm200_daily_macro_v1 import MM200DailyMacroV1, build_mm200_daily_macro_v1
@@ -26,6 +27,7 @@ STRATEGY_BUILDERS = {
     "breakout_high20_v1": build_breakout_high20_v1,
     "supertrend_mm200_v1": build_supertrend_mm200_v1,
     "quantum_trend_pro": build_quantum_trend_pro,
+    **BEAR_STRATEGY_BUILDERS,
 }
 
 

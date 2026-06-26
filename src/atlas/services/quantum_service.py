@@ -1,6 +1,7 @@
 """Serviços QuantumTrend Pro — portfolio, status e métricas institucionais."""
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 
 from atlas.core.models import TradingMode
@@ -26,7 +27,23 @@ def resolve_bot_phase() -> str:
     return "demo"
 
 
+_QUANTUM_CACHE: dict | None = None
+_QUANTUM_CACHE_AT: float = 0.0
+_QUANTUM_TTL = 12.0
+
+
+def clear_quantum_cache() -> None:
+    global _QUANTUM_CACHE, _QUANTUM_CACHE_AT
+    _QUANTUM_CACHE = None
+    _QUANTUM_CACHE_AT = 0.0
+
+
 def get_quantum_status() -> dict:
+    global _QUANTUM_CACHE, _QUANTUM_CACHE_AT
+    now = time.time()
+    if _QUANTUM_CACHE and (now - _QUANTUM_CACHE_AT) < _QUANTUM_TTL:
+        return _QUANTUM_CACHE
+
     cfg = active_config()
     runtime = get_runtime_snapshot()
     phase = runtime.get("bot_phase") or resolve_bot_phase()
@@ -66,7 +83,7 @@ def get_quantum_status() -> dict:
         except Exception:
             pass
 
-    return {
+    payload = {
         "strategy": cfg.strategy.name,
         "bot_phase": phase,
         "alignment_score": runtime.get("alignment_score", 0),
@@ -87,6 +104,9 @@ def get_quantum_status() -> dict:
         "rejected_modules": runtime.get("rejected_modules") or [],
         "updated_at": runtime.get("updated_at"),
     }
+    _QUANTUM_CACHE = payload
+    _QUANTUM_CACHE_AT = now
+    return payload
 
 
 def _default_module_status() -> dict[str, dict[str, object]]:
@@ -117,6 +137,12 @@ def _module_health_from_report(report: dict | None) -> dict[str, float]:
 
 
 def get_portfolio_payload() -> dict:
+    from atlas.services.portfolio_analytics import get_enriched_portfolio_payload, peek_portfolio_cache
+
+    cached = peek_portfolio_cache()
+    if cached:
+        return cached
+
     cfg = active_config()
     live = bot_state.running and bot_state.mode == TradingMode.LIVE
     mode = TradingMode.LIVE if live else TradingMode.PAPER
@@ -153,8 +179,6 @@ def get_portfolio_payload() -> dict:
         "monthly_returns": monthly[-12:],
         "risk": risk.to_dict(),
     }
-
-    from atlas.services.portfolio_analytics import get_enriched_portfolio_payload
 
     return get_enriched_portfolio_payload(base)
 

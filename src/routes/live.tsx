@@ -16,14 +16,14 @@ export const Route = createFileRoute("/live")({
 });
 
 function LivePage() {
-  const { data, isLoading, error } = useLive();
+  const { data, isLoading, isPending, error } = useLive();
   const feed = useOperationsFeed();
   const bot = useBotToggle();
   const [confirm, setConfirm] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  if (isLoading) return <div className="text-muted-foreground text-sm">Carregando gates live…</div>;
-  if (error || !data) {
+  if ((isLoading || isPending) && !data) return <div className="text-muted-foreground text-sm">Carregando gates live…</div>;
+  if (error && !data) {
     const detail =
       error instanceof Error
         ? error.message.slice(0, 400)

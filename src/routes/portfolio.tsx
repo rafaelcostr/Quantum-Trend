@@ -9,9 +9,9 @@ export const Route = createFileRoute("/portfolio")({
 });
 
 function PortfolioPage() {
-  const { data, isPending, error, isError } = usePortfolio();
+  const { data, isPending, error, isError, isFetching } = usePortfolio();
 
-  if (!isBrowser || isPending) {
+  if (!isBrowser || (isPending && !data)) {
     return (
       <div className="text-muted-foreground text-sm space-y-2 py-12 text-center">
         <p>Carregando portfolio…</p>
@@ -19,7 +19,7 @@ function PortfolioPage() {
       </div>
     );
   }
-  if (isError || !data) {
+  if ((isError && !data) || !data) {
     return <div className="text-destructive text-sm">{error instanceof Error ? error.message : "Erro ao carregar portfolio."}</div>;
   }
 
@@ -29,6 +29,9 @@ function PortfolioPage() {
         title="Portfolio"
         subtitle="Visão institucional — patrimônio, drawdown, estratégias, alocação e health score."
       />
+      {isFetching && (
+        <p className="text-xs text-muted-foreground text-center">Atualizando dados…</p>
+      )}
       <PortfolioView data={data} />
     </div>
   );

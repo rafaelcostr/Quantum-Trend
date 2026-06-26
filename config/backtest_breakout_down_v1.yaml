@@ -1,0 +1,33 @@
+mode: backtest
+
+exchange:
+  id: binance
+  symbol: BTC/USDT
+  timeframe: 4h
+
+strategy:
+  name: breakout_down_v1
+  params:
+    breakout_lookback: 20
+    volume_mult: 1.0
+    risk_reward: 2.0
+    warmup_bars: 210
+    ema_fast: 20
+    ema_slow: 200
+    adx_period: 14
+
+risk:
+  initial_capital: 10000.0
+  risk_per_trade: 0.01
+  max_open_positions: 1
+  max_daily_drawdown: 0.03
+  max_weekly_drawdown: 0.08
+
+execution:
+  fee_rate: 0.001
+  slippage_rate: 0.0005
+  entry_on_next_open: true
+
+data:
+  years: 0
+  cache_dir: data/cache

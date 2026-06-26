@@ -38,10 +38,16 @@ def load_report(path: str | Path) -> ReportBundle:
 
 
 def discover_reports(reports_dir: str | Path) -> list[Path]:
+    from atlas.core.symbols import is_backtest_report_filename
+
     reports_dir = Path(reports_dir)
     if not reports_dir.is_dir():
         return []
-    return sorted(reports_dir.glob("*_report.json"))
+    return sorted(
+        path
+        for path in reports_dir.glob("*.json")
+        if is_backtest_report_filename(path.name)
+    )
 
 
 def compute_expectancy(trades: list[dict[str, Any]], initial_capital: float) -> float:

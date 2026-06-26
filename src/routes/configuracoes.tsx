@@ -68,7 +68,11 @@ function Page() {
             <div className="flex justify-between"><span className="text-muted-foreground">Gráfico</span><span className="uppercase">{data.system.timeframe}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Poll bot</span><span>{data.system.poll_seconds}s</span></div>
           </div>
-          <Link to="/estrategias" className="inline-block mt-4 text-xs text-secondary hover:underline">Trocar estratégia / timeframe →</Link>
+          <div className="mt-4 flex flex-wrap gap-3 text-xs">
+            <Link to="/estrategias-alta" className="text-secondary hover:underline">Estratégias de Alta →</Link>
+            <Link to="/estrategias-baixa" className="text-destructive hover:underline">Estratégias de Baixa →</Link>
+            <Link to="/estrategias-lateral" className="text-warning hover:underline">Estratégias Laterais →</Link>
+          </div>
         </Panel>
 
         <Panel title="Kill Switch">

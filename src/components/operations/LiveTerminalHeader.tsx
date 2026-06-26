@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Activity, Clock, DollarSign, Gauge, Layers, Radio, Timer, TrendingUp, Wifi, Zap } from "lucide-react";
 import type { BotStatus, DashboardStats, PlatformStatus, QuantumStatus } from "@/lib/api";
 import {
@@ -7,6 +8,7 @@ import {
   inferRegime,
   type HeaderMetrics,
 } from "@/lib/operations-terminal";
+import { BotUptimeTimer } from "./BotUptimeTimer";
 
 type Props = {
   stats: DashboardStats;
@@ -36,7 +38,12 @@ export function LiveTerminalHeader({
   const alignment = stats.alignment_score || platform?.alignment_score || quantum?.alignment_score || 0;
   const health = stats.health_score || platform?.system_health || quantum?.health_score || 0;
 
-  const chips = [
+  const chips: {
+    icon: typeof Radio;
+    label: string;
+    value: ReactNode;
+    tone?: string;
+  }[] = [
     {
       icon: Radio,
       label: "Bot",
@@ -61,7 +68,11 @@ export function LiveTerminalHeader({
       label: "Latência",
       value: metrics.latencyMs != null ? `${metrics.latencyMs}ms` : "—",
     },
-    { icon: Timer, label: "Uptime", value: metrics.uptime },
+    {
+      icon: Timer,
+      label: "Cronômetro",
+      value: <BotUptimeTimer startedAt={bot.started_at} running={running} className="text-sm font-semibold text-success" />,
+    },
     {
       icon: Clock,
       label: "Próximo tick",
@@ -72,11 +83,19 @@ export function LiveTerminalHeader({
   return (
     <div className="glass rounded-2xl border border-white/10 overflow-hidden">
       <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-white/5 bg-white/[0.02]">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          <span className={`h-2 w-2 rounded-full ${running ? "bg-success animate-pulse" : "bg-muted-foreground"}`} />
-          Quantum Trend Terminal · Runtime
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground shrink-0">
+            <span className={`h-2 w-2 rounded-full ${running ? "bg-success animate-pulse" : "bg-muted-foreground"}`} />
+            Quantum Trend Terminal · Runtime
+          </div>
+          {running && (
+            <div className="hidden sm:flex items-center gap-2 rounded-lg border border-success/25 bg-success/10 px-2.5 py-1 text-xs">
+              <Timer className="h-3.5 w-3.5 text-success shrink-0" />
+              <BotUptimeTimer startedAt={bot.started_at} running={running} className="text-success font-semibold" showLabel />
+            </div>
+          )}
         </div>
-        <span className={`chip text-[10px] ${mode === "live" ? "text-destructive" : "text-success"}`}>
+        <span className={`chip text-[10px] shrink-0 ${mode === "live" ? "text-destructive" : "text-success"}`}>
           {mode === "live" ? "LIVE" : "PAPER"}
         </span>
       </div>

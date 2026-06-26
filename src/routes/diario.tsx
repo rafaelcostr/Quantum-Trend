@@ -15,11 +15,11 @@ function label(entry: JournalEntry) {
 }
 
 function Page() {
-  const { data, isLoading, error } = useJournal();
+  const { data, isPending, error, isError, isFetching } = useJournal();
   const [sel, setSel] = useState(0);
 
-  if (isLoading) return <div className="text-muted-foreground text-sm">Carregando journal…</div>;
-  if (error || !data || data.items.length === 0) {
+  if (isPending && !data) return <div className="text-muted-foreground text-sm">Carregando journal…</div>;
+  if ((isError && !data) || !data || data.items.length === 0) {
     return <div className="text-muted-foreground text-sm">Nenhuma operação registrada ainda. Inicie o bot paper para popular o journal automático.</div>;
   }
 
@@ -29,6 +29,9 @@ function Page() {
   return (
     <div className="space-y-8">
       <PageHeader title="Journal Automático" subtitle="Horário, motivo, score, regime e indicadores no momento da operação." />
+      {isFetching && (
+        <p className="text-xs text-muted-foreground">Atualizando entradas…</p>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <Panel className="xl:col-span-2">

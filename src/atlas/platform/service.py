@@ -14,9 +14,10 @@ from atlas.runtime.bot_runner import bot_pool
 from atlas.runtime.state import bot_state
 
 
-def get_platform_status() -> dict[str, Any]:
+def get_platform_status(*, quantum: dict[str, Any] | None = None) -> dict[str, Any]:
     state = load_platform_state()
-    quantum = get_quantum_status()
+    if quantum is None:
+        quantum = get_quantum_status()
     engine = collect_engine_metrics()
     sm = state_machine_payload()
     data_q = state.get("data_quality") or {}
@@ -71,8 +72,8 @@ def get_platform_status() -> dict[str, Any]:
     }
 
 
-def get_platform_dashboard_payload() -> dict[str, Any]:
-    return get_platform_status()
+def get_platform_dashboard_payload(*, quantum: dict[str, Any] | None = None) -> dict[str, Any]:
+    return get_platform_status(quantum=quantum)
 
 
 def run_stress_tests() -> list[dict[str, Any]]:

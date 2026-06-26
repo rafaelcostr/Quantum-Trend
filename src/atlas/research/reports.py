@@ -5,13 +5,19 @@ import json
 from pathlib import Path
 
 from atlas.core.env import project_root
-from atlas.core.symbols import quote_from_symbol, report_name_stem
+from atlas.core.symbols import quote_from_symbol, report_json_candidates, report_name_stem
 
 
 def report_path_for_config(config) -> Path:
     quote = quote_from_symbol(config.exchange.symbol)
-    stem = report_name_stem(config.strategy.name, config.exchange.timeframe, quote)
-    return project_root() / "data" / "reports" / f"{stem}.json"
+    base = config.exchange.symbol.split("/")[0]
+    stem = report_name_stem(config.strategy.name, config.exchange.timeframe, quote, base)
+    reports_dir = project_root() / "data" / "reports"
+    for filename in report_json_candidates(stem):
+        path = reports_dir / filename
+        if path.is_file():
+            return path
+    return reports_dir / report_json_candidates(stem)[0]
 
 
 def load_report_for_config(config) -> dict | None:
@@ -28,12 +34,21 @@ def load_report_by_strategy_timeframe(
     timeframe: str,
     *,
     quote: str = "USDT",
+    base: str = "BTC",
 ) -> dict | None:
-    stem = report_name_stem(strategy, timeframe.lower(), quote)
-    path = project_root() / "data" / "reports" / f"{stem}.json"
-    if path.is_file():
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        return _normalize_report(raw)
+    stem = report_name_stem(strategy, timeframe.lower(), quote, base)
+    reports_dir = project_root() / "data" / "reports"
+    for filename in report_json_candidates(stem):
+        path = reports_dir / filename
+        if path.is_file():
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            return _normalize_report(raw)
+    legacy_stem = report_name_stem(strategy, timeframe.lower(), quote)
+    for filename in report_json_candidates(legacy_stem):
+        path = reports_dir / filename
+        if base.upper() == "BTC" and path.is_file():
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            return _normalize_report(raw)
     return load_latest_report(strategy)
 
 

@@ -1,9 +1,16 @@
 """Simbolos de mercado e nomes de relatorios."""
 from __future__ import annotations
 
+import re
+
 QUOTE_ASSETS = ("USDT", "USDC")
+OPERATED_BASES = ("BTC", "ETH")
 REPORT_QUOTES = ("usdt", "usdc")
 REPORT_TIMEFRAMES = ("4h", "1d", "1h")
+BACKTEST_REPORT_JSON = re.compile(
+    r"^.+_(?:1h|4h|1d)_(?:usdt|usdc)(?:_(?:btc|eth))?(?:_report)?\.json$",
+    re.IGNORECASE,
+)
 
 
 def quote_from_symbol(symbol: str, default: str = "USDT") -> str:
@@ -11,13 +18,88 @@ def quote_from_symbol(symbol: str, default: str = "USDT") -> str:
     return q if q in QUOTE_ASSETS else default
 
 
-def report_name_stem(strategy: str, timeframe: str, quote: str) -> str:
-    return f"{strategy}_{timeframe.lower()}_{quote.lower()}_report"
+def base_from_symbol(symbol: str, default: str = "BTC") -> str:
+    base = symbol.split("/")[0].upper()
+    return base if base in OPERATED_BASES else default
 
 
-def parse_strategy_from_report_name(report_stem: str) -> tuple[str, str | None, str | None]:
+def validate_operated_base(base: str) -> str:
+    b = base.upper()
+    if b not in OPERATED_BASES:
+        raise ValueError(f"Ativo inválido: {base}. Use BTC ou ETH.")
+    return b
+
+
+def build_symbol(base: str, quote: str = "USDT") -> str:
+    b = validate_operated_base(base)
+    q = quote.upper()
+    if q not in QUOTE_ASSETS:
+        raise ValueError(f"Quote invalido: {quote}. Use USDT ou USDC.")
+    return f"{b}/{q}"
+
+
+def operated_symbols(*, quote: str = "USDT") -> list[str]:
+    q = quote.upper()
+    if q not in QUOTE_ASSETS:
+        q = "USDT"
+    return [build_symbol(base, q) for base in OPERATED_BASES]
+
+
+def operated_market_watchlist() -> list[str]:
+    """Pares spot exibidos e monitorados (USDT)."""
+    return operated_symbols(quote="USDT")
+
+
+REPORT_BASES = ("btc", "eth")
+
+
+def report_name_stem(strategy: str, timeframe: str, quote: str, base: str | None = None) -> str:
+    stem = f"{strategy}_{timeframe.lower()}_{quote.lower()}"
+    if base:
+        stem = f"{stem}_{base.lower()}"
+    return stem
+
+
+def report_json_basename(stem: str) -> str:
+    """Nome do arquivo JSON de backtest (sempre com sufixo _report)."""
+    base = stem.removesuffix("_report") if stem.endswith("_report") else stem
+    return f"{base}_report.json"
+
+
+def report_json_candidates(stem: str) -> tuple[str, ...]:
+    """Nomes possíveis ao ler relatórios (novo + legado sem _report)."""
+    base = stem.removesuffix("_report") if stem.endswith("_report") else stem
+    return (f"{base}_report.json", f"{base}.json")
+
+
+def is_backtest_report_filename(filename: str) -> bool:
+    lower = filename.lower()
+    if "walkforward" in lower or lower.startswith("compare"):
+        return False
+    if BACKTEST_REPORT_JSON.match(filename):
+        return True
+    if not lower.endswith("_report.json"):
+        return False
+    stem = report_stem_from_filename(filename)
+    strategy, _, _, _ = parse_strategy_from_report_name(stem)
+    return strategy != "unknown"
+
+
+def report_stem_from_filename(filename: str) -> str:
+    return filename[:-5] if filename.lower().endswith(".json") else filename
+
+
+def parse_strategy_from_report_name(report_stem: str) -> tuple[str, str | None, str | None, str | None]:
     name = report_stem.removesuffix("_report") if report_stem.endswith("_report") else report_stem
     quote: str | None = None
+    base: str | None = None
+    for b in REPORT_BASES:
+        suffix = f"_{b}"
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+            base = b.upper()
+            break
+
     for q in REPORT_QUOTES:
         suffix = f"_{q}"
         if name.endswith(suffix):
@@ -35,4 +117,4 @@ def parse_strategy_from_report_name(report_stem: str) -> tuple[str, str | None, 
 
     if name == "backtest":
         name = "unknown"
-    return name, timeframe, quote
+    return name, timeframe, quote, base

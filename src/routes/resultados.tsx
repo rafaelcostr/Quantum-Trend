@@ -3,40 +3,68 @@ import { useEffect, useState } from "react";
 import { PageHeader, Panel } from "@/components/ui/page";
 import { StatCard } from "@/components/widgets/StatCard";
 import {
+  BacktestMatrixAssetTabs,
   BacktestMatrixError,
-  BacktestMatrixTable,
+  BacktestMatrixSelection,
   formatReturn,
 } from "@/components/backtests/BacktestMatrixPanel";
+import { filterMatrixByAsset } from "@/lib/backtest-matrix-groups";
 import { Wallet, Target, Gauge, Activity, TrendingUp, ShieldAlert } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { useBacktestMatrix, useResults } from "@/lib/queries";
-import type { BacktestMetrics, ResultsResponse } from "@/lib/api";
+import { useBacktestMatrix, useResults, useBacktestActiveJob } from "@/lib/queries";
+import type { BacktestBatchItem, BacktestMetrics, ResultsResponse } from "@/lib/api";
+import { formatBacktestPeriodLong } from "@/lib/backtest-period";
+import { BacktestRunningBanner } from "@/components/backtests/BacktestRunningBanner";
 
 export const Route = createFileRoute("/resultados")({
   head: () => ({ meta: [{ title: "Resultados · Quantum-Trend" }] }),
   component: Page,
 });
 
-type Selection = { strategy: string; timeframe: string };
+type Selection = BacktestMatrixSelection;
 
 function Page() {
   const matrix = useBacktestMatrix();
+  const activeJob = useBacktestActiveJob();
   const [selected, setSelected] = useState<Selection | null>(null);
   const results = useResults(selected);
 
+  const remoteRunning = activeJob.data?.active && activeJob.data.status === "running";
+  const runningProgress = remoteRunning ? activeJob.data : null;
+
   const items = matrix.data?.items ?? [];
+  const activeAsset = selected?.base_asset ?? "BTC";
+  const assetItems = matrix.data ? filterMatrixByAsset(matrix.data, activeAsset).items : [];
 
   useEffect(() => {
-    if (items.length === 0) {
+    if (!matrix.data || items.length === 0) {
       setSelected(null);
       return;
     }
-    if (selected) return;
-    const pick = matrix.data?.best_return ?? items[0];
-    setSelected({ strategy: pick.strategy, timeframe: pick.timeframe });
-  }, [items, matrix.data?.best_return, selected]);
+    if (selected) {
+      const slice = filterMatrixByAsset(matrix.data, selected.base_asset);
+      const still = slice.items.find(
+        (i) => i.strategy === selected.strategy && i.timeframe === selected.timeframe,
+      );
+      if (still) return;
+    }
+    const btc = filterMatrixByAsset(matrix.data, "BTC");
+    const eth = filterMatrixByAsset(matrix.data, "ETH");
+    const pick =
+      (btc.best_return && { ...btc.best_return, base_asset: "BTC" as const }) ||
+      (eth.best_return && { ...eth.best_return, base_asset: "ETH" as const }) ||
+      (btc.items[0] && { strategy: btc.items[0].strategy, timeframe: btc.items[0].timeframe, base_asset: "BTC" as const }) ||
+      (eth.items[0] && { strategy: eth.items[0].strategy, timeframe: eth.items[0].timeframe, base_asset: "ETH" as const });
+    if (pick) {
+      setSelected({
+        strategy: pick.strategy,
+        timeframe: pick.timeframe,
+        base_asset: pick.base_asset,
+      });
+    }
+  }, [matrix.data, items.length]);
 
-  const selectedItem = items.find(
+  const selectedItem = assetItems.find(
     (i) => i.strategy === selected?.strategy && i.timeframe === selected?.timeframe,
   );
 
@@ -51,6 +79,8 @@ function Page() {
         title="Resultados dos Backtests"
         subtitle="Clique numa linha ou use o seletor abaixo para ver lucro/prejuízo e gráficos de cada estratégia."
       />
+
+      <BacktestRunningBanner progress={runningProgress} />
 
       <Panel title="Lucro / prejuízo por estratégia">
         {matrix.isLoading && items.length === 0 && (
@@ -74,15 +104,6 @@ function Page() {
 
         {items.length > 0 && (
           <div className="space-y-3">
-            {matrix.data?.best_return && (
-              <div className="rounded-xl bg-success/10 border border-success/30 p-3 text-sm">
-                Maior retorno: <strong>{matrix.data.best_return.strategy_label}</strong> ·{" "}
-                {matrix.data.best_return.timeframe.toUpperCase()} ·{" "}
-                <span className="num text-success">
-                  {formatReturn(matrix.data.best_return.metrics?.total_return_pct)}
-                </span>
-              </div>
-            )}
             {matrix.isError && (
               <p className="text-xs text-amber-400/90">
                 Mostrando cópia salva no navegador. Reinicie a API para sincronizar com{" "}
@@ -90,8 +111,13 @@ function Page() {
               </p>
             )}
             <p className="text-xs text-muted-foreground">Clique numa linha para ver o detalhe abaixo.</p>
-            <BacktestMatrixTable items={items} selected={selected} onSelect={setSelected} />
-            <p className="text-xs text-muted-foreground">{items.length} combinações testadas.</p>
+            {matrix.data && (
+              <BacktestMatrixAssetTabs
+                matrix={matrix.data}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            )}
           </div>
         )}
       </Panel>
@@ -105,12 +131,17 @@ function Page() {
                 value={selected ? `${selected.strategy}:${selected.timeframe}` : ""}
                 onChange={(e) => {
                   const [strategy, timeframe] = e.target.value.split(":");
-                  if (strategy && timeframe) setSelected({ strategy, timeframe });
+                  if (strategy && timeframe) {
+                    setSelected({ strategy, timeframe, base_asset: activeAsset });
+                  }
                 }}
                 className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm"
               >
-                {items.map((row) => (
-                  <option key={`${row.strategy}-${row.timeframe}`} value={`${row.strategy}:${row.timeframe}`}>
+                {assetItems.map((row) => (
+                  <option
+                    key={`${row.base_asset ?? activeAsset}-${row.strategy}-${row.timeframe}`}
+                    value={`${row.strategy}:${row.timeframe}`}
+                  >
                     {row.strategy_label} · {row.timeframe.toUpperCase()} ·{" "}
                     {formatReturn(row.metrics?.total_return_pct)}
                   </option>
@@ -138,8 +169,9 @@ function Page() {
           {selectedItem?.metrics ? (
             <DetailMetrics
               key={`${selectedItem.strategy}-${selectedItem.timeframe}`}
-              title={`${selectedItem.strategy_label} · ${selectedItem.timeframe.toUpperCase()} · BTC/USDT`}
+              title={results.data?.title ?? `${selectedItem.strategy_label} · ${selectedItem.timeframe.toUpperCase()}`}
               metrics={selectedItem.metrics}
+              period={selectedItem}
               charts={apiMatchesSelection ? results.data : undefined}
               apiStale={!!results.data && !apiMatchesSelection && !results.isFetching}
             />
@@ -152,12 +184,8 @@ function Page() {
   );
 }
 
-function formatPeriod(charts?: ResultsResponse): string | null {
-  if (!charts?.period_start || !charts?.period_end) return null;
-  const days = charts.period_days;
-  const months = days ? Math.round(days / 30.4) : null;
-  const duration = months && months >= 2 ? `~${months} meses` : days ? `${days} dias` : "";
-  return `Período simulado: ${charts.period_start} → ${charts.period_end}${duration ? ` (${duration})` : ""}`;
+function formatPeriod(charts?: ResultsResponse, row?: BacktestBatchItem): string | null {
+  return formatBacktestPeriodLong(charts) ?? formatBacktestPeriodLong(row);
 }
 
 function formatMetric(value: number | undefined, trades: number, suffix = ""): string {
@@ -169,15 +197,17 @@ function formatMetric(value: number | undefined, trades: number, suffix = ""): s
 function DetailMetrics({
   title,
   metrics: m,
+  period,
   charts,
   apiStale,
 }: {
   title: string;
   metrics: BacktestMetrics;
+  period?: BacktestBatchItem;
   charts?: ResultsResponse;
   apiStale?: boolean;
 }) {
-  const periodLine = formatPeriod(charts);
+  const periodLine = formatPeriod(charts, period);
   const noTrades = (m.trades ?? 0) === 0;
 
   return (
@@ -214,6 +244,15 @@ function DetailMetrics({
         <StatCard label="Drawdown" value={formatMetric(m.max_drawdown_pct, m.trades, "%")} delta={noTrades ? 0 : -m.max_drawdown_pct} icon={ShieldAlert} accent="warning" />
         <StatCard label="Trades" value={String(m.trades ?? 0)} delta={m.trades} icon={Activity} accent="primary" />
       </div>
+      {periodLine && (
+        <p className="text-xs text-muted-foreground mt-3">
+          {m.trades ?? 0} operações fechadas no período acima
+          {(period?.period_days ?? charts?.period_days)
+            ? ` (~${Math.round((period?.period_days ?? charts?.period_days ?? 0) / 365.25 * 10) / 10} anos de mercado simulado)`
+            : ""}
+          .
+        </p>
+      )}
 
       {charts && charts.monthly_returns.length === 0 && charts.distribution.every((d) => d.n === 0) && !noTrades && (
         <p className="text-xs text-muted-foreground mt-4">Sem dados mensais para exibir.</p>

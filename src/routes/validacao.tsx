@@ -11,9 +11,12 @@ export const Route = createFileRoute("/validacao")({
 });
 
 function Page() {
-  const { data, isLoading, error } = useValidation();
-  if (isLoading) return <div className="text-muted-foreground text-sm">Carregando validação…</div>;
-  if (error || !data) return <div className="text-destructive text-sm">Erro ao carregar validação demo.</div>;
+  const { data, isLoading, isPending, error } = useValidation();
+  if ((isLoading || isPending) && !data) {
+    return <div className="text-muted-foreground text-sm">Carregando validação…</div>;
+  }
+  if (error && !data) return <div className="text-destructive text-sm">Erro ao carregar validação demo.</div>;
+  if (!data) return null;
 
   const { score, stats, criteria, criteria_passed, criteria_total, spark_up, spark_down, spark_mix, live_gates } = data;
   const circ = 2 * Math.PI * 70;

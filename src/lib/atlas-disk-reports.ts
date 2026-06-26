@@ -16,6 +16,10 @@ type MatrixItem = {
   strategy: string;
   strategy_label: string;
   timeframe: string;
+  base_asset?: "BTC" | "ETH";
+  period_start?: string | null;
+  period_end?: string | null;
+  period_days?: number | null;
   ok: boolean;
   report_path: string;
   result: "lucro" | "prejuizo" | "empate";
@@ -40,10 +44,16 @@ function strategyLabel(id: string): string {
   return STRATEGY_LABELS[id] ?? id.replace(/_/g, " ");
 }
 
-function parseReportStem(stem: string): { strategy: string; timeframe: string; quote: string } | null {
-  const m = stem.match(/^(.+)_(4h|1d|1h)_(usdt|usdc)_report$/i);
+function parseReportStem(stem: string): { strategy: string; timeframe: string; quote: string; base_asset: "BTC" | "ETH" } | null {
+  const m = stem.match(/^(.+)_(4h|1d|1h)_(usdt|usdc)(?:_(btc|eth))?(?:_report)?$/i);
   if (!m) return null;
-  return { strategy: m[1], timeframe: m[2].toLowerCase(), quote: m[3].toUpperCase() };
+  const base = (m[4]?.toUpperCase() ?? "BTC") as "BTC" | "ETH";
+  return {
+    strategy: m[1],
+    timeframe: m[2].toLowerCase(),
+    quote: m[3].toUpperCase(),
+    base_asset: base,
+  };
 }
 
 function round(n: number, d: number): number {
@@ -191,7 +201,9 @@ async function loadReportFile(filename: string): Promise<Record<string, unknown>
 
 export async function buildMatrixFromDisk(quote = "USDT"): Promise<{ total: number; quote: string; best_return: MatrixItem | null; best_score: MatrixItem | null; items: MatrixItem[] }> {
   const dir = await reportsDir();
-  const files = (await readdir(dir)).filter((f) => f.endsWith("_report.json")).sort();
+  const files = (await readdir(dir))
+    .filter((f) => f.endsWith(".json") && !f.toLowerCase().includes("walkforward"))
+    .sort();
   const items: MatrixItem[] = [];
 
   for (const file of files) {
@@ -200,11 +212,20 @@ export async function buildMatrixFromDisk(quote = "USDT"): Promise<{ total: numb
     try {
       const raw = await loadReportFile(file);
       const metrics = metricsFromRaw(raw);
+      const equityRaw = Array.isArray(raw.equity_curve) ? raw.equity_curve : [];
+      const meta = (raw.metadata ?? {}) as Record<string, unknown>;
+      const baseFromMeta = String(meta.base_asset ?? "").toUpperCase();
+      const base_asset = (baseFromMeta === "ETH" ? "ETH" : parsed.base_asset) as "BTC" | "ETH";
+      const period = periodFromEquity(equityRaw);
       const ret = metrics.total_return_pct;
       items.push({
         strategy: parsed.strategy,
         strategy_label: strategyLabel(parsed.strategy),
         timeframe: parsed.timeframe,
+        base_asset,
+        period_start: period.period_start,
+        period_end: period.period_end,
+        period_days: period.days,
         ok: true,
         report_path: join(dir, file),
         result: ret > 0 ? "lucro" : ret < 0 ? "prejuizo" : "empate",
@@ -227,9 +248,23 @@ export async function buildMatrixFromDisk(quote = "USDT"): Promise<{ total: numb
   };
 }
 
-export async function buildResultsFromDisk(strategy: string, timeframe: string, quote = "USDT") {
-  const file = `${strategy}_${timeframe.toLowerCase()}_${quote.toLowerCase()}_report.json`;
-  const raw = await loadReportFile(file);
+export async function buildResultsFromDisk(strategy: string, timeframe: string, quote = "USDT", baseAsset: "BTC" | "ETH" = "BTC") {
+  const base = baseAsset.toLowerCase();
+  const candidates = [
+    `${strategy}_${timeframe.toLowerCase()}_${quote.toLowerCase()}_${base}_report.json`,
+    `${strategy}_${timeframe.toLowerCase()}_${quote.toLowerCase()}_${base}.json`,
+    `${strategy}_${timeframe.toLowerCase()}_${quote.toLowerCase()}_report.json`,
+  ];
+  let raw: Record<string, unknown> | null = null;
+  for (const file of candidates) {
+    try {
+      raw = await loadReportFile(file);
+      break;
+    } catch {
+      /* try next */
+    }
+  }
+  if (!raw) throw new Error(`Relatório não encontrado para ${strategy} · ${timeframe} · ${baseAsset}`);
   const metrics = metricsFromRaw(raw);
   const meta = (raw.metadata ?? {}) as Record<string, unknown>;
   const symbol = String(meta.market ?? "BTC/USDT");

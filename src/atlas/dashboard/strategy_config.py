@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 
 from atlas.core.config import AtlasConfig, load_config
-from atlas.core.symbols import QUOTE_ASSETS, quote_from_symbol
+from atlas.core.symbols import QUOTE_ASSETS, build_symbol, quote_from_symbol, validate_operated_base
 from atlas.strategies.registry import STRATEGY_BUILDERS
 
 ACTIVE_CONFIG_REL = "data/runtime/active_paper.yaml"
@@ -40,17 +40,18 @@ def build_operational_config(
     *,
     strategy_name: str,
     quote_asset: str = "USDT",
+    base_asset: str = "BTC",
     timeframe: str = "4h",
     base_config_rel: str = "config/paper.yaml",
 ) -> AtlasConfig:
-    base = load_config(project_root / base_config_rel)
+    cfg = load_config(project_root / base_config_rel)
     strategy_map = discover_strategy_configs(project_root)
 
     if strategy_name in strategy_map:
         src = load_config(strategy_map[strategy_name])
-        base.strategy = src.strategy
+        cfg.strategy = src.strategy
     elif strategy_name in STRATEGY_BUILDERS:
-        base.strategy.name = strategy_name
+        cfg.strategy.name = strategy_name
     else:
         raise ValueError(f"Estrategia desconhecida: {strategy_name}")
 
@@ -58,14 +59,16 @@ def build_operational_config(
     if quote not in QUOTE_ASSETS:
         raise ValueError(f"Quote invalido: {quote}. Use USDT ou USDC.")
 
+    asset = validate_operated_base(base_asset)
+
     tf = timeframe.lower()
     if tf not in TIMEFRAMES:
         raise ValueError(f"Timeframe invalido: {tf}. Use 1h, 4h ou 1d.")
 
-    base.exchange.symbol = f"BTC/{quote}"
-    base.exchange.timeframe = tf
-    base.exchange.demo = True
-    return base
+    cfg.exchange.symbol = build_symbol(asset, quote)
+    cfg.exchange.timeframe = tf
+    cfg.exchange.demo = True
+    return cfg
 
 
 def save_config_yaml(path: Path, config: AtlasConfig) -> Path:

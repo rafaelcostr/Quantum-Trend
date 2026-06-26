@@ -14,7 +14,7 @@ from atlas.services.backtest_batch import (
     load_backtest_matrix_from_reports,
     resolve_backtest_config_path,
 )
-from atlas.services.backtest_jobs import get_backtest_batch_job, job_snapshot, start_backtest_batch_job
+from atlas.services.backtest_jobs import get_active_backtest_job, get_backtest_batch_job, job_snapshot, start_backtest_batch_job
 from atlas.runtime.state import bot_state
 from atlas.runtime.operational_config import operational_options, save_operational_selection, save_paper_slots, PaperSlot
 from atlas.runtime.system_store import save_runtime_system
@@ -41,6 +41,7 @@ class BacktestRequest(BaseModel):
     strategy: str | None = None
     timeframe: str = "4h"
     quote: str = "USDT"
+    base_asset: str = "BTC"
 
 
 class WalkforwardRequest(BaseModel):
@@ -48,6 +49,7 @@ class WalkforwardRequest(BaseModel):
     strategy: str | None = None
     timeframe: str = "4h"
     quote: str = "USDT"
+    base_asset: str = "BTC"
     train_pct: float = 0.70
 
 
@@ -55,12 +57,14 @@ class OperationalUpdateRequest(BaseModel):
     strategy: str
     timeframe: str = "4h"
     quote: str = "USDT"
+    base_asset: str = "BTC"
 
 
 class PaperSlotRequest(BaseModel):
     strategy: str
     timeframe: str = "4h"
     quote: str = "USDT"
+    base: str = "BTC"
     enabled: bool = True
 
 
@@ -82,6 +86,7 @@ class NotificationsUpdateRequest(BaseModel):
 class BacktestAllRequest(BaseModel):
     timeframes: list[str] | None = None
     quote: str = "USDT"
+    base_asset: str = "BTC"
 
 
 class RiskUpdateRequest(BaseModel):
@@ -189,6 +194,28 @@ def create_app() -> FastAPI:
     @app.get("/api/markets")
     def markets() -> dict:
         return {"items": get_markets()}
+
+    @app.get("/api/markets/chart")
+    def market_chart(base: str = "BTC", quote: str = "USDT", timeframe: str = "4h") -> dict:
+        from atlas.services.market_chart import get_market_chart_payload
+
+        return get_market_chart_payload(base=base, quote=quote, timeframe=timeframe)
+
+    @app.get("/api/backtests/chart")
+    def backtest_chart(
+        strategy: str,
+        timeframe: str,
+        base_asset: str = "BTC",
+        quote: str = "USDT",
+    ) -> dict:
+        from atlas.services.backtest_chart import get_backtest_chart_payload
+
+        return get_backtest_chart_payload(
+            strategy=strategy,
+            timeframe=timeframe,
+            base=base_asset,
+            quote=quote,
+        )
 
     @app.get("/api/positions")
     def positions() -> dict:
@@ -299,13 +326,24 @@ def create_app() -> FastAPI:
     async def backtest_all(body: BacktestAllRequest | None = None) -> dict:
         opts = body or BacktestAllRequest()
         timeframes = tuple(t.lower() for t in (opts.timeframes or ["1h", "4h", "1d"]))
-        job_id = await asyncio.to_thread(
-            start_backtest_batch_job,
-            timeframes=timeframes,
-            quote=opts.quote.upper(),
-        )
+        try:
+            job_id = await asyncio.to_thread(
+                start_backtest_batch_job,
+                timeframes=timeframes,
+                quote=opts.quote.upper(),
+                base_asset=opts.base_asset.upper(),
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         job = get_backtest_batch_job(job_id)
         return job_snapshot(job) if job else {"job_id": job_id, "status": "running", "total": 0, "completed": 0}
+
+    @app.get("/api/backtest/all/active")
+    def backtest_all_active() -> dict:
+        job = get_active_backtest_job()
+        if job is None:
+            return {"active": False}
+        return {"active": True, **job_snapshot(job)}
 
     @app.get("/api/backtest/all/{job_id}")
     def backtest_all_status(job_id: str) -> dict:
@@ -329,6 +367,7 @@ def create_app() -> FastAPI:
             config_rel,
             timeframe=tf,
             quote=quote,
+            base_asset=body.base_asset,
         )
         if not result.get("ok", True):
             raise HTTPException(status_code=400, detail=result.get("error", "Backtest falhou"))
@@ -371,20 +410,21 @@ def create_app() -> FastAPI:
 
     @app.put("/api/risk")
     def risk_update(body: RiskUpdateRequest) -> dict:
-        from atlas.services.terminal import clear_dashboard_cache
+        from atlas.services.terminal import clear_dashboard_cache, clear_risk_cache
 
         update_risk_settings(**body.model_dump(exclude_none=True))
         clear_dashboard_cache()
+        clear_risk_cache()
         return get_risk_payload()
 
     @app.get("/api/results")
-    def results(strategy: str | None = None, timeframe: str | None = None) -> dict:
-        return get_results_payload(strategy=strategy, timeframe=timeframe)
+    def results(strategy: str | None = None, timeframe: str | None = None, base_asset: str = "BTC") -> dict:
+        return get_results_payload(strategy=strategy, timeframe=timeframe, base_asset=base_asset)
 
     @app.get("/api/results/{strategy}/{timeframe}")
-    def results_by_path(strategy: str, timeframe: str) -> dict:
+    def results_by_path(strategy: str, timeframe: str, base_asset: str = "BTC") -> dict:
         try:
-            return get_results_payload(strategy=strategy, timeframe=timeframe)
+            return get_results_payload(strategy=strategy, timeframe=timeframe, base_asset=base_asset)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -411,6 +451,7 @@ def create_app() -> FastAPI:
                 strategy_name=body.strategy,
                 timeframe=body.timeframe,
                 quote_asset=body.quote,
+                base_asset=body.base_asset,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -420,6 +461,7 @@ def create_app() -> FastAPI:
 
     @app.put("/api/settings/operational/slots")
     def settings_operational_slots(body: OperationalSlotsUpdateRequest) -> dict:
+        from atlas.runtime.operational_config import MAX_PAPER_SLOTS, PaperSlot, save_paper_slots
         from atlas.services.terminal import clear_dashboard_cache, clear_intelligence_cache
 
         if bot_state.running:
@@ -430,9 +472,10 @@ def create_app() -> FastAPI:
                     strategy=s.strategy,
                     timeframe=s.timeframe,
                     quote=s.quote,
+                    base=s.base,
                     enabled=s.enabled,
                 )
-                for s in body.slots[:3]
+                for s in body.slots[:MAX_PAPER_SLOTS]
             ]
             save_paper_slots(slots)
         except ValueError as exc:

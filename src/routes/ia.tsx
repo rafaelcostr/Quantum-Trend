@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader, Panel } from "@/components/ui/page";
-import { isBrowser, useIntelligence } from "@/lib/queries";
-import type { EducationalMetric, Level1Snapshot, MetricReading } from "@/lib/api";
-import { Bot, Sparkles, Trophy, Brain, FlaskConical, Microscope } from "lucide-react";
+import { IntelligenceSelectionPanel } from "@/components/intelligence/IntelligenceSelectionPanel";
+import { useIntelligence, useIntelligenceAnalysis } from "@/lib/queries";
+import type { EducationalMetric, Level1Snapshot, MetricReading, Strategy } from "@/lib/api";
+import { Bot, Sparkles, Trophy, Brain, FlaskConical, Microscope, Loader2, Info } from "lucide-react";
 
 export const Route = createFileRoute("/ia")({
   head: () => ({ meta: [{ title: "IA de Seleção · Quantum-Trend" }] }),
@@ -16,11 +17,27 @@ const TABS = [
   { id: "l3", label: "Nível 3 — Research", icon: Microscope },
 ] as const;
 
+const RANK_TABS = [
+  { id: "all", label: "Todas" },
+  { id: "bull", label: "Alta" },
+  { id: "bear", label: "Baixa" },
+  { id: "range", label: "Lateral" },
+] as const;
+
 function scoreColor(n: number) {
   if (n >= 80) return "#22C55E";
   if (n >= 65) return "#7C3AED";
   if (n >= 50) return "#F59E0B";
   return "#EF4444";
+}
+
+function inferMarketType(s: Strategy): "bull" | "bear" | "range" {
+  const mt = s.market_type ?? s.strategy_category;
+  if (mt === "bear" || mt === "bull" || mt === "range") return mt;
+  const id = (s.id || s.name || "").toLowerCase();
+  if (id.includes("short") || id.includes("_bear") || id.includes("breakout_down")) return "bear";
+  if (id.startsWith("range_") || id.includes("bb_squeeze") || id.includes("regime_switching")) return "range";
+  return "bull";
 }
 
 function MetricTable({ metrics }: { metrics: MetricReading[] }) {
@@ -121,23 +138,31 @@ function Level1Panel({ l1 }: { l1: Level1Snapshot }) {
 
 function Page() {
   const { data, isPending, error, isError } = useIntelligence();
+  const analysisQuery = useIntelligenceAnalysis(!isPending && !!data);
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("l1");
+  const [rankTab, setRankTab] = useState<(typeof RANK_TABS)[number]["id"]>("all");
 
-  if (!isBrowser || isPending) {
-    return <div className="text-muted-foreground text-sm">Carregando IA de seleção…</div>;
+  if (isPending && !data) {
+    return <div className="text-muted-foreground text-sm">Carregando ranking de estratégias…</div>;
   }
-  if (isError || !data) {
+  if (isError && !data) {
     const msg = error instanceof Error ? error.message : "Erro desconhecido";
     return (
       <div className="text-destructive text-sm space-y-2">
-        <p>Erro ao carregar IA de seleção. Confirme que a API Python está ativa (<code className="text-secondary">python -m atlas.cli api</code>).</p>
+        <p>
+          Erro ao carregar IA de seleção. Confirme que a API Python está ativa (
+          <code className="text-secondary">python -m atlas.cli api</code>).
+        </p>
         <p className="text-xs text-muted-foreground">{msg.slice(0, 240)}</p>
       </div>
     );
   }
+  if (!data) return null;
 
   const strategies = [...data.strategies].sort((a, b) => b.pf - a.pf);
-  const analysis = data.analysis;
+  const filteredStrategies =
+    rankTab === "all" ? strategies : strategies.filter((s) => inferMarketType(s) === rankTab);
+  const analysis = analysisQuery.data;
   const l1 = analysis?.level1;
   const l2 = analysis?.level2;
   const l3 = analysis?.level3;
@@ -146,59 +171,120 @@ function Page() {
     <div className="space-y-8">
       <PageHeader
         title="IA de Seleção"
-        subtitle="Atlas Intelligence — ranking, mapa de oportunidades e análise L1/L2/L3 do backtest ativo."
+        subtitle="Compare backtests por regime, aplique 6 slots por moeda (Alta+Lateral ou Baixa+Lateral) e leia a análise Atlas L1/L2/L3."
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Panel className="relative overflow-hidden">
           <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full blur-3xl opacity-40 bg-primary" />
-          <div className="flex items-center gap-3 mb-3"><Bot className="h-5 w-5 text-primary" /><span className="text-xs uppercase tracking-wider text-muted-foreground">Estratégias Avaliadas</span></div>
+          <div className="flex items-center gap-3 mb-3">
+            <Bot className="h-5 w-5 text-primary" />
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Estratégias Avaliadas</span>
+          </div>
           <div className="num text-4xl">{data.strategies_evaluated}</div>
         </Panel>
         <Panel className="relative overflow-hidden">
           <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full blur-3xl opacity-40 bg-success" />
-          <div className="flex items-center gap-3 mb-3"><Trophy className="h-5 w-5 text-success" /><span className="text-xs uppercase tracking-wider text-muted-foreground">Melhor Estratégia</span></div>
+          <div className="flex items-center gap-3 mb-3">
+            <Trophy className="h-5 w-5 text-success" />
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Melhor Estratégia</span>
+          </div>
           <div className="num text-2xl">{data.best_strategy}</div>
           <div className="text-xs text-success mt-1">Score {data.best_score}</div>
         </Panel>
         <Panel className="relative overflow-hidden">
           <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full blur-3xl opacity-40 bg-secondary" />
-          <div className="flex items-center gap-3 mb-3"><Sparkles className="h-5 w-5 text-secondary" /><span className="text-xs uppercase tracking-wider text-muted-foreground">Atlas Score</span></div>
-          <div className="num text-4xl text-gradient-primary">{analysis?.level1?.atlas_score ?? data.overall_score}</div>
-          {analysis?.strategy && (
-            <div className="text-xs text-muted-foreground mt-1">{analysis.strategy} · {analysis.market} · {analysis.timeframe}</div>
+          <div className="flex items-center gap-3 mb-3">
+            <Sparkles className="h-5 w-5 text-secondary" />
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Atlas Score</span>
+          </div>
+          <div className="num text-4xl text-gradient-primary">{l1?.atlas_score ?? data.overall_score}</div>
+          {analysis && (
+            <div className="text-xs text-muted-foreground mt-1">
+              {analysis.strategy} · {analysis.market} · {analysis.timeframe}
+            </div>
           )}
         </Panel>
       </div>
 
+      {data.selection && <IntelligenceSelectionPanel selection={data.selection} />}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Panel title="Ranking de Estratégias">
-          <ol className="space-y-2">
-            {strategies.map((s, i) => (
-              <li key={s.name} className="flex items-center gap-3 rounded-xl bg-white/[0.03] border border-white/5 px-4 py-3">
-                <span className={`num text-sm w-6 ${i < 3 ? "text-gradient-primary" : "text-muted-foreground"}`}>#{i + 1}</span>
-                <div className="flex-1">
-                  <div className="text-sm font-medium">{s.name}</div>
-                  <div className="text-[11px] text-muted-foreground">PF {s.pf} · WR {s.winrate}% · DD {s.dd}%</div>
-                </div>
-                <div className="num text-sm" style={{ color: scoreColor(s.winrate + s.pf * 10) }}>{Math.round(s.winrate + s.pf * 10)}</div>
-              </li>
+        <Panel title="Ranking por Regime">
+          <div className="flex flex-wrap gap-2 mb-4">
+            {RANK_TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setRankTab(id)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  rankTab === id
+                    ? "bg-primary/20 text-primary border border-primary/30"
+                    : "bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10"
+                }`}
+              >
+                {label}
+              </button>
             ))}
-          </ol>
+          </div>
+          {filteredStrategies.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhum backtest salvo. Rode testes em{" "}
+              <Link to="/backtests" className="text-primary hover:underline">
+                Backtests
+              </Link>
+              .
+            </p>
+          ) : (
+            <ol className="space-y-2">
+              {filteredStrategies.map((s, i) => {
+                const mt = inferMarketType(s);
+                const badge =
+                  mt === "bear" ? "text-destructive" : mt === "range" ? "text-sky-300" : "text-success";
+                return (
+                  <li
+                    key={s.id || s.name}
+                    className="flex items-center gap-3 rounded-xl bg-white/[0.03] border border-white/5 px-4 py-3"
+                  >
+                    <span className={`num text-sm w-6 ${i < 3 ? "text-gradient-primary" : "text-muted-foreground"}`}>
+                      #{i + 1}
+                    </span>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{s.name}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        <span className={badge}>{mt === "bull" ? "Alta" : mt === "bear" ? "Baixa" : "Lateral"}</span>
+                        {" · "}
+                        PF {s.pf} · WR {s.winrate}% · DD {s.dd}%
+                      </div>
+                    </div>
+                    <div className="num text-sm" style={{ color: scoreColor(s.winrate + s.pf * 10) }}>
+                      {Math.round(s.winrate + s.pf * 10)}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
         </Panel>
 
-        <Panel title="Mapa de Oportunidades">
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+        <Panel title="Mapa de Oportunidades (Atlas Score)">
+          <div className="grid grid-cols-2 gap-3">
             {data.heatmap.map((a) => {
               const c = scoreColor(a.score);
               return (
                 <div
                   key={a.sym}
                   className="aspect-square rounded-xl border flex flex-col items-center justify-center transition hover:scale-[1.04]"
-                  style={{ background: `linear-gradient(135deg, ${c}33, ${c}11)`, borderColor: `${c}44`, boxShadow: `0 0 30px -10px ${c}66` }}
+                  style={{
+                    background: `linear-gradient(135deg, ${c}33, ${c}11)`,
+                    borderColor: `${c}44`,
+                    boxShadow: `0 0 30px -10px ${c}66`,
+                  }}
                 >
-                  <div className="text-sm font-semibold">{a.sym}</div>
-                  <div className="num text-2xl mt-1" style={{ color: c }}>{a.score}</div>
+                  <div className="text-sm font-semibold">{a.sym}/USDT</div>
+                  <div className="num text-2xl mt-1" style={{ color: c }}>
+                    {a.score}
+                  </div>
                 </div>
               );
             })}
@@ -207,9 +293,37 @@ function Page() {
       </div>
 
       <Panel title="Atlas Intelligence — Análise profunda">
-        {!l1 && (
+        <Panel className="border-primary/20 bg-primary/5 mb-6">
+          <div className="flex gap-3">
+            <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <div className="text-sm space-y-1 text-muted-foreground">
+              <p>
+                A <strong className="text-foreground">seleção rápida</strong> acima usa a matriz de backtests. A análise
+                abaixo aprofunda o relatório ativo (L1 decisão, L2 diagnóstico, L3 research/overfitting).
+              </p>
+            </div>
+          </div>
+        </Panel>
+
+        {analysisQuery.isPending && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Calculando análise L1/L2/L3 do backtest ativo…
+          </div>
+        )}
+        {analysisQuery.isError && (
           <p className="text-sm text-warning">
-            Rode um backtest primeiro (<code className="text-secondary">python -m atlas.cli backtest</code> ou página Backtests) para gerar relatório em data/reports/.
+            Não foi possível carregar a análise profunda. O ranking e a seleção rápida continuam válidos.
+          </p>
+        )}
+        {!analysisQuery.isPending && !l1 && (
+          <p className="text-sm text-warning">
+            Rode um backtest primeiro (
+            <code className="text-secondary">python -m atlas.cli backtest</code> ou página{" "}
+            <Link to="/backtests" className="text-primary hover:underline">
+              Backtests
+            </Link>
+            ) para gerar relatório em data/reports/.
           </p>
         )}
         {l1 && (
@@ -247,9 +361,7 @@ function Page() {
                   <span>{l3.overfitting_emoji}</span>
                   <span className="font-medium">Risco OOS:</span>
                   <span className="text-muted-foreground">{l3.overfitting_risk}</span>
-                  {!l3.has_walkforward && (
-                    <span className="text-xs text-warning ml-2">· Walk-forward pendente</span>
-                  )}
+                  {!l3.has_walkforward && <span className="text-xs text-warning ml-2">· Walk-forward pendente</span>}
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed">{l3.diagnosis}</p>
                 <EducationalCards metrics={l3.metrics} />

@@ -59,6 +59,9 @@ STRATEGY_LABELS = {
     "pullback_ema20_v1": "Pullback EMA20 v1",
     "breakout_high20_v1": "Breakout High20 v1",
     "supertrend_mm200_v1": "Supertrend + EMA200 v1",
+    "pullback_short_v1": "Pullback Short v1",
+    "breakout_down_v1": "Breakout Down v1",
+    "supertrend_bear_v1": "Supertrend Bear v1",
     "quantum_trend_pro": "QuantumTrend Pro",
 }
 

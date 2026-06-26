@@ -29,6 +29,7 @@ from atlas.quantum.runtime_store import update_runtime_snapshot
 from atlas.runtime.journal import Journal
 from atlas.runtime.reconciler import PositionReconciler
 from atlas.runtime.risk_store import is_trading_paused, record_trade_close, record_trade_open
+from atlas.strategies.market_orchestrator import gate_strategy_by_regime
 from atlas.strategies.registry import build_strategy_from_config
 
 
@@ -158,6 +159,9 @@ class TradingEngine:
             )
             return signal, ctx
         indicators = self._snapshot(ind_df, idx, candle)
+        gate = gate_strategy_by_regime(self.strategy.name, candle, indicators)
+        if gate is not None:
+            return gate, None
         return self.strategy.evaluate(candle, indicators, position), None
 
     def _log_trade(self, event: str, signal, candle: Candle, *, ctx=None, fill=None, position=None) -> None:
@@ -207,7 +211,10 @@ class TradingEngine:
             result["balance_warning"] = str(exc)
 
         mark = candle.close
-        equity = cash + (position.quantity * mark if position else 0)
+        if position and (position.side == Side.SHORT or position.metadata.get("position_kind") == "short"):
+            equity = cash + (position.entry_price - mark) * position.quantity
+        else:
+            equity = cash + (position.quantity * mark if position else 0)
         portfolio = PortfolioState(cash=cash, equity=equity, position=position)
         result["equity"] = equity
 
@@ -229,6 +236,50 @@ class TradingEngine:
                     self.config.exchange.symbol,
                     position.entry_price,
                     fill.filled_price or mark,
+                    position.quantity,
+                    signal.reason,
+                    self.config.mode.value,
+                )
+                self._position = None
+                result["action"] = "exit"
+            alert_meta = self.watchdog.process(
+                symbol=self.config.exchange.symbol,
+                mode=self.config.mode.value,
+                signal=signal.action.value,
+                reason=signal.reason,
+                equity=equity,
+                trade_executed=result.get("action") == "exit",
+            )
+            result.update(alert_meta)
+            platform_orchestrator.post_signal(self, signal=signal, ctx=ctx, outcome=result, candle=candle)
+            return result
+
+        if signal.action == SignalAction.EXIT_SHORT and position:
+            if not can_trade:
+                result["action"] = "blocked"
+                result["block_reason"] = gate_reason
+                platform_orchestrator.post_signal(self, signal=signal, ctx=ctx, outcome=result, candle=candle)
+                return result
+            decision = self.risk.approve_exit(signal, portfolio)
+            if decision.approved:
+                virtual = position.metadata.get("virtual_short")
+                if virtual:
+                    exit_px = candle.close
+                    pnl = (position.entry_price - exit_px) * position.quantity
+                    fill = {"filled_price": exit_px, "filled_quantity": position.quantity, "success": True}
+                else:
+                    order = Order(symbol=self.config.exchange.symbol, side=Side.BUY, quantity=position.quantity)
+                    fill_obj = self.broker.place_order(order)
+                    exit_px = fill_obj.filled_price or mark
+                    pnl = (position.entry_price - exit_px) * position.quantity if fill_obj.success else 0
+                    fill = fill_obj.model_dump()
+                self._log_trade("exit", signal, candle, ctx=ctx, fill=fill, position=position)
+                if virtual or fill.get("success"):
+                    record_trade_close(pnl=pnl)
+                self.alerts.trade_exit(
+                    self.config.exchange.symbol,
+                    position.entry_price,
+                    exit_px,
                     position.quantity,
                     signal.reason,
                     self.config.mode.value,
@@ -300,6 +351,51 @@ class TradingEngine:
                 else:
                     result["action"] = "entry_failed"
                     result["error"] = fill.message
+            else:
+                result["action"] = "blocked"
+                result["block_reason"] = decision.reason
+
+        if signal.action == SignalAction.ENTER_SHORT and not position:
+            if not can_trade:
+                result["action"] = "blocked"
+                result["block_reason"] = gate_reason
+                platform_orchestrator.post_signal(self, signal=signal, ctx=ctx, outcome=result, candle=candle)
+                return result
+            ok_filter, filter_reason = platform_orchestrator.check_entry_filters(self, ind_df, idx)
+            if not ok_filter:
+                result["action"] = "blocked"
+                result["block_reason"] = filter_reason
+                platform_orchestrator.post_signal(self, signal=signal, ctx=ctx, outcome=result, candle=candle)
+                return result
+            paused, pause_reason = is_trading_paused()
+            if paused:
+                result["action"] = "paused"
+                result["block_reason"] = pause_reason
+                return result
+            decision = self.risk.approve_entry(signal, portfolio, candle.timestamp, candle.close)
+            if decision.approved:
+                meta = {**(signal.metadata or {}), "position_kind": "short", "virtual_short": True}
+                self._position = Position(
+                    symbol=self.config.exchange.symbol,
+                    side=Side.SHORT,
+                    quantity=decision.quantity,
+                    entry_price=candle.close,
+                    entry_time=datetime.now(timezone.utc),
+                    stop_price=signal.stop_price,
+                    target_price=signal.target_price,
+                    metadata=meta,
+                    strategy=self.strategy.name,
+                )
+                self._log_trade("entry", signal, candle, ctx=ctx, fill={"virtual_short": True, "price": candle.close})
+                record_trade_open()
+                self.alerts.trade_entry(
+                    self.config.exchange.symbol,
+                    candle.close,
+                    decision.quantity,
+                    signal.reason,
+                    self.config.mode.value,
+                )
+                result["action"] = "entry"
             else:
                 result["action"] = "blocked"
                 result["block_reason"] = decision.reason

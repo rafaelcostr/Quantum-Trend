@@ -12,15 +12,38 @@ from atlas.research.report_metadata import build_report_metadata, metadata_from_
 from atlas.strategies.metadata import report_display_label
 
 
+def test_period_from_report_raw():
+    from atlas.research.report_metadata import period_from_report_raw
+
+    raw = {
+        "equity_curve": [
+            {"timestamp": "2017-08-17T00:00:00+00:00", "equity": 10000},
+            {"timestamp": "2024-06-01T00:00:00+00:00", "equity": 15000},
+        ]
+    }
+    period = period_from_report_raw(raw)
+    assert period["period_start"] == "2017-08-17"
+    assert period["period_end"] == "2024-06-01"
+    assert period["period_days"] is not None
+    assert period["period_days"] > 2400
+
+
 def test_parse_strategy_from_report_name():
     assert parse_strategy_from_report_name("range_hunter_v2_4h_usdt_report") == (
         "range_hunter_v2",
         "4h",
         "USDT",
+        None,
     )
-    assert parse_strategy_from_report_name("range_hunter_v2_4h_report") == ("range_hunter_v2", "4h", None)
-    assert parse_strategy_from_report_name("mm200_trend_v1_report") == ("mm200_trend_v1", None, None)
-    assert parse_strategy_from_report_name("backtest_report") == ("unknown", None, None)
+    assert parse_strategy_from_report_name("pullback_ema20_v1_4h_usdt_eth_report") == (
+        "pullback_ema20_v1",
+        "4h",
+        "USDT",
+        "ETH",
+    )
+    assert parse_strategy_from_report_name("range_hunter_v2_4h_report") == ("range_hunter_v2", "4h", None, None)
+    assert parse_strategy_from_report_name("mm200_trend_v1_report") == ("mm200_trend_v1", None, None, None)
+    assert parse_strategy_from_report_name("backtest_report") == ("unknown", None, None, None)
 
 
 def test_report_display_label():
@@ -101,6 +124,7 @@ def test_remove_stale_reports_replaces_same_strategy_timeframe(tmp_path: Path):
         strategy="range_hunter_v2",
         timeframe="4h",
         quote="USDT",
+        base="BTC",
     )
 
     assert "range_hunter_v2_4h_usdt_report.json" in removed
@@ -110,3 +134,23 @@ def test_remove_stale_reports_replaces_same_strategy_timeframe(tmp_path: Path):
     assert other_strategy.is_file()
     assert not old.is_file()
     assert not legacy.is_file()
+
+
+def test_remove_stale_reports_keeps_other_base(tmp_path: Path):
+    from atlas.research.report_metadata import remove_stale_reports
+
+    btc = tmp_path / "range_hunter_v2_4h_usdt_btc_report.json"
+    eth = tmp_path / "range_hunter_v2_4h_usdt_eth_report.json"
+    btc.write_text("{}", encoding="utf-8")
+    eth.write_text("{}", encoding="utf-8")
+
+    removed = remove_stale_reports(
+        tmp_path,
+        strategy="range_hunter_v2",
+        timeframe="4h",
+        quote="USDT",
+        base="BTC",
+    )
+
+    assert btc.name in removed
+    assert eth.is_file()

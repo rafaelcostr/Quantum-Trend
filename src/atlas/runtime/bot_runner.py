@@ -10,7 +10,9 @@ from atlas.runtime.risk_store import apply_risk_to_engine
 from atlas.services.balance_history import record_balance
 from atlas.strategies.mm200_trend_v2 import strategy_display_name
 
-MAX_PARALLEL_SLOTS = 3
+from atlas.runtime.operational_config import MAX_PAPER_SLOTS
+
+MAX_PARALLEL_SLOTS = MAX_PAPER_SLOTS
 
 
 class BotRunner:
@@ -120,7 +122,7 @@ class BotRunner:
 
 
 class BotRunnerPool:
-    """Gerencia até 3 engines paper/live em paralelo."""
+    """Gerencia até 12 engines paper/live em paralelo (6 por moeda)."""
 
     def __init__(self) -> None:
         self._runners: dict[str, BotRunner] = {}

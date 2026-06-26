@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type BacktestAllProgress, type BacktestMatrixResponse, type OperationsFeedResponse } from "./api";
 import { ApiError } from "./api";
@@ -9,7 +9,10 @@ import {
   emptyMatrix,
   isMatrixHealthy,
   isReportsResetActive,
+  loadCachedMatrix,
   markReportsReset,
+  mergeMatrixResponses,
+  normalizeMatrixResponse,
   saveCachedMatrix,
 } from "./backtest-matrix-store";
 
@@ -19,6 +22,7 @@ export const isBrowser = typeof window !== "undefined";
 export const queryKeys = {
   dashboard: ["dashboard"] as const,
   markets: ["markets"] as const,
+  marketChart: (base: string, timeframe: string) => ["markets", "chart", base, timeframe] as const,
   positions: ["positions"] as const,
   strategies: ["strategies"] as const,
   journal: ["journal"] as const,
@@ -31,6 +35,9 @@ export const queryKeys = {
   risk: ["risk"] as const,
   results: ["results"] as const,
   backtestMatrix: ["backtest", "matrix"] as const,
+  backtestChart: (strategy: string, timeframe: string, base: string) =>
+    ["backtest", "chart", strategy, timeframe, base] as const,
+  backtestActive: ["backtest", "active"] as const,
   reports: ["reports"] as const,
   portfolio: ["portfolio"] as const,
   quantum: ["quantum"] as const,
@@ -43,9 +50,10 @@ export function usePortfolio() {
     queryKey: queryKeys.portfolio,
     queryFn: api.portfolio,
     enabled: isBrowser,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 45_000,
+    refetchInterval: 90_000,
     retry: 1,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -54,9 +62,10 @@ export function useDashboard() {
     queryKey: queryKeys.dashboard,
     queryFn: api.dashboard,
     enabled: isBrowser,
-    staleTime: 30_000,
+    staleTime: 45_000,
     retry: 1,
-    refetchInterval: 60_000,
+    refetchInterval: 90_000,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -65,8 +74,34 @@ export function useMarkets() {
     queryKey: queryKeys.markets,
     queryFn: api.markets,
     enabled: isBrowser,
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useMarketChart(base: string, timeframe: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.marketChart(base, timeframe),
+    queryFn: () => api.marketChart(base, timeframe),
+    enabled: isBrowser && enabled && !!base && !!timeframe,
+    staleTime: 90_000,
+    retry: 1,
+  });
+}
+
+export function useBacktestChart(
+  selection: { strategy: string; timeframe: string; base_asset: string } | null,
+) {
+  return useQuery({
+    queryKey: selection
+      ? queryKeys.backtestChart(selection.strategy, selection.timeframe, selection.base_asset)
+      : ["backtest", "chart", "none"],
+    queryFn: () =>
+      api.backtestChart(selection!.strategy, selection!.timeframe, selection!.base_asset),
+    enabled: isBrowser && !!selection?.strategy && !!selection?.timeframe,
+    staleTime: 120_000,
     retry: 1,
   });
 }
@@ -87,7 +122,14 @@ export function useStrategies() {
 }
 
 export function useJournal() {
-  return useQuery({ queryKey: queryKeys.journal, queryFn: api.journal, enabled: isBrowser, retry: 1 });
+  return useQuery({
+    queryKey: queryKeys.journal,
+    queryFn: api.journal,
+    enabled: isBrowser,
+    staleTime: 20_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
 }
 
 export function useIntelligence() {
@@ -95,17 +137,18 @@ export function useIntelligence() {
     queryKey: queryKeys.intelligence,
     queryFn: api.intelligence,
     enabled: isBrowser,
-    staleTime: 60_000,
+    staleTime: 120_000,
     retry: 1,
+    placeholderData: (prev) => prev,
   });
 }
 
-export function useIntelligenceAnalysis(strategy?: string) {
+export function useIntelligenceAnalysis(enabled = true) {
   return useQuery({
-    queryKey: [...queryKeys.intelligenceAnalysis, strategy ?? "default"],
-    queryFn: () => api.intelligenceAnalysis(strategy),
-    enabled: isBrowser,
-    staleTime: 60_000,
+    queryKey: queryKeys.intelligenceAnalysis,
+    queryFn: () => api.intelligenceAnalysis(),
+    enabled: isBrowser && enabled,
+    staleTime: 120_000,
     retry: 1,
   });
 }
@@ -153,7 +196,15 @@ export function useBotToggle() {
 }
 
 export function useLive() {
-  return useQuery({ queryKey: queryKeys.live, queryFn: api.live, refetchInterval: 10_000 });
+  return useQuery({
+    queryKey: queryKeys.live,
+    queryFn: api.live,
+    enabled: isBrowser,
+    staleTime: 45_000,
+    refetchInterval: 60_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
 }
 
 export function useLiveGates() {
@@ -218,17 +269,29 @@ export function useRunBacktest() {
 
 export function useRunBacktestAll(onProgress?: (progress: BacktestAllProgress) => void) {
   const qc = useQueryClient();
+  const progressRef = useRef(onProgress);
+  progressRef.current = onProgress;
+
   return useMutation({
-    mutationFn: () => api.backtestAll("USDT", onProgress),
-    onSuccess: (data) => {
-      const matrix = batchToMatrix(data);
-      saveCachedMatrix(matrix);
-      qc.setQueryData(queryKeys.backtestMatrix, matrix);
+    mutationFn: (baseAsset: import("./api").OperatedBase = "BTC") =>
+      api.backtestAll("USDT", baseAsset, (p) => progressRef.current?.(p)),
+    onSuccess: (data, baseAsset) => {
+      const incoming = batchToMatrix(data);
+      const prev = qc.getQueryData<BacktestMatrixResponse>(queryKeys.backtestMatrix) ?? loadCachedMatrix();
+      const matrix =
+        incoming.items.length > 0 && isMatrixHealthy(incoming)
+          ? mergeMatrixResponses(prev, incoming, baseAsset)
+          : prev;
+      if (matrix && matrix.items.length > 0 && isMatrixHealthy(matrix)) {
+        saveCachedMatrix(matrix);
+        qc.setQueryData(queryKeys.backtestMatrix, matrix);
+      }
       qc.invalidateQueries({ queryKey: queryKeys.strategies });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard });
       qc.invalidateQueries({ queryKey: queryKeys.intelligence });
       qc.invalidateQueries({ queryKey: queryKeys.results });
       qc.invalidateQueries({ queryKey: queryKeys.backtestMatrix });
+      qc.invalidateQueries({ queryKey: queryKeys.backtestActive });
       qc.invalidateQueries({ queryKey: queryKeys.reports });
       qc.invalidateQueries({ queryKey: queryKeys.live });
       qc.invalidateQueries({ queryKey: queryKeys.settings });
@@ -249,7 +312,15 @@ export function useRunWalkforward() {
 }
 
 export function useValidation() {
-  return useQuery({ queryKey: queryKeys.validation, queryFn: api.validation, refetchInterval: 20_000 });
+  return useQuery({
+    queryKey: queryKeys.validation,
+    queryFn: api.validation,
+    enabled: isBrowser,
+    staleTime: 45_000,
+    refetchInterval: 90_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
 }
 
 export function useRisk() {
@@ -257,8 +328,9 @@ export function useRisk() {
     queryKey: queryKeys.risk,
     queryFn: api.risk,
     enabled: isBrowser,
-    staleTime: 20_000,
+    staleTime: 25_000,
     retry: 1,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -292,11 +364,29 @@ export function useUpdateRisk() {
   });
 }
 
-export function useResults(selection?: { strategy: string; timeframe: string } | null) {
+export function useResults(selection?: { strategy: string; timeframe: string; base_asset?: import("./api").OperatedBase } | null) {
   return useQuery({
-    queryKey: [...queryKeys.results, selection?.strategy, selection?.timeframe],
-    queryFn: () => api.results({ strategy: selection!.strategy, timeframe: selection!.timeframe }),
+    queryKey: [...queryKeys.results, selection?.strategy, selection?.timeframe, selection?.base_asset ?? "BTC"],
+    queryFn: () =>
+      api.results({
+        strategy: selection!.strategy,
+        timeframe: selection!.timeframe,
+        base_asset: selection!.base_asset ?? "BTC",
+      }),
     enabled: isBrowser && !!selection,
+    staleTime: 0,
+  });
+}
+
+export function useBacktestActiveJob(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.backtestActive,
+    queryFn: () => api.backtestAllActive(),
+    enabled: isBrowser && enabled,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.active && data.status === "running" ? 2000 : false;
+    },
     staleTime: 0,
   });
 }
@@ -307,7 +397,7 @@ export function useBacktestMatrix() {
     queryFn: async (): Promise<BacktestMatrixResponse> => {
       const resetActive = isReportsResetActive();
       try {
-        const fresh = await api.backtestMatrix();
+        const fresh = normalizeMatrixResponse(await api.backtestMatrix());
         if (fresh.items.length === 0) {
           clearCachedMatrix();
           if (resetActive) clearReportsResetFlag();
@@ -319,6 +409,8 @@ export function useBacktestMatrix() {
         }
         return fresh;
       } catch (err) {
+        const cached = loadCachedMatrix();
+        if (cached?.items?.length) return cached;
         if (resetActive) {
           clearCachedMatrix();
           return emptyMatrix();
@@ -327,7 +419,10 @@ export function useBacktestMatrix() {
       }
     },
     enabled: isBrowser,
-    staleTime: 30_000,
+    initialData: () => loadCachedMatrix() ?? undefined,
+    staleTime: 120_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 }
@@ -341,8 +436,9 @@ export function useSettings() {
     queryKey: queryKeys.settings,
     queryFn: api.settings,
     enabled: isBrowser,
-    staleTime: 15_000,
+    staleTime: 60_000,
     retry: 1,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -362,10 +458,12 @@ export function useUpdateOperationalSlots() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: api.updateOperationalSlots,
-    onSuccess: () => {
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.settings, data);
       qc.invalidateQueries({ queryKey: queryKeys.settings });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard });
       qc.invalidateQueries({ queryKey: queryKeys.live });
+      qc.invalidateQueries({ queryKey: queryKeys.intelligence });
     },
   });
 }
