@@ -1,9 +1,24 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AlertTriangle, CheckCircle2, Rocket, ShieldAlert, StopCircle } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { PageHeader, Panel } from "@/components/ui/page";
 import { OperationsFeed } from "@/components/widgets/OperationsFeed";
-import { useBotToggle, useLive, useOperationsFeed } from "@/lib/queries";
+import { buildTradeOverlays } from "@/lib/operations-terminal";
+import {
+  useBotToggle,
+  useJournal,
+  useLive,
+  useMarkets,
+  useOperationsFeed,
+  usePositions,
+  useSettings,
+} from "@/lib/queries";
+
+const LiveTradingViewChart = lazy(() =>
+  import("@/components/operations/LiveTradingViewChart").then((module) => ({
+    default: module.LiveTradingViewChart,
+  })),
+);
 
 export const Route = createFileRoute("/live")({
   head: () => ({
@@ -18,6 +33,10 @@ export const Route = createFileRoute("/live")({
 function LivePage() {
   const { data, isLoading, isPending, error } = useLive();
   const feed = useOperationsFeed();
+  const positions = usePositions();
+  const journal = useJournal();
+  const markets = useMarkets();
+  const settings = useSettings();
   const bot = useBotToggle();
   const [confirm, setConfirm] = useState(false);
   const [confirmText, setConfirmText] = useState("");
@@ -42,6 +61,12 @@ function LivePage() {
   const { gates, bot: botSnap, config, instances = botSnap.instances ?? [] } = data;
   const isLive = botSnap.running && botSnap.mode === "live";
   const canStart = gates.eligible && !isLive && !botSnap.running;
+  const active = settings.data?.operational?.active;
+  const symbol = active?.symbol ?? instances[0]?.symbol ?? config.symbol;
+  const timeframe = active?.timeframe ?? instances[0]?.timeframe ?? config.timeframe;
+  const base = symbol.split("/")[0] ?? "BTC";
+  const marketPrice = markets.data?.items?.find((item) => item.symbol === base)?.price;
+  const tradeOverlays = buildTradeOverlays(positions.data?.items ?? [], journal.data?.items ?? []);
 
   async function handleStartLive() {
     if (!confirm) {
@@ -245,6 +270,32 @@ function LivePage() {
           )}
         </Panel>
       </div>
+
+      {botSnap.running ? (
+        <Suspense
+          fallback={
+            <div className="glass rounded-2xl h-[360px] grid place-items-center text-sm text-muted-foreground">
+              Carregando gráfico em tempo real...
+            </div>
+          }
+        >
+          <LiveTradingViewChart
+            symbol={symbol}
+            timeframe={timeframe}
+            price={marketPrice}
+            trades={tradeOverlays}
+          />
+        </Suspense>
+      ) : (
+        <Panel
+          title="Gráfico em tempo real"
+          subtitle="Paper e Live usam o mesmo gráfico operacional."
+        >
+          <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] px-4 py-8 text-sm text-muted-foreground text-center">
+            Inicie Paper ou Live para carregar o gráfico em tempo real nesta tela.
+          </div>
+        </Panel>
+      )}
 
       <Panel
         title="Mesa ao vivo"
