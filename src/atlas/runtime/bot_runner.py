@@ -11,6 +11,7 @@ from atlas.services.balance_history import record_balance
 from atlas.strategies.mm200_trend_v2 import strategy_display_name
 
 from atlas.runtime.operational_config import MAX_PAPER_SLOTS
+from atlas.runtime.operational_safety import assert_no_conflicting_configs
 
 MAX_PARALLEL_SLOTS = MAX_PAPER_SLOTS
 
@@ -133,6 +134,25 @@ class BotRunner:
                     )
             except Exception as exc:
                 engine.last_error = str(exc)
+                try:
+                    from atlas.monitoring.incident_manager import open_incident
+
+                    open_incident(
+                        type="bot_runtime_error",
+                        message=str(exc),
+                        module="runtime.bot_runner",
+                        severity="critical",
+                        strategy=engine.config.strategy.name,
+                        metadata={
+                            "slot": self.slot_key,
+                            "timeframe": engine.config.exchange.timeframe,
+                            "symbol": engine.config.exchange.symbol,
+                            "mode": engine.config.mode.value,
+                        },
+                        key=f"bot:error:{self.slot_key}:{str(exc)[:80]}",
+                    )
+                except Exception:
+                    pass
                 engine.journal.log(
                     "error",
                     engine.config.exchange.symbol,
@@ -170,6 +190,7 @@ class BotRunnerPool:
             raise RuntimeError("Nenhuma estratégia habilitada")
         if len(configs) > MAX_PARALLEL_SLOTS:
             raise RuntimeError(f"Máximo {MAX_PARALLEL_SLOTS} estratégias simultâneas")
+        assert_no_conflicting_configs(configs)
 
         with self._lock:
             if self._runners and self._mode != mode:

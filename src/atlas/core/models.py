@@ -167,6 +167,8 @@ class ExchangeConfig(BaseModel):
     symbol: str = "BTC/USDT"
     timeframe: str = "4h"
     quote_asset: str = "USDT"
+    market_type: str = "spot"
+    venue: str = "demo_exchange"
     demo: bool = False
     limit: int = 500
 
@@ -179,6 +181,20 @@ class StrategyConfig(BaseModel):
 class RiskConfig(BaseModel):
     initial_capital: float = 10_000.0
     risk_per_trade: float = 0.01
+    max_risk_per_asset: float = 0.03
+    max_risk_per_strategy: float = 0.03
+    max_total_risk: float = 0.06
+    max_exposure_pct: float = 0.95
+    max_exposure_per_asset_pct: float = 0.60
+    max_exposure_per_strategy_pct: float = 0.40
+    max_exposure_per_direction_pct: float = 0.75
+    max_exposure_per_timeframe_pct: float = 0.60
+    correlation_threshold: float = 0.75
+    correlation_risk_scale: float = 0.70
+    target_volatility_pct: float = 0.0
+    atr_risk_multiplier: float = 1.5
+    fractional_kelly: float = 0.25
+    drawdown_scaling: bool = True
     max_open_positions: int = 1
     max_daily_drawdown: float = 0.03
     max_weekly_drawdown: float = 0.08
@@ -191,7 +207,14 @@ class RiskConfig(BaseModel):
 
 class ExecutionConfig(BaseModel):
     fee_rate: float = 0.001
+    maker_fee_rate: float | None = None
+    taker_fee_rate: float | None = None
     slippage_rate: float = 0.0005
+    spread_rate: float = 0.0
+    funding_rate_daily: float = 0.0
+    min_order_notional: float = 0.0
+    quantity_step: float = 0.0
+    liquidity_notional: float = 0.0
     entry_on_next_open: bool = True
     use_exchange_stop: bool = False
     initial_capital: float = 10_000.0
@@ -229,9 +252,19 @@ class BacktestMetrics(BaseModel):
     profit_factor: float
     max_drawdown_pct: float
     sharpe: float
+    sortino: float = 0.0
+    calmar: float = 0.0
     win_rate_pct: float
     trades: int
     expectancy: float
+    payoff_ratio: float = 0.0
+    recovery_factor: float = 0.0
+    drawdown_duration_bars: int = 0
+    exposure_time_pct: float = 0.0
+    turnover: float = 0.0
+    var_95_pct: float = 0.0
+    cvar_95_pct: float = 0.0
+    stability_score: float = 0.0
     atlas_score: float = 0.0
 
 

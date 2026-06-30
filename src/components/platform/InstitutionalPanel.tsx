@@ -49,6 +49,126 @@ function AlertList({
   );
 }
 
+function StatusPill({ label, ok, detail }: { label: string; ok: boolean; detail?: string | null }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className={`h-2 w-2 rounded-full ${ok ? "bg-success" : "bg-destructive"}`} />
+      </div>
+      <div className={`text-sm font-semibold mt-1 ${ok ? "text-success" : "text-destructive"}`}>
+        {ok ? "Online" : "Atenção"}
+      </div>
+      {detail && <div className="text-[10px] text-muted-foreground mt-1 truncate">{detail}</div>}
+    </div>
+  );
+}
+
+function MonitoringPanel({ platform }: { platform: PlatformStatus }) {
+  const monitoring = platform.monitoring;
+  if (!monitoring) return null;
+  const incidents = monitoring.incidents?.open_items ?? [];
+  const channels = monitoring.incidents?.channels ?? {};
+  return (
+    <Panel title="Painel de Saúde" subtitle="API, Binance, bot, reconciliação e incidentes">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <StatusPill label="API" ok={monitoring.api.online} detail={monitoring.api.status} />
+        <StatusPill
+          label="Binance"
+          ok={monitoring.binance.online}
+          detail={
+            monitoring.binance.latency_ms != null
+              ? `${monitoring.binance.latency_ms}ms`
+              : monitoring.binance.status
+          }
+        />
+        <StatusPill
+          label="Bot"
+          ok={monitoring.bot.active}
+          detail={`${monitoring.bot.instance_count ?? 0} instância(s)`}
+        />
+        <StatusPill
+          label="Regime"
+          ok={!monitoring.regime?.stale}
+          detail={monitoring.regime?.last_candle_ts?.slice(0, 16).replace("T", " ")}
+        />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mb-4">
+        <div className="rounded-xl bg-white/[0.02] border border-white/10 p-3">
+          <div className="text-muted-foreground">Último tick</div>
+          <div className="num mt-1">
+            {monitoring.last_tick_at?.slice(0, 19).replace("T", " ") ?? "—"}
+          </div>
+        </div>
+        <div className="rounded-xl bg-white/[0.02] border border-white/10 p-3">
+          <div className="text-muted-foreground">Última ordem</div>
+          <div className="num mt-1">
+            {String(monitoring.last_order?.event ?? "—")}{" "}
+            {String(monitoring.last_order?.ts ?? "")
+              .slice(0, 16)
+              .replace("T", " ")}
+          </div>
+        </div>
+        <div className="rounded-xl bg-white/[0.02] border border-white/10 p-3">
+          <div className="text-muted-foreground">Última reconciliação</div>
+          <div className="num mt-1">
+            {monitoring.last_reconciliation_at?.slice(0, 19).replace("T", " ") ?? "—"}
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {Object.entries(channels).map(([channel, enabled]) => (
+          <span
+            key={channel}
+            className={`rounded-full border px-2 py-1 text-[11px] ${
+              enabled
+                ? "border-success/30 bg-success/10 text-success"
+                : "border-white/10 bg-white/[0.02] text-muted-foreground"
+            }`}
+          >
+            {channel}: {enabled ? "ativo" : "off"}
+          </span>
+        ))}
+      </div>
+      {monitoring.last_error && (
+        <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          Último erro: {monitoring.last_error}
+        </div>
+      )}
+      {incidents.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhum incidente aberto.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-white/10">
+          <table className="w-full text-xs min-w-[640px]">
+            <thead className="text-[10px] uppercase text-muted-foreground bg-white/[0.02]">
+              <tr className="text-left">
+                <th className="px-3 py-2">Tipo</th>
+                <th className="px-3 py-2">Módulo</th>
+                <th className="px-3 py-2">Estratégia</th>
+                <th className="px-3 py-2">Mensagem</th>
+                <th className="px-3 py-2 text-right">Horário</th>
+              </tr>
+            </thead>
+            <tbody>
+              {incidents.slice(0, 8).map((incident) => (
+                <tr key={incident.id} className="border-t border-white/5">
+                  <td className="px-3 py-2 font-medium">{incident.type}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{incident.module}</td>
+                  <td className="px-3 py-2">{incident.strategy ?? "—"}</td>
+                  <td className="px-3 py-2">{incident.message}</td>
+                  <td className="px-3 py-2 text-right num">
+                    {incident.updated_at?.slice(0, 16).replace("T", " ")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 export function InstitutionalPanel({ platform }: { platform: PlatformStatus | undefined }) {
   const ackRisk = useAckRiskLock();
 
@@ -107,6 +227,8 @@ export function InstitutionalPanel({ platform }: { platform: PlatformStatus | un
           <div className="text-lg font-bold mt-1">{runtime.state}</div>
         </div>
       </div>
+
+      <MonitoringPanel platform={platform} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Panel title="Saúde do Sistema">

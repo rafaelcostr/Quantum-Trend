@@ -25,6 +25,27 @@ def emit_alert(
         "meta": meta or {},
     }
     append_alert(record)
+    if severity in (AlertSeverity.WARNING, AlertSeverity.CRITICAL):
+        try:
+            from atlas.monitoring.incident_manager import open_incident
+
+            open_incident(
+                type=category,
+                message=message,
+                module="platform.alerts",
+                severity=severity.value,
+                metadata=meta or {},
+                key=f"platform:{category}:{message[:80]}",
+                notify=False,
+            )
+        except Exception as exc:
+            log_event(
+                30,
+                "platform.alert.incident.failed",
+                module="platform.alerts",
+                category=category,
+                error=str(exc)[:240],
+            )
 
     if telegram and severity == AlertSeverity.CRITICAL:
         try:

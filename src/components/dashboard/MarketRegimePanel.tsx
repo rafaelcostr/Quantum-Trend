@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, ArrowRight, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { Panel } from "@/components/ui/page";
+import { formatApiError, StaleBadge, WarningState } from "@/components/ui/query-state";
 import type { MarketRegimeSnapshot } from "@/lib/api";
 
 const REGIME_ICONS = {
@@ -56,19 +57,34 @@ export function MarketRegimePanel({ regime }: { regime: MarketRegimeSnapshot | u
       title="Regime de Mercado"
       action={
         regime.available ? (
-          <span className="text-[11px] text-muted-foreground">
-            {regime.symbol} · {regime.timeframe.toUpperCase()}
-          </span>
+          <div className="flex items-center gap-2">
+            <StaleBadge stale={regime.stale} lastSuccessAt={regime.last_success_at} />
+            <span className="text-[11px] text-muted-foreground">
+              {regime.symbol} · {regime.timeframe.toUpperCase()}
+            </span>
+          </div>
         ) : null
       }
     >
       {!regime.available ? (
         <div className="text-sm text-muted-foreground space-y-2">
           <p>{regime.reason}</p>
-          {regime.error && <p className="text-xs text-destructive/90">{regime.error}</p>}
+          {regime.error && (
+            <p className="text-xs text-destructive/90">{formatApiError(regime.error)}</p>
+          )}
         </div>
       ) : (
         <div className="space-y-5">
+          {regime.stale && (
+            <WarningState>
+              <div className="font-medium">Regime usando último dado válido</div>
+              <div className="mt-1 text-xs opacity-90">
+                A Binance/API falhou na atualização mais recente; a tela manteve o snapshot anterior
+                marcado como cacheado.
+              </div>
+            </WarningState>
+          )}
+
           <div
             className={`relative overflow-hidden rounded-2xl border border-white/10 p-5 bg-gradient-to-br ${accent.glow} to-white/[0.02]`}
           >

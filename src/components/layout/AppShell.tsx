@@ -20,9 +20,9 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowLeftRight,
+  Microscope,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { motion } from "framer-motion";
 import { BotUptimeTimer } from "@/components/operations/BotUptimeTimer";
 import { useBotStatus, useHealth, useSettings } from "@/lib/queries";
 
@@ -32,10 +32,11 @@ const NAV = [
   { to: "/estrategias-baixa", label: "Estratégias de Baixa", icon: TrendingDown },
   { to: "/estrategias-lateral", label: "Estratégias Laterais", icon: ArrowLeftRight },
   { to: "/backtests", label: "Backtests", icon: FlaskConical },
-  { to: "/validacao", label: "Paper Trading", icon: MonitorPlay },
+  { to: "/laboratorio", label: "Laboratório Quant", icon: Microscope },
+  { to: "/validacao", label: "Paper", icon: MonitorPlay },
   { to: "/portfolio", label: "Portfolio", icon: Wallet },
   { to: "/resultados", label: "Resultados", icon: BarChart3 },
-  { to: "/live", label: "Trading Live", icon: Rocket },
+  { to: "/live", label: "Live", icon: Rocket },
   { to: "/operacoes", label: "Operações", icon: LineChart },
   { to: "/risco", label: "Risco", icon: ShieldCheck },
   { to: "/diario", label: "Journal", icon: NotebookPen },
@@ -80,10 +81,7 @@ function Sidebar() {
               }`}
             >
               {active && (
-                <motion.span
-                  layoutId="active-dot"
-                  className="absolute left-0 h-5 w-1 rounded-r bg-gradient-to-b from-[#7C3AED] to-[#3B82F6]"
-                />
+                <span className="absolute left-0 h-5 w-1 rounded-r bg-gradient-to-b from-[#7C3AED] to-[#3B82F6]" />
               )}
               <Icon className="h-4 w-4" />
               <span className="font-medium">{item.label}</span>
@@ -204,13 +202,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="lg:pl-64">
         <Topbar />
         <main className="px-6 lg:px-10 py-8">
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
-          >
-            {children}
-          </motion.div>
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">{children}</div>
         </main>
       </div>
     </div>

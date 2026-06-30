@@ -41,13 +41,15 @@ def resolve_backtest_config_path(
 
 def metrics_from_backtest_result(result: dict[str, Any]) -> dict[str, Any]:
     atlas_score = 0.0
+    report_metrics: dict[str, Any] = {}
     report_path = result.get("report_path")
     if report_path:
         path = Path(report_path)
         if path.is_file():
             try:
                 raw = json.loads(path.read_text(encoding="utf-8"))
-                atlas_score = float(raw.get("metrics", {}).get("atlas_score", 0))
+                report_metrics = dict(raw.get("metrics") or {})
+                atlas_score = float(report_metrics.get("atlas_score", 0))
             except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
                 log_event(
                     10,
@@ -56,7 +58,7 @@ def metrics_from_backtest_result(result: dict[str, Any]) -> dict[str, Any]:
                     report_path=report_path,
                     error=str(exc)[:240],
                 )
-    return {
+    metrics = {
         "total_return_pct": round(float(result.get("net_profit_pct", 0)) * 100, 2),
         "profit_factor": round(float(result.get("profit_factor", 0)), 2),
         "max_drawdown_pct": round(float(result.get("max_drawdown_pct", 0)) * 100, 2),
@@ -64,6 +66,47 @@ def metrics_from_backtest_result(result: dict[str, Any]) -> dict[str, Any]:
         "win_rate_pct": round(float(result.get("win_rate", 0)) * 100, 2),
         "trades": int(result.get("total_trades", 0)),
         "atlas_score": round(atlas_score, 1),
+    }
+    for key in (
+        "sortino",
+        "calmar",
+        "expectancy",
+        "payoff_ratio",
+        "recovery_factor",
+        "drawdown_duration_bars",
+        "exposure_time_pct",
+        "turnover",
+        "var_95_pct",
+        "cvar_95_pct",
+        "stability_score",
+    ):
+        if key in report_metrics:
+            metrics[key] = report_metrics[key]
+    return metrics
+
+
+def _strategy_rankings(items: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    def ranked(metric: str, *, reverse: bool = True, limit: int = 10) -> list[dict[str, Any]]:
+        rows = [i for i in items if i.get("ok") and i.get("metrics")]
+        rows.sort(key=lambda x: float((x.get("metrics") or {}).get(metric, 0) or 0), reverse=reverse)
+        return rows[:limit]
+
+    def adjusted(row: dict[str, Any]) -> float:
+        m = row.get("metrics") or {}
+        ret = float(m.get("total_return_pct", 0) or 0)
+        dd = max(float(m.get("max_drawdown_pct", 0) or 0), 1.0)
+        sharpe = float(m.get("sharpe", 0) or 0)
+        stability = float(m.get("stability_score", 0) or 0)
+        return (ret / dd) + sharpe + (stability / 100)
+
+    adjusted_rows = [i for i in items if i.get("ok") and i.get("metrics")]
+    adjusted_rows.sort(key=adjusted, reverse=True)
+    return {
+        "by_return": ranked("total_return_pct"),
+        "by_drawdown": ranked("max_drawdown_pct", reverse=False),
+        "by_sharpe": ranked("sharpe"),
+        "by_stability": ranked("stability_score"),
+        "by_risk_adjusted_return": adjusted_rows[:10],
     }
 
 
@@ -178,6 +221,7 @@ def run_all_strategies_backtest(
         "best": best,
         "items": items,
         "groups": _matrix_groups_payload(passed),
+        "rankings": _strategy_rankings(passed),
         "errors": errors,
     }
 
@@ -289,6 +333,7 @@ def load_backtest_matrix_from_reports(*, quote: str = "USDT") -> dict[str, Any]:
             "best_score": by_score_asset[0] if by_score_asset else None,
             "items": sorted_rows,
             "groups": _matrix_groups_payload(sorted_rows),
+            "rankings": _strategy_rankings(sorted_rows),
         }
 
     return {
@@ -299,4 +344,5 @@ def load_backtest_matrix_from_reports(*, quote: str = "USDT") -> dict[str, Any]:
         "items": by_return,
         "groups": _matrix_groups_payload(by_return),
         "by_asset": asset_payload,
+        "rankings": _strategy_rankings(by_return),
     }

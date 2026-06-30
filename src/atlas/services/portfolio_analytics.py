@@ -8,6 +8,7 @@ from typing import Any
 from atlas.core.models import TradingMode
 from atlas.research.reports import load_report_by_strategy_timeframe
 from atlas.runtime.operational_config import load_paper_slots, slot_key
+from atlas.runtime.portfolio_risk import aggregate_exposure
 from atlas.runtime.risk_store import get_risk_settings
 from atlas.runtime.state import build_positions, bot_state
 from atlas.services.analytics import monthly_returns_from_equity
@@ -265,6 +266,73 @@ def _monthly_heatmap(monthly: list[dict]) -> list[dict[str, Any]]:
     return out
 
 
+def _risk_allocation(*, slots, balance: float, risk_settings) -> list[dict[str, Any]]:
+    enabled = [s for s in slots if s.enabled] or list(slots)
+    if not enabled or balance <= 0:
+        return []
+    per_trade = balance * float(risk_settings.risk_per_trade_pct) / 100
+    max_strategy = balance * float(risk_settings.max_risk_per_strategy_pct) / 100
+    max_asset = balance * float(risk_settings.max_risk_per_asset_pct) / 100
+    base_budget = min(per_trade, max_strategy)
+    return [
+        {
+            "strategy_id": s.strategy,
+            "label": STRATEGY_SHORT.get(s.strategy, strategy_display_name(s.strategy)),
+            "asset": getattr(s, "base", None) or "BTC",
+            "timeframe": s.timeframe.upper(),
+            "risk_budget_usdt": round(base_budget, 2),
+            "max_strategy_risk_usdt": round(max_strategy, 2),
+            "max_asset_risk_usdt": round(max_asset, 2),
+        }
+        for s in enabled
+    ]
+
+
+def _advanced_risk_summary(*, balance: float, slots, risk_settings) -> dict[str, Any]:
+    exposure = aggregate_exposure().to_dict(balance)
+    total_pct = float(exposure.get("total_pct", 0) or 0)
+    correlated = float(exposure.get("correlated_usdt", 0) or 0)
+    correlated_pct = correlated / balance * 100 if balance > 0 else 0.0
+    max_exposure = float(risk_settings.max_exposure_pct)
+    scale = 1.0
+    if max_exposure > 0 and total_pct > max_exposure * 0.75:
+        scale = min(scale, max(0.25, 1 - (total_pct / max_exposure - 0.75)))
+    if correlated_pct > 50:
+        scale = min(scale, float(risk_settings.correlation_risk_scale) / 100)
+
+    alerts: list[str] = []
+    if total_pct >= max_exposure:
+        alerts.append("exposicao_total_no_limite")
+    if correlated_pct > 50:
+        alerts.append("correlacao_btc_eth_ou_estrategias_alta")
+    if risk_settings.consecutive_losses >= risk_settings.pause_after_losses:
+        alerts.append("cooldown_por_perdas_consecutivas")
+
+    return {
+        "exposure": exposure,
+        "risk_allocation": _risk_allocation(slots=slots, balance=balance, risk_settings=risk_settings),
+        "limits": {
+            "risk_per_trade_pct": risk_settings.risk_per_trade_pct,
+            "max_risk_per_asset_pct": risk_settings.max_risk_per_asset_pct,
+            "max_risk_per_strategy_pct": risk_settings.max_risk_per_strategy_pct,
+            "max_total_risk_pct": risk_settings.max_total_risk_pct,
+            "max_exposure_pct": risk_settings.max_exposure_pct,
+            "max_exposure_per_asset_pct": risk_settings.max_exposure_per_asset_pct,
+            "max_exposure_per_strategy_pct": risk_settings.max_exposure_per_strategy_pct,
+            "max_exposure_per_direction_pct": risk_settings.max_exposure_per_direction_pct,
+            "max_exposure_per_timeframe_pct": risk_settings.max_exposure_per_timeframe_pct,
+        },
+        "sizing": {
+            "volatility_target_pct": risk_settings.target_volatility_pct,
+            "atr_multiplier": risk_settings.atr_risk_multiplier,
+            "fractional_kelly": risk_settings.fractional_kelly,
+            "drawdown_scaling": True,
+            "recommended_scale": round(scale, 2),
+        },
+        "alerts": alerts,
+    }
+
+
 def build_portfolio_analytics(
     *,
     balance: float,
@@ -331,6 +399,7 @@ def build_portfolio_analytics(
         },
         "monthly_heatmap": _monthly_heatmap(monthly),
         "health": health,
+        "advanced_risk": _advanced_risk_summary(balance=balance, slots=slots, risk_settings=risk),
     }
 
 
@@ -353,6 +422,8 @@ def get_enriched_portfolio_payload(base_payload: dict) -> dict:
         initial_capital=cfg.risk.initial_capital,
     )
     exposure = float(base_payload.get("portfolio", {}).get("current_exposure_pct", 0))
+    if analytics.get("advanced_risk"):
+        exposure = float(analytics["advanced_risk"]["exposure"].get("total_pct", exposure) or exposure)
     analytics["health"] = portfolio_health_score(
         profit_factor=float(analytics["portfolio_stats"]["profit_factor"]),
         max_drawdown_pct=float(analytics["drawdown_summary"]["max_pct"]),

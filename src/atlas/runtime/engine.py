@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from atlas.brokers.binance import BinanceDemoBroker, BinanceLiveBroker
+from atlas.brokers.factory import build_broker, requires_exchange_credentials
 from atlas.core.config import AtlasConfig
 from atlas.core.log import log_event
 from atlas.core.indicators import add_indicators_from_params, row_to_indicator_snapshot
@@ -15,6 +15,7 @@ from atlas.core.models import (
     Candle,
     IndicatorSnapshot,
     Order,
+    OrderResult,
     PortfolioState,
     Position,
     Side,
@@ -28,6 +29,13 @@ from atlas.quantum.journal_enricher import build_trade_journal_payload
 from atlas.quantum.multi_timeframe import build_execution_dataset
 from atlas.quantum.runtime_store import update_runtime_snapshot
 from atlas.runtime.journal import Journal
+from atlas.runtime.operational_safety import (
+    attach_client_order_id,
+    begin_order_decision,
+    decision_id,
+    evaluate_scoped_kill_switch,
+    finish_order_decision,
+)
 from atlas.runtime.reconciler import PositionReconciler
 from atlas.runtime.risk_store import is_trading_paused, record_trade_close, record_trade_open
 from atlas.strategies.market_orchestrator import gate_strategy_by_regime
@@ -39,7 +47,7 @@ class TradingEngine:
 
     def __init__(self, config: AtlasConfig) -> None:
         self.config = config
-        if config.mode in (TradingMode.PAPER, TradingMode.LIVE):
+        if config.mode in (TradingMode.PAPER, TradingMode.LIVE) and requires_exchange_credentials(config):
             self._require_api_credentials(config.mode)
 
         params = config.strategy.params
@@ -57,10 +65,7 @@ class TradingEngine:
         )
         self.warmup = int(params.get("warmup_bars", 250 if self.multi_timeframe else 205))
 
-        if config.mode == TradingMode.LIVE:
-            self.broker = BinanceLiveBroker(config.exchange.symbol)
-        else:
-            self.broker = BinanceDemoBroker(config.exchange.symbol)
+        self.broker = build_broker(config)
 
         self._reconciler = PositionReconciler(
             journal=self.journal,
@@ -87,6 +92,9 @@ class TradingEngine:
             timeframe=self.config.exchange.timeframe,
             symbol=self.config.exchange.symbol,
             mode=self.config.mode.value,
+            exchange_id=self.broker.spec.exchange_id,
+            market_type=self.broker.spec.market_type.value,
+            venue=self.broker.spec.venue.value,
             reconcile_source=self._reconcile_meta.get("source"),
             reconcile_warning=self._reconcile_meta.get("warning"),
         )
@@ -198,6 +206,75 @@ class TradingEngine:
             mode=self.config.mode.value,
         )
 
+    def _submit_order(self, order: Order, *, signal, candle: Candle, intent: str) -> OrderResult:
+        did = decision_id(
+            mode=self.config.mode.value,
+            symbol=self.config.exchange.symbol,
+            timeframe=self.config.exchange.timeframe,
+            strategy=self.config.strategy.name,
+            action=signal.action,
+            candle_ts=candle.timestamp.isoformat(),
+        )
+        context = {
+            "intent": intent,
+            "symbol": self.config.exchange.symbol,
+            "strategy": self.config.strategy.name,
+            "timeframe": self.config.exchange.timeframe,
+            "mode": self.config.mode.value,
+            "signal": signal.action.value,
+            "reason": signal.reason,
+            "candle_at": candle.timestamp.isoformat(),
+            "side": order.side.value,
+            "quantity": order.quantity,
+        }
+        accepted, previous = begin_order_decision(did, context=context)
+        if not accepted:
+            self.journal.log(
+                "order_duplicate_blocked",
+                self.config.exchange.symbol,
+                decision_id=did,
+                previous=previous,
+                **context,
+            )
+            log_event(
+                30,
+                "engine.order.duplicate_blocked",
+                module="runtime.engine",
+                decision_id=did,
+                strategy=self.config.strategy.name,
+                timeframe=self.config.exchange.timeframe,
+                symbol=self.config.exchange.symbol,
+                mode=self.config.mode.value,
+            )
+            return OrderResult(success=False, message=f"duplicate_decision:{did}")
+
+        order = attach_client_order_id(order, did)
+        self.journal.log("order_decision_before", self.config.exchange.symbol, decision_id=did, **context)
+        log_event(
+            20,
+            "engine.order.submitting",
+            module="runtime.engine",
+            decision_id=did,
+            strategy=self.config.strategy.name,
+            timeframe=self.config.exchange.timeframe,
+            symbol=self.config.exchange.symbol,
+            mode=self.config.mode.value,
+            side=order.side.value,
+        )
+        fill = self.broker.place_order(order)
+        status = "success" if fill.success else "failed"
+        payload = fill.model_dump()
+        finish_order_decision(did, status=status, result=payload)
+        self.journal.log(
+            "order_decision_after",
+            self.config.exchange.symbol,
+            decision_id=did,
+            status=status,
+            result=payload,
+            **context,
+        )
+        return fill
+
     def process_once(self) -> dict:
         from atlas.platform.orchestrator import platform_orchestrator
 
@@ -220,6 +297,14 @@ class TradingEngine:
 
         dq = platform_orchestrator.assess_tick_data(self, ind_df)
         can_trade, gate_reason = platform_orchestrator.gate_operations(self, data_ok=dq.get("ok", True))
+        scoped_kill = evaluate_scoped_kill_switch(
+            global_active=self.risk.kill_switch,
+            symbol=self.config.exchange.symbol,
+            strategy=self.config.strategy.name,
+        )
+        if scoped_kill.blocked:
+            can_trade = False
+            gate_reason = scoped_kill.reason
 
         idx = len(ind_df) - 2
         row = ind_df.iloc[idx]
@@ -281,7 +366,7 @@ class TradingEngine:
             decision = self.risk.approve_exit(signal, portfolio)
             if decision.approved:
                 order = Order(symbol=self.config.exchange.symbol, side=Side.SELL, quantity=position.quantity)
-                fill = self.broker.place_order(order)
+                fill = self._submit_order(order, signal=signal, candle=candle, intent="exit_long")
                 pnl = (fill.filled_price or mark - position.entry_price) * position.quantity if fill.success else 0
                 self._log_trade("exit", signal, candle, ctx=ctx, fill=fill.model_dump(), position=position)
                 if fill.success:
@@ -323,7 +408,7 @@ class TradingEngine:
                     fill = {"filled_price": exit_px, "filled_quantity": position.quantity, "success": True}
                 else:
                     order = Order(symbol=self.config.exchange.symbol, side=Side.BUY, quantity=position.quantity)
-                    fill_obj = self.broker.place_order(order)
+                    fill_obj = self._submit_order(order, signal=signal, candle=candle, intent="exit_short")
                     exit_px = fill_obj.filled_price or mark
                     pnl = (position.entry_price - exit_px) * position.quantity if fill_obj.success else 0
                     fill = fill_obj.model_dump()
@@ -372,6 +457,15 @@ class TradingEngine:
             if "balance_warning" in result:
                 result["action"] = "skipped_no_balance"
                 return result
+            signal.metadata.update(
+                {
+                    "symbol": self.config.exchange.symbol,
+                    "strategy": self.config.strategy.name,
+                    "timeframe": self.config.exchange.timeframe,
+                    "slot": result.get("slot") or "",
+                    "atr": signal.metadata.get("atr") or snap.get("atr"),
+                }
+            )
             decision = self.risk.approve_entry(signal, portfolio, candle.timestamp, candle.close)
             if decision.approved:
                 order = Order(
@@ -380,7 +474,7 @@ class TradingEngine:
                     quantity=decision.quantity,
                     stop_price=signal.stop_price,
                 )
-                fill = self.broker.place_order(order)
+                fill = self._submit_order(order, signal=signal, candle=candle, intent="enter_long")
                 if fill.success:
                     self._position = Position(
                         symbol=self.config.exchange.symbol,
@@ -405,6 +499,26 @@ class TradingEngine:
                 else:
                     result["action"] = "entry_failed"
                     result["error"] = fill.message
+                    try:
+                        from atlas.monitoring.incident_manager import open_incident
+
+                        incident_type = "insufficient_balance" if "insufficient" in fill.message.lower() else "order_rejected"
+                        open_incident(
+                            type=incident_type,
+                            message=fill.message or "Ordem rejeitada",
+                            module="runtime.engine",
+                            severity="critical",
+                            strategy=self.config.strategy.name,
+                            metadata={
+                                "symbol": self.config.exchange.symbol,
+                                "timeframe": self.config.exchange.timeframe,
+                                "mode": self.config.mode.value,
+                                "side": "buy",
+                            },
+                            key=f"order:{incident_type}:{self.config.strategy.name}:{self.config.exchange.symbol}",
+                        )
+                    except Exception:
+                        pass
             else:
                 result["action"] = "blocked"
                 result["block_reason"] = decision.reason
@@ -426,6 +540,15 @@ class TradingEngine:
                 result["action"] = "paused"
                 result["block_reason"] = pause_reason
                 return result
+            signal.metadata.update(
+                {
+                    "symbol": self.config.exchange.symbol,
+                    "strategy": self.config.strategy.name,
+                    "timeframe": self.config.exchange.timeframe,
+                    "slot": result.get("slot") or "",
+                    "atr": signal.metadata.get("atr") or snap.get("atr"),
+                }
+            )
             decision = self.risk.approve_entry(signal, portfolio, candle.timestamp, candle.close)
             if decision.approved:
                 meta = {**(signal.metadata or {}), "position_kind": "short", "virtual_short": True}

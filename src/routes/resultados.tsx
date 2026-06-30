@@ -1,6 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { PageHeader, Panel } from "@/components/ui/page";
+import { EmptyState, LoadingBlock } from "@/components/ui/query-state";
 import { StatCard } from "@/components/widgets/StatCard";
 import {
   BacktestMatrixAssetTabs,
@@ -10,22 +11,16 @@ import {
 import { formatReturn } from "@/lib/backtest-format";
 import { filterMatrixByAsset } from "@/lib/backtest-matrix-groups";
 import { Wallet, Target, Gauge, Activity, TrendingUp, ShieldAlert } from "lucide-react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
 import { useBacktestMatrix, useResults, useBacktestActiveJob } from "@/lib/queries";
 import type { BacktestBatchItem, BacktestMetrics, ResultsResponse } from "@/lib/api";
 import { formatBacktestPeriodLong } from "@/lib/backtest-period";
 import { BacktestRunningBanner } from "@/components/backtests/BacktestRunningBanner";
+
+const BacktestResultCharts = lazy(() =>
+  import("@/components/backtests/BacktestResultCharts").then((module) => ({
+    default: module.BacktestResultCharts,
+  })),
+);
 
 export const Route = createFileRoute("/resultados")({
   head: () => ({ meta: [{ title: "Resultados · Quantum-Trend" }] }),
@@ -103,22 +98,16 @@ function Page() {
 
       <Panel title="Lucro / prejuízo por estratégia">
         {matrix.isLoading && items.length === 0 && (
-          <p className="text-sm text-muted-foreground">Carregando matriz salva…</p>
+          <LoadingBlock label="Carregando matriz salva..." />
         )}
 
         {matrix.isError && items.length === 0 && <BacktestMatrixError error={matrix.error} />}
 
         {items.length === 0 && !matrix.isLoading && !matrix.isError && (
-          <div className="text-sm text-muted-foreground space-y-2">
-            <p>Nenhum relatório encontrado neste navegador.</p>
-            <p>
-              Rode{" "}
-              <Link to="/backtests" className="text-primary hover:underline">
-                Testar todas · 4H e 1D
-              </Link>{" "}
-              em Backtests. Os resultados ficam salvos ao trocar de página.
-            </p>
-          </div>
+          <EmptyState
+            title="Nenhum relatório encontrado"
+            detail="Rode a matriz em Backtests para preencher esta visão."
+          />
         )}
 
         {items.length > 0 && (
@@ -186,7 +175,9 @@ function Page() {
           </div>
 
           {results.isFetching && (
-            <p className="text-sm text-muted-foreground mb-4">Carregando gráficos…</p>
+            <div className="mb-4">
+              <LoadingBlock label="Carregando gráficos..." />
+            </div>
           )}
 
           {selectedItem?.metrics ? (
@@ -307,6 +298,15 @@ function DetailMetrics({
           accent="primary"
         />
       </div>
+      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
+        <MiniMetric label="Sortino" value={m.sortino} />
+        <MiniMetric label="Calmar" value={m.calmar} />
+        <MiniMetric label="Payoff" value={m.payoff_ratio} />
+        <MiniMetric label="Recovery" value={m.recovery_factor} />
+        <MiniMetric label="Exposição" value={m.exposure_time_pct} suffix="%" />
+        <MiniMetric label="VaR 95%" value={m.var_95_pct} suffix="%" />
+      </div>
+      {charts && <ProfessionalAnalysis charts={charts} metrics={m} />}
       {periodLine && (
         <p className="text-xs text-muted-foreground mt-3">
           {m.trades ?? 0} operações fechadas no período acima
@@ -317,126 +317,97 @@ function DetailMetrics({
         </p>
       )}
 
-      {charts &&
-        charts.monthly_returns.length === 0 &&
-        charts.distribution.every((d) => d.n === 0) &&
-        !noTrades && (
-          <p className="text-xs text-muted-foreground mt-4">Sem dados mensais para exibir.</p>
-        )}
-
-      {charts &&
-        (charts.monthly_returns.length > 0 || charts.distribution.some((d) => d.n > 0)) && (
-          <>
-            <div className="mt-6 h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={charts.equity_curve}
-                  margin={{ top: 10, right: 10, bottom: 0, left: -10 }}
-                >
-                  <defs>
-                    <linearGradient id="eqr" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.55} />
-                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis
-                    dataKey="day"
-                    tick={{ fill: "#64748b", fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fill: "#64748b", fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "rgba(12,16,28,0.95)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: 12,
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="equity"
-                    stroke="#60a5fa"
-                    strokeWidth={2.5}
-                    fill="url(#eqr)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-              <Panel
-                title="Retorno Mensal"
-                subtitle="Variação % da equity em cada mês calendário (ex.: Abr/24)"
-              >
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={charts.monthly_returns}>
-                      <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                      <XAxis
-                        dataKey="m"
-                        tick={{ fill: "#64748b", fontSize: 11 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fill: "#64748b", fontSize: 11 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "rgba(12,16,28,0.95)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          borderRadius: 12,
-                        }}
-                      />
-                      <Bar dataKey="r" radius={[6, 6, 0, 0]}>
-                        {charts.monthly_returns.map((d, i) => (
-                          <Cell key={i} fill={d.r >= 0 ? "#22C55E" : "#EF4444"} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Panel>
-
-              <Panel title="Distribuição de Trades">
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={charts.distribution}>
-                      <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                      <XAxis
-                        dataKey="bucket"
-                        tick={{ fill: "#64748b", fontSize: 11 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fill: "#64748b", fontSize: 11 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "rgba(12,16,28,0.95)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          borderRadius: 12,
-                        }}
-                      />
-                      <Bar dataKey="n" radius={[6, 6, 0, 0]} fill="#7C3AED" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Panel>
-            </div>
-          </>
-        )}
+      {charts && !noTrades && (
+        <Suspense fallback={<LoadingBlock label="Preparando gráficos do resultado..." />}>
+          <BacktestResultCharts charts={charts} />
+        </Suspense>
+      )}
     </>
+  );
+}
+
+function MiniMetric({
+  label,
+  value,
+  suffix = "",
+}: {
+  label: string;
+  value?: number;
+  suffix?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
+      <div className="text-[11px] uppercase text-muted-foreground">{label}</div>
+      <div className="num text-sm font-semibold">
+        {typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(2)}${suffix}` : "—"}
+      </div>
+    </div>
+  );
+}
+
+function ProfessionalAnalysis({
+  charts,
+  metrics,
+}: {
+  charts: ResultsResponse;
+  metrics: BacktestMetrics;
+}) {
+  const costs = charts.costs ?? {};
+  const overfit = charts.overfitting;
+  const yearly = charts.period_analysis?.yearly ?? [];
+  const regimes = charts.period_analysis?.by_regime ?? [];
+  const flags = overfit?.flags ?? [];
+
+  return (
+    <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+        <h3 className="text-sm font-semibold mb-3">Custos reais simulados</h3>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <MiniMetric label="Taxas" value={Number(costs.total_fees ?? 0)} />
+          <MiniMetric label="Slippage" value={Number(costs.slippage_rate ?? 0) * 100} suffix="%" />
+          <MiniMetric label="Spread" value={Number(costs.spread_rate ?? 0) * 100} suffix="%" />
+          <MiniMetric label="Turnover" value={metrics.turnover} />
+        </div>
+      </div>
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+        <h3 className="text-sm font-semibold mb-3">Análise por período</h3>
+        <div className="space-y-2 text-xs">
+          {yearly.slice(-4).map((row) => (
+            <div key={row.period} className="flex justify-between gap-3">
+              <span>{row.period}</span>
+              <span className={row.return_pct >= 0 ? "text-success num" : "text-destructive num"}>
+                {row.return_pct >= 0 ? "+" : ""}
+                {row.return_pct.toFixed(1)}%
+              </span>
+            </div>
+          ))}
+          {!yearly.length && <p className="text-muted-foreground">Sem anos suficientes.</p>}
+        </div>
+      </div>
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+        <h3 className="text-sm font-semibold mb-3">Overfitting e regimes</h3>
+        <div className="space-y-2 text-xs">
+          <div className="flex justify-between">
+            <span>Estabilidade</span>
+            <span className="num text-secondary">{metrics.stability_score?.toFixed(1) ?? "—"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Sensibilidade</span>
+            <span>{overfit?.parameter_sensitivity ?? "unknown"}</span>
+          </div>
+          {regimes.slice(0, 3).map((row) => (
+            <div key={row.bucket} className="flex justify-between gap-3">
+              <span>{row.bucket}</span>
+              <span className="num">
+                {row.trades} trades · PF {row.profit_factor.toFixed(2)}
+              </span>
+            </div>
+          ))}
+          <p className={flags.length ? "text-warning" : "text-success"}>
+            {flags.length ? flags.join(", ") : "Sem alerta forte de overfitting."}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

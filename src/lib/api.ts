@@ -1,3 +1,13 @@
+import type { ZodType, ZodTypeDef } from "zod";
+import {
+  botStatusSchema,
+  healthResponseSchema,
+  marketChartResponseSchema,
+  marketsResponseSchema,
+  platformStatusSchema,
+  riskResponseSchema,
+} from "./api-schemas";
+
 function apiBase(): string {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL.replace(/\/$/, "");
@@ -96,15 +106,34 @@ async function request<T>(path: string, init?: RequestInit & { timeoutMs?: numbe
   }
 }
 
+async function requestSchema<T>(
+  path: string,
+  schema: ZodType<T, ZodTypeDef, unknown>,
+  init?: RequestInit & { timeoutMs?: number },
+): Promise<T> {
+  const data = await request<unknown>(path, init);
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    throw new ApiError(
+      `Resposta inválida da API em ${path}: ${first?.path.join(".") || "payload"} ${first?.message ?? ""}`.trim(),
+      502,
+    );
+  }
+  return parsed.data;
+}
+
 export const api = {
-  health: () => request<HealthResponse>("/health"),
+  health: () => requestSchema<HealthResponse>("/health", healthResponseSchema),
   dashboard: () => request<DashboardResponse>("/dashboard", { timeoutMs: 35_000 }),
   quantumStatus: () => request<QuantumStatus>("/quantum/status", { timeoutMs: 30_000 }),
   portfolio: () => request<PortfolioResponse>("/portfolio", { timeoutMs: 35_000 }),
-  markets: () => request<{ items: MarketTicker[] }>("/markets", { timeoutMs: 12_000 }),
+  markets: () =>
+    requestSchema<MarketsResponse>("/markets", marketsResponseSchema, { timeoutMs: 12_000 }),
   marketChart: (base: string, timeframe: string, quote = "USDT") =>
-    request<MarketChartResponse>(
+    requestSchema<MarketChartResponse>(
       `/markets/chart?base=${encodeURIComponent(base)}&quote=${encodeURIComponent(quote)}&timeframe=${encodeURIComponent(timeframe)}`,
+      marketChartResponseSchema,
       { timeoutMs: 25_000 },
     ),
   backtestChart: (strategy: string, timeframe: string, baseAsset: string = "BTC", quote = "USDT") =>
@@ -123,9 +152,15 @@ export const api = {
         : "/intelligence/analysis",
       { timeoutMs: 60_000 },
     ),
-  botStatus: () => request<BotStatus>("/bot/status"),
+  botStatus: () => requestSchema<BotStatus>("/bot/status", botStatusSchema),
   botStart: () => request<BotStatus>("/bot/start", { method: "POST", timeoutMs: 120_000 }),
-  botStartLive: () => request<BotStatus>("/bot/start-live", { method: "POST", timeoutMs: 120_000 }),
+  botStartLive: (confirmText = "") =>
+    request<BotStatus>("/bot/start-live", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm_text: confirmText }),
+      timeoutMs: 120_000,
+    }),
   botStop: () => request<BotStatus>("/bot/stop", { method: "POST" }),
   live: async (): Promise<LiveResponse> => {
     try {
@@ -161,7 +196,7 @@ export const api = {
       }),
     }),
   walkforward: (opts: BacktestOptions = {}, train_pct = 0.7) =>
-    request<{ ok: boolean; report_path: string }>("/research/walkforward", {
+    request<WalkforwardResponse>("/research/walkforward", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -269,7 +304,7 @@ export const api = {
     return pollUntilDone(jobId);
   },
   validation: () => request<ValidationResponse>("/validation"),
-  risk: () => request<RiskResponse>("/risk", { timeoutMs: 20_000 }),
+  risk: () => requestSchema<RiskResponse>("/risk", riskResponseSchema, { timeoutMs: 20_000 }),
   updateRisk: (body: Partial<RiskSettings>) =>
     request<RiskResponse>("/risk", {
       method: "PUT",
@@ -291,6 +326,41 @@ export const api = {
     return request<ResultsResponse>(`/results${q ? `?${q}` : ""}`);
   },
   reports: () => request<ReportsResponse>("/reports"),
+  quantLabExperiments: () =>
+    request<QuantLabExperimentsResponse>("/quant-lab/experiments", { timeoutMs: 25_000 }),
+  updateQuantLabAnnotation: (experimentId: string, body: QuantLabAnnotationUpdate) =>
+    request<{ ok: boolean; annotation: QuantLabAnnotation }>(
+      `/quant-lab/experiments/${encodeURIComponent(experimentId)}/annotation`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        timeoutMs: 15_000,
+      },
+    ),
+  compareQuantLabExperiments: (experimentIds: string[]) =>
+    request<QuantLabComparison>("/quant-lab/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ experiment_ids: experimentIds }),
+      timeoutMs: 25_000,
+    }),
+  quantLabReplay: (experimentId: string) =>
+    request<QuantLabReplay>(`/quant-lab/replay/${encodeURIComponent(experimentId)}`, {
+      timeoutMs: 25_000,
+    }),
+  quantLabStrategies: () =>
+    request<QuantLabStrategyLibrary>("/quant-lab/strategies", { timeoutMs: 25_000 }),
+  updateQuantLabStrategyStatus: (strategyId: string, body: QuantLabStrategyStatusUpdate) =>
+    request<{ ok: boolean; strategy: QuantLabStrategyStatusUpdate & { id: string } }>(
+      `/quant-lab/strategies/${encodeURIComponent(strategyId)}/status`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        timeoutMs: 15_000,
+      },
+    ),
   settings: () => request<SettingsResponse>("/settings"),
   updateOperational: (body: OperationalUpdate) =>
     request<SettingsResponse>("/settings/operational", {
@@ -304,11 +374,14 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ slots }),
     }),
-  updateKillSwitch: (active: boolean) =>
+  updateKillSwitch: (
+    active: boolean,
+    opts?: { scope?: "global" | "asset" | "strategy"; key?: string; reason?: string },
+  ) =>
     request<SettingsResponse>("/settings/kill-switch", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active }),
+      body: JSON.stringify({ active, ...(opts ?? {}) }),
     }),
   updateNotifications: (body: Partial<Record<string, boolean>>) =>
     request<SettingsResponse>("/settings/notifications", {
@@ -324,7 +397,21 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
-  platformStatus: () => request<PlatformStatus>("/platform/status", { timeoutMs: 60_000 }),
+  platformStatus: () =>
+    requestSchema<PlatformStatus>("/platform/status", platformStatusSchema, { timeoutMs: 60_000 }),
+  monitoringHealth: () => request<MonitoringHealth>("/monitoring/health", { timeoutMs: 20_000 }),
+  monitoringIncidents: (status?: string) =>
+    request<MonitoringHealth["incidents"] | { status: string; total: number; items: Incident[] }>(
+      status
+        ? `/monitoring/incidents?status=${encodeURIComponent(status)}`
+        : "/monitoring/incidents",
+      { timeoutMs: 15_000 },
+    ),
+  resolveIncident: (incidentId: string) =>
+    request<{ ok: boolean; incident: Incident }>(
+      `/monitoring/incidents/${encodeURIComponent(incidentId)}/resolve`,
+      { method: "POST", timeoutMs: 15_000 },
+    ),
   ackRiskLock: () => request<{ ok: boolean }>("/platform/ack-risk", { method: "POST" }),
   runStressTest: () =>
     request<{ ok: boolean; reports: unknown[] }>("/platform/stress-test", { method: "POST" }),
@@ -332,6 +419,23 @@ export const api = {
 
 export type OperatedBase = "BTC" | "ETH";
 export type MarketType = "bull" | "bear" | "range";
+
+export type ApiExternalError = {
+  kind?: string;
+  message?: string;
+  retryable?: boolean;
+  status_code?: number;
+  [key: string]: unknown;
+};
+
+export type CacheStatus = {
+  stale: boolean;
+  ttl_seconds?: number | null;
+  age_seconds?: number | null;
+  last_success_at?: string | null;
+  error?: ApiExternalError | string | null;
+  [key: string]: unknown;
+};
 
 export type BacktestOptions = {
   strategy?: string;
@@ -356,6 +460,14 @@ export type BacktestBatchItem = {
   period_start?: string | null;
   period_end?: string | null;
   period_days?: number | null;
+};
+
+export type BacktestRankings = {
+  by_return?: BacktestBatchItem[];
+  by_drawdown?: BacktestBatchItem[];
+  by_sharpe?: BacktestBatchItem[];
+  by_stability?: BacktestBatchItem[];
+  by_risk_adjusted_return?: BacktestBatchItem[];
 };
 
 export type BacktestMatrixGroup = {
@@ -394,6 +506,7 @@ export type BacktestAllResponse = {
   best: BacktestBatchItem | null;
   items: BacktestBatchItem[];
   groups?: BacktestMatrixGroup[];
+  rankings?: BacktestRankings;
   errors: { strategy: string; timeframe: string; error: string }[];
 };
 
@@ -404,7 +517,105 @@ export type BacktestMatrixResponse = {
   best_score: BacktestBatchItem | null;
   items: BacktestBatchItem[];
   groups?: BacktestMatrixGroup[];
+  rankings?: BacktestRankings;
   by_asset?: Partial<Record<OperatedBase, Omit<BacktestMatrixResponse, "by_asset">>>;
+};
+
+export type QuantLabTag = "promissor" | "rejeitado" | "overfit" | "bom em alta" | "bom em lateral";
+export type QuantLabStrategyStatus = "active" | "archived" | "experimental";
+
+export type QuantLabAnnotation = {
+  tags?: QuantLabTag[];
+  note?: string;
+  updated_at?: string | null;
+};
+
+export type QuantLabAnnotationUpdate = {
+  tags?: QuantLabTag[];
+  note?: string;
+};
+
+export type QuantLabExperiment = {
+  id: string;
+  strategy: string;
+  strategy_label: string;
+  strategy_version: string;
+  parameters: Record<string, unknown>;
+  timeframe: string;
+  asset: string;
+  quote: string;
+  market: string;
+  period_start: string | null;
+  period_end: string | null;
+  period_days: number | null;
+  code_version: string;
+  tested_at: string;
+  report_path: string;
+  metrics: Partial<BacktestMetrics>;
+  tags: QuantLabTag[];
+  note: string;
+  updated_at?: string | null;
+};
+
+export type QuantLabExperimentsResponse = {
+  items: QuantLabExperiment[];
+  total: number;
+  allowed_tags: QuantLabTag[];
+};
+
+export type QuantLabCurvePoint = {
+  index?: number;
+  timestamp: string;
+  equity?: number;
+  drawdown_pct?: number;
+};
+
+export type QuantLabComparison = {
+  experiments: QuantLabExperiment[];
+  equity_curves: { id: string; label: string; points: QuantLabCurvePoint[] }[];
+  drawdown_curves: { id: string; points: QuantLabCurvePoint[] }[];
+  metrics: ({ id: string } & Partial<BacktestMetrics>)[];
+  ranking: ({ id: string } & Partial<BacktestMetrics>)[];
+  best_id: string | null;
+};
+
+export type QuantLabReplayEvent = {
+  index: number;
+  timestamp: string;
+  equity: number;
+  signal: "entry" | "exit" | "hold" | string;
+  reason: string;
+  entry_count: number;
+  exit_count: number;
+  indicators: Record<string, unknown>;
+};
+
+export type QuantLabReplay = {
+  experiment: QuantLabExperiment;
+  events: QuantLabReplayEvent[];
+  total_events: number;
+  total_trades: number;
+};
+
+export type QuantLabStrategyLibraryItem = {
+  id: string;
+  label: string;
+  status: QuantLabStrategyStatus;
+  market_type: MarketType;
+  versions: string[];
+  experiment_count: number;
+  last_tested_at: string | null;
+  note: string;
+};
+
+export type QuantLabStrategyLibrary = {
+  items: QuantLabStrategyLibraryItem[];
+  statuses: QuantLabStrategyStatus[];
+};
+
+export type QuantLabStrategyStatusUpdate = {
+  status: QuantLabStrategyStatus;
+  note?: string;
 };
 
 export type OperationalTimeframe = "1h" | "4h" | "1d";
@@ -446,6 +657,7 @@ export type HealthResponse = {
   version: string;
   bot_running: boolean;
   bot_mode?: string;
+  bot_instances?: number;
   kill_switch?: boolean;
   binance_demo_configured?: boolean;
   binance_demo_connected?: boolean;
@@ -527,12 +739,17 @@ export type MarketTicker = {
   sparkline: number[];
 };
 
+export type MarketsResponse = {
+  items: MarketTicker[];
+  cache?: CacheStatus;
+};
+
 export type MarketChartBar = {
   t: number;
-  o: number;
-  h: number;
-  l: number;
-  c: number;
+  o: number | null;
+  h: number | null;
+  l: number | null;
+  c: number | null;
   ema20?: number | null;
   ema200?: number | null;
   bb_upper?: number | null;
@@ -548,7 +765,10 @@ export type MarketChartResponse = {
   bars: MarketChartBar[];
   indicators?: string[];
   updated_at?: string;
-  error?: string;
+  stale?: boolean;
+  last_success_at?: string | null;
+  ttl_seconds?: number | null;
+  error?: ApiExternalError | string | null;
 };
 
 export type BacktestChartBar = {
@@ -705,6 +925,44 @@ export type PortfolioResponse = {
     tone: "success" | "warning" | "danger";
     components: Record<string, number>;
   };
+  advanced_risk?: {
+    exposure: {
+      total_usdt: number;
+      total_pct: number;
+      by_asset: Record<string, number>;
+      by_direction: Record<string, number>;
+      by_timeframe: Record<string, number>;
+      by_strategy: Record<string, number>;
+      correlated_usdt: number;
+      positions: {
+        slot?: string;
+        asset: string;
+        symbol: string;
+        strategy: string;
+        timeframe: string;
+        direction: string;
+        notional: number;
+      }[];
+    };
+    risk_allocation: {
+      strategy_id: string;
+      label: string;
+      asset: string;
+      timeframe: string;
+      risk_budget_usdt: number;
+      max_strategy_risk_usdt: number;
+      max_asset_risk_usdt: number;
+    }[];
+    limits: Record<string, number>;
+    sizing: {
+      volatility_target_pct: number;
+      atr_multiplier: number;
+      fractional_kelly: number;
+      drawdown_scaling: boolean;
+      recommended_scale: number;
+    };
+    alerts: string[];
+  };
 };
 
 export type PlatformStatus = {
@@ -730,6 +988,7 @@ export type PlatformStatus = {
   recovery: PlatformRecoveryStatus;
   data_quality: PlatformDataQualityStatus;
   engine: PlatformEngineStatus;
+  monitoring?: MonitoringHealth;
   alerts: {
     total: number;
     groups: {
@@ -752,9 +1011,67 @@ export type PlatformStatus = {
   updated_at?: string;
 };
 
+export type Incident = {
+  id: string;
+  key: string;
+  type: string;
+  message: string;
+  severity: "info" | "warning" | "critical" | string;
+  module: string;
+  strategy?: string | null;
+  status: "open" | "resolved" | string;
+  opened_at: string;
+  updated_at: string;
+  resolved_at?: string | null;
+  count?: number;
+  metadata?: Record<string, unknown>;
+};
+
+export type MonitoringHealth = {
+  api: { online: boolean; status: string; checked_at?: string };
+  binance: {
+    online: boolean;
+    status?: string;
+    latency_ms?: number | null;
+    credentials_configured?: boolean;
+  };
+  bot: {
+    active: boolean;
+    mode?: string;
+    instance_count?: number;
+    instances?: unknown[];
+  };
+  last_tick_at?: string | null;
+  last_order?: Record<string, unknown> | null;
+  last_reconciliation_at?: string | null;
+  last_error?: string | null;
+  recovery?: Record<string, unknown>;
+  regime?: {
+    stale?: boolean;
+    last_candle_ts?: string | null;
+    candle_count?: number;
+  };
+  health: {
+    score: number;
+    issues: string[];
+    last_tick_stale?: boolean;
+    last_reconciliation_stale?: boolean;
+  };
+  incidents: {
+    total: number;
+    open: number;
+    resolved: number;
+    channels: Record<string, boolean>;
+    items: Incident[];
+    open_items: Incident[];
+  };
+};
+
 export type MarketRegimeSnapshot = {
   available: boolean;
   stale?: boolean;
+  last_success_at?: string | null;
+  ttl_seconds?: number | null;
   symbol: string;
   timeframe: string;
   market_type: "bull" | "bear" | "range";
@@ -782,7 +1099,7 @@ export type MarketRegimeSnapshot = {
     operates_now: boolean;
   }[];
   warning: string | null;
-  error: string | null;
+  error: ApiExternalError | string | null;
   stale_snapshot?: MarketRegimeSnapshot | null;
 };
 
@@ -1012,10 +1329,75 @@ export type BacktestMetrics = {
   profit_factor: number;
   max_drawdown_pct: number;
   sharpe: number;
+  sortino?: number;
+  calmar?: number;
   win_rate_pct: number;
   trades: number;
   expectancy: number;
+  payoff_ratio?: number;
+  recovery_factor?: number;
+  drawdown_duration_bars?: number;
+  exposure_time_pct?: number;
+  turnover?: number;
+  var_95_pct?: number;
+  cvar_95_pct?: number;
+  stability_score?: number;
   atlas_score: number;
+};
+
+export type BacktestResult = {
+  metrics: BacktestMetrics;
+  report_path: string;
+  strategy?: string;
+  timeframe?: string;
+};
+
+export type PromotionChecklistItem = {
+  label: string;
+  ok: boolean;
+  value: string;
+  stage: string;
+};
+
+export type WalkforwardResponse = {
+  ok: boolean;
+  report_path: string;
+  robustness?: {
+    score?: number;
+    approved?: boolean;
+    flags?: string[];
+    risk_of_ruin_pct?: number;
+    monthly_concentration_pct?: number;
+    positive_rolling_windows_pct?: number;
+    max_validation_drawdown_pct?: number;
+  };
+  monte_carlo?: {
+    simulations?: number;
+    risk_of_ruin_pct?: number | null;
+    return_p05_pct?: number;
+    return_median_pct?: number;
+    drawdown_p95_pct?: number;
+    worst_sequence_return_pct?: number | null;
+    worst_sequence_drawdown_pct?: number;
+  };
+  holdout?: {
+    net_profit_pct?: number;
+    profit_factor?: number;
+    max_drawdown_pct?: number;
+    total_trades?: number;
+  } | null;
+  rolling_windows?: {
+    index: number;
+    test_trades: number;
+    efficiency?: number | null;
+    test?: {
+      net_profit_pct?: number;
+      profit_factor?: number;
+      max_drawdown_pct?: number;
+      total_trades?: number;
+    };
+  }[];
+  promotion_checklist?: PromotionChecklistItem[];
 };
 
 export type ValidationResponse = {
@@ -1041,6 +1423,18 @@ export type ValidationResponse = {
 
 export type RiskSettings = {
   risk_per_trade_pct: number;
+  max_risk_per_asset_pct?: number;
+  max_risk_per_strategy_pct?: number;
+  max_total_risk_pct?: number;
+  max_exposure_pct?: number;
+  max_exposure_per_asset_pct?: number;
+  max_exposure_per_strategy_pct?: number;
+  max_exposure_per_direction_pct?: number;
+  max_exposure_per_timeframe_pct?: number;
+  target_volatility_pct?: number;
+  atr_risk_multiplier?: number;
+  fractional_kelly?: number;
+  correlation_risk_scale?: number;
   daily_stop_pct: number;
   daily_target_pct: number;
   max_ops_per_day: number;
@@ -1051,10 +1445,20 @@ export type RiskSettings = {
   daily_pnl: number;
 };
 
+export type RiskConfig = RiskSettings;
+
 export type RiskResponse = {
   settings: RiskSettings;
   balance: number;
-  summary: { max_exposure: number; max_daily_loss: number; daily_target: number };
+  summary: {
+    max_exposure: number;
+    max_daily_loss: number;
+    daily_target: number;
+    current_exposure?: number;
+    current_exposure_pct?: number;
+    max_total_risk?: number;
+  };
+  exposure?: NonNullable<PortfolioResponse["advanced_risk"]>["exposure"];
   protections: string[];
   alert: string | null;
 };
@@ -1070,6 +1474,40 @@ export type ResultsResponse = {
   period_start?: string | null;
   period_end?: string | null;
   period_days?: number | null;
+  advanced_metrics?: Record<string, number | string | null>;
+  costs?: Record<string, number | string | null>;
+  period_analysis?: {
+    monthly?: { period: string; return_pct: number; start_equity?: number; end_equity?: number }[];
+    weekly?: { period: string; return_pct: number; start_equity?: number; end_equity?: number }[];
+    yearly?: { period: string; return_pct: number; start_equity?: number; end_equity?: number }[];
+    by_asset?: {
+      bucket: string;
+      trades: number;
+      net_pnl: number;
+      win_rate_pct: number;
+      profit_factor: number;
+    }[];
+    by_timeframe?: {
+      bucket: string;
+      trades: number;
+      net_pnl: number;
+      win_rate_pct: number;
+      profit_factor: number;
+    }[];
+    by_regime?: {
+      bucket: string;
+      trades: number;
+      net_pnl: number;
+      win_rate_pct: number;
+      profit_factor: number;
+    }[];
+  };
+  overfitting?: {
+    stability_score?: number;
+    parameter_sensitivity?: string;
+    train_test_gap_pct?: number | null;
+    flags?: string[];
+  };
   spark_up: number[];
   spark_mix: number[];
 };
@@ -1091,6 +1529,10 @@ export type SettingsResponse = {
     timeframe: string;
     poll_seconds: number;
     kill_switch: boolean;
+    kill_switches?: {
+      assets?: Record<string, { active?: boolean; reason?: string; updated_at?: string }>;
+      strategies?: Record<string, { active?: boolean; reason?: string; updated_at?: string }>;
+    };
     bot_running: boolean;
     bot_mode: "paper" | "live";
   };
@@ -1112,6 +1554,7 @@ export type SettingsResponse = {
     };
   };
   telegram: { configured: boolean; chat_id_set: boolean };
+  alert_channels?: Record<string, boolean>;
 };
 
 export type SystemResetRequest = {

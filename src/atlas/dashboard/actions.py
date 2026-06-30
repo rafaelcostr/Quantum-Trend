@@ -215,4 +215,11 @@ def run_walkforward_dashboard(
         "oos_pf": oos_s.profit_factor,
         "oos_sharpe": oos_s.sharpe_ratio,
         "wfe": wf.walk_forward_efficiency,
+        "holdout_return": wf.holdout.net_profit_pct if wf.holdout else None,
+        "holdout_trades": wf.holdout_trades,
+        "rolling_windows": len(wf.rolling_windows),
+        "robustness_score": wf.robustness.get("score"),
+        "robustness_approved": wf.robustness.get("approved"),
+        "risk_of_ruin_pct": wf.monte_carlo.get("risk_of_ruin_pct"),
+        "promotion_checklist": wf.promotion_checklist,
     }

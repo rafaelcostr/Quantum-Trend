@@ -49,3 +49,38 @@ execution:
     result = run_backtest_engine(config, sample_ohlcv)
     assert result.final_equity > 0
     assert isinstance(result.trades, list)
+
+
+def test_simulated_broker_applies_min_notional_and_quantity_step(tmp_path):
+    from atlas.brokers.simulated import SimulatedBroker
+    from atlas.core.models import Candle, ExecutionConfig, Order, Side
+
+    broker = SimulatedBroker(
+        symbol="BTC/USDT",
+        execution=ExecutionConfig(
+            fee_rate=0.001,
+            taker_fee_rate=0.002,
+            min_order_notional=50,
+            quantity_step=0.01,
+        ),
+        cash=10_000,
+    )
+    broker.set_candles([
+        Candle(
+            timestamp=pd.Timestamp("2024-01-01", tz="UTC").to_pydatetime(),
+            open=100,
+            high=101,
+            low=99,
+            close=100,
+            volume=1000,
+        )
+    ])
+    broker._cursor = 1  # noqa: SLF001
+
+    small = broker.place_order(Order(symbol="BTC/USDT", side=Side.BUY, quantity=0.1))
+    assert small.success is False
+
+    ok = broker.place_order(Order(symbol="BTC/USDT", side=Side.BUY, quantity=0.637))
+    assert ok.success is True
+    assert ok.filled_quantity == pytest.approx(0.63)
+    assert ok.fee == pytest.approx((ok.filled_price or 0) * 0.63 * 0.002)

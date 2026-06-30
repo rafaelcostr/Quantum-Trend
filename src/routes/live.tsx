@@ -20,6 +20,7 @@ function LivePage() {
   const feed = useOperationsFeed();
   const bot = useBotToggle();
   const [confirm, setConfirm] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   if ((isLoading || isPending) && !data)
@@ -48,10 +49,16 @@ function LivePage() {
       return;
     }
     setErrMsg(null);
-    bot.mutate("start-live", {
-      onError: (e) => setErrMsg(e instanceof Error ? e.message : "Falha ao iniciar live"),
-      onSuccess: () => setConfirm(false),
-    });
+    bot.mutate(
+      { type: "start-live", confirmText },
+      {
+        onError: (e) => setErrMsg(e instanceof Error ? e.message : "Falha ao iniciar live"),
+        onSuccess: () => {
+          setConfirm(false);
+          setConfirmText("");
+        },
+      },
+    );
   }
 
   return (
@@ -88,7 +95,9 @@ function LivePage() {
             ) : (
               <button
                 onClick={handleStartLive}
-                disabled={bot.isPending || !canStart}
+                disabled={
+                  bot.isPending || !canStart || (confirm && confirmText !== "CONFIRMO LIVE")
+                }
                 className={`rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-50 ${
                   confirm
                     ? "bg-destructive text-white animate-pulse"
@@ -120,6 +129,21 @@ function LivePage() {
       {errMsg && (
         <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {errMsg}
+        </div>
+      )}
+
+      {confirm && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-4 text-sm">
+          <div className="font-medium text-destructive">Confirmação obrigatória para live</div>
+          <div className="mt-1 text-muted-foreground">
+            Digite <code className="text-secondary">CONFIRMO LIVE</code> para liberar ordens reais.
+          </div>
+          <input
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            className="mt-3 w-full max-w-sm rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            placeholder="CONFIRMO LIVE"
+          />
         </div>
       )}
 

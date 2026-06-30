@@ -8,6 +8,7 @@ import {
   type LineData,
   type Time,
 } from "lightweight-charts";
+import { formatApiError } from "@/components/ui/query-state";
 import type { MarketChartBar, MarketChartResponse } from "@/lib/api";
 
 type Props = {
@@ -23,6 +24,17 @@ function linePoints(bars: MarketChartBar[], key: keyof MarketChartBar): LineData
   return bars
     .filter((b) => typeof b[key] === "number")
     .map((b) => ({ time: toTime(b.t), value: b[key] as number }));
+}
+
+function isCompleteCandle(
+  bar: MarketChartBar,
+): bar is MarketChartBar & { o: number; h: number; l: number; c: number } {
+  return (
+    typeof bar.o === "number" &&
+    typeof bar.h === "number" &&
+    typeof bar.l === "number" &&
+    typeof bar.c === "number"
+  );
 }
 
 export function StrategyMarketChart({ data, className }: Props) {
@@ -116,7 +128,7 @@ export function StrategyMarketChart({ data, className }: Props) {
       }),
     ];
 
-    const candles: CandlestickData<Time>[] = data.bars.map((b) => ({
+    const candles: CandlestickData<Time>[] = data.bars.filter(isCompleteCandle).map((b) => ({
       time: toTime(b.t),
       open: b.o,
       high: b.h,
@@ -156,7 +168,7 @@ export function StrategyMarketChart({ data, className }: Props) {
           className ?? "h-[560px] flex items-center justify-center text-sm text-muted-foreground"
         }
       >
-        {data.error ?? "Sem dados de candles para este par."}
+        {data.error ? formatApiError(data.error) : "Sem dados de candles para este par."}
       </div>
     );
   }

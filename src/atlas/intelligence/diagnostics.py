@@ -150,6 +150,36 @@ def promotion_checklist_backtest_paper(
     walkforward = [
         {"label": "Walk-forward OOS positivo", "ok": wf_ok, "value": wf_value, "stage": "research"},
     ]
+    holdout_ret = l3.get("holdout_return")
+    if holdout_ret is not None:
+        walkforward.append(
+            {
+                "label": "Holdout final preservado",
+                "ok": holdout_ret > -0.05,
+                "value": f"Holdout {holdout_ret:.1%}",
+                "stage": "research",
+            }
+        )
+    robustness = l3.get("robustness_score")
+    if robustness is not None:
+        walkforward.append(
+            {
+                "label": "Score de robustez >= 70",
+                "ok": float(robustness) >= 70,
+                "value": f"{float(robustness):.1f}/100",
+                "stage": "research",
+            }
+        )
+    ruin = l3.get("wf_risk_of_ruin_pct")
+    if ruin is not None:
+        walkforward.append(
+            {
+                "label": "Risco de ruína <= 5%",
+                "ok": float(ruin) <= 5,
+                "value": f"{float(ruin):.1f}%",
+                "stage": "risk",
+            }
+        )
     sharpe = values.get("sharpe_ratio")
     if sharpe is not None:
         walkforward.append(
@@ -160,4 +190,12 @@ def promotion_checklist_backtest_paper(
                 "stage": "research",
             }
         )
+    walkforward.append(
+        {
+            "label": "Live gates aprovados",
+            "ok": False,
+            "value": "Validar na tela Live antes de operar real",
+            "stage": "live",
+        }
+    )
     return merge_promotion_checklists(backtest_checks, paper_checks, walkforward)

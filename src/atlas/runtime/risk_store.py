@@ -13,6 +13,18 @@ from atlas.core.models import RiskConfig
 @dataclass
 class RuntimeRiskSettings:
     risk_per_trade_pct: float = 1.0
+    max_risk_per_asset_pct: float = 3.0
+    max_risk_per_strategy_pct: float = 3.0
+    max_total_risk_pct: float = 6.0
+    max_exposure_pct: float = 95.0
+    max_exposure_per_asset_pct: float = 60.0
+    max_exposure_per_strategy_pct: float = 40.0
+    max_exposure_per_direction_pct: float = 75.0
+    max_exposure_per_timeframe_pct: float = 60.0
+    target_volatility_pct: float = 0.0
+    atr_risk_multiplier: float = 1.5
+    fractional_kelly: float = 0.25
+    correlation_risk_scale: float = 70.0
     daily_stop_pct: float = 3.0
     daily_target_pct: float = 5.0
     max_ops_per_day: int = 20
@@ -27,12 +39,36 @@ class RuntimeRiskSettings:
     def from_config(cls, risk: RiskConfig) -> RuntimeRiskSettings:
         return cls(
             risk_per_trade_pct=risk.risk_per_trade * 100,
+            max_risk_per_asset_pct=risk.max_risk_per_asset * 100,
+            max_risk_per_strategy_pct=risk.max_risk_per_strategy * 100,
+            max_total_risk_pct=risk.max_total_risk * 100,
+            max_exposure_pct=risk.max_exposure_pct * 100,
+            max_exposure_per_asset_pct=risk.max_exposure_per_asset_pct * 100,
+            max_exposure_per_strategy_pct=risk.max_exposure_per_strategy_pct * 100,
+            max_exposure_per_direction_pct=risk.max_exposure_per_direction_pct * 100,
+            max_exposure_per_timeframe_pct=risk.max_exposure_per_timeframe_pct * 100,
+            target_volatility_pct=risk.target_volatility_pct * 100,
+            atr_risk_multiplier=risk.atr_risk_multiplier,
+            fractional_kelly=risk.fractional_kelly,
+            correlation_risk_scale=risk.correlation_risk_scale * 100,
             daily_stop_pct=risk.max_daily_drawdown * 100,
         )
 
     def to_dict(self) -> dict:
         return {
             "risk_per_trade_pct": self.risk_per_trade_pct,
+            "max_risk_per_asset_pct": self.max_risk_per_asset_pct,
+            "max_risk_per_strategy_pct": self.max_risk_per_strategy_pct,
+            "max_total_risk_pct": self.max_total_risk_pct,
+            "max_exposure_pct": self.max_exposure_pct,
+            "max_exposure_per_asset_pct": self.max_exposure_per_asset_pct,
+            "max_exposure_per_strategy_pct": self.max_exposure_per_strategy_pct,
+            "max_exposure_per_direction_pct": self.max_exposure_per_direction_pct,
+            "max_exposure_per_timeframe_pct": self.max_exposure_per_timeframe_pct,
+            "target_volatility_pct": self.target_volatility_pct,
+            "atr_risk_multiplier": self.atr_risk_multiplier,
+            "fractional_kelly": self.fractional_kelly,
+            "correlation_risk_scale": self.correlation_risk_scale,
             "daily_stop_pct": self.daily_stop_pct,
             "daily_target_pct": self.daily_target_pct,
             "max_ops_per_day": self.max_ops_per_day,
@@ -82,6 +118,18 @@ def apply_risk_to_engine(engine) -> None:
     store = get_risk_settings()
     cfg = engine.risk.config
     cfg.risk_per_trade = store.risk_per_trade_pct / 100.0
+    cfg.max_risk_per_asset = store.max_risk_per_asset_pct / 100.0
+    cfg.max_risk_per_strategy = store.max_risk_per_strategy_pct / 100.0
+    cfg.max_total_risk = store.max_total_risk_pct / 100.0
+    cfg.max_exposure_pct = store.max_exposure_pct / 100.0
+    cfg.max_exposure_per_asset_pct = store.max_exposure_per_asset_pct / 100.0
+    cfg.max_exposure_per_strategy_pct = store.max_exposure_per_strategy_pct / 100.0
+    cfg.max_exposure_per_direction_pct = store.max_exposure_per_direction_pct / 100.0
+    cfg.max_exposure_per_timeframe_pct = store.max_exposure_per_timeframe_pct / 100.0
+    cfg.target_volatility_pct = store.target_volatility_pct / 100.0
+    cfg.atr_risk_multiplier = store.atr_risk_multiplier
+    cfg.fractional_kelly = store.fractional_kelly
+    cfg.correlation_risk_scale = store.correlation_risk_scale / 100.0
     cfg.max_daily_drawdown = store.daily_stop_pct / 100.0
     cfg.max_weekly_drawdown = max(cfg.max_daily_drawdown * 2, store.daily_stop_pct / 100.0 * 1.5)
     cfg.max_open_positions = min(cfg.max_open_positions, 5)

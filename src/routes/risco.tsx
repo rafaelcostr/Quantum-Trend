@@ -10,6 +10,15 @@ export const Route = createFileRoute("/risco")({
 
 type RiskField =
   | "risk_per_trade_pct"
+  | "max_risk_per_asset_pct"
+  | "max_risk_per_strategy_pct"
+  | "max_total_risk_pct"
+  | "max_exposure_pct"
+  | "max_exposure_per_asset_pct"
+  | "max_exposure_per_strategy_pct"
+  | "target_volatility_pct"
+  | "atr_risk_multiplier"
+  | "fractional_kelly"
   | "daily_stop_pct"
   | "daily_target_pct"
   | "max_ops_per_day"
@@ -50,6 +59,114 @@ const RISK_GUIDES: {
     guide:
       "Protege contra dias ruins ou bugs de mercado. Se o P&L do dia cair abaixo desse percentual do saldo, novas entradas são bloqueadas até o dia seguinte. Um stop de 3% em $10.000 = -$300 no dia.",
     tip: "Regra prática: 2–3× o risco por trade. Com 1% por trade, use stop diário entre 2% e 3%.",
+  },
+  {
+    field: "max_risk_per_asset_pct",
+    label: "Risco máximo por ativo",
+    min: 1,
+    max: 10,
+    step: 0.5,
+    suffix: "%",
+    summary: "Teto de risco somado para todas as estratégias do mesmo ativo.",
+    guide:
+      "Controla concentração em BTC ou ETH. Se várias estratégias no mesmo ativo dispararem, o tamanho das novas posições é reduzido ou bloqueado.",
+    tip: "Use 2–4% por ativo no paper. Em ativos correlacionados, prefira o menor valor.",
+  },
+  {
+    field: "max_risk_per_strategy_pct",
+    label: "Risco máximo por estratégia",
+    min: 1,
+    max: 10,
+    step: 0.5,
+    suffix: "%",
+    summary: "Teto de risco agregado para uma mesma estratégia.",
+    guide:
+      "Evita que uma estratégia com múltiplos slots/timeframes domine o portfolio inteiro. Ajuda muito quando BTC e ETH rodam a mesma lógica.",
+    tip: "2–3% por estratégia é uma faixa conservadora.",
+  },
+  {
+    field: "max_total_risk_pct",
+    label: "Risco máximo total",
+    min: 1,
+    max: 20,
+    step: 0.5,
+    suffix: "%",
+    summary: "Risco máximo somado do portfolio.",
+    guide:
+      "Define o orçamento de risco global. Quando o risco agregado sobe, novas entradas são reduzidas ou bloqueadas.",
+    tip: "Comece entre 4% e 6% no paper; acima disso, drawdowns aceleram.",
+  },
+  {
+    field: "max_exposure_pct",
+    label: "Exposição total máxima",
+    min: 10,
+    max: 100,
+    step: 5,
+    suffix: "%",
+    summary: "Quanto do capital pode ficar exposto simultaneamente.",
+    guide:
+      "Limita o notional aberto em USDT. Mesmo que o risco por stop seja baixo, exposição alta aumenta impacto de gaps, slippage e correlação.",
+    tip: "60–80% é mais prudente; 95% só em paper bem monitorado.",
+  },
+  {
+    field: "max_exposure_per_asset_pct",
+    label: "Exposição máxima por ativo",
+    min: 10,
+    max: 100,
+    step: 5,
+    suffix: "%",
+    summary: "Teto de exposição em cada moeda.",
+    guide:
+      "Evita concentrar o portfolio em BTC ou ETH quando ambos estão altamente correlacionados com o mesmo regime de mercado.",
+    tip: "40–60% por ativo costuma equilibrar melhor BTC/ETH.",
+  },
+  {
+    field: "max_exposure_per_strategy_pct",
+    label: "Exposição máxima por estratégia",
+    min: 10,
+    max: 100,
+    step: 5,
+    suffix: "%",
+    summary: "Teto de exposição por família estratégica.",
+    guide:
+      "Bloqueia excesso de capital em uma mesma lógica de entrada, mesmo distribuída em timeframes ou ativos diferentes.",
+    tip: "30–40% por estratégia evita dependência excessiva de um único edge.",
+  },
+  {
+    field: "target_volatility_pct",
+    label: "Volatility targeting",
+    min: 0,
+    max: 30,
+    step: 1,
+    suffix: "%",
+    summary: "Alvo de volatilidade para reduzir tamanho em mercado agitado.",
+    guide:
+      "Quando o sinal informa volatilidade realizada maior que o alvo, o sizing é reduzido. Zero desativa esse ajuste.",
+    tip: "Use 10–15% como referência inicial quando houver métricas de volatilidade confiáveis.",
+  },
+  {
+    field: "atr_risk_multiplier",
+    label: "Multiplicador ATR",
+    min: 0.5,
+    max: 5,
+    step: 0.1,
+    suffix: "x",
+    summary: "Sizing baseado em ATR quando não houver stop explícito.",
+    guide:
+      "Define a distância de risco como ATR × multiplicador. Quanto maior o multiplicador, menor o tamanho da posição.",
+    tip: "1,5x a 2,5x ATR é uma faixa comum para swing/cripto.",
+  },
+  {
+    field: "fractional_kelly",
+    label: "Kelly fracionado",
+    min: 0,
+    max: 1,
+    step: 0.05,
+    suffix: "x",
+    summary: "Fração do Kelly teórico usada no sizing.",
+    guide:
+      "Kelly cheio é agressivo. A plataforma usa esse fator como redutor quando a estratégia informa Kelly calculado.",
+    tip: "0,25x Kelly é um padrão profissional conservador.",
   },
   {
     field: "daily_target_pct",
@@ -171,6 +288,15 @@ function Page() {
   const update = useUpdateRisk();
   const [local, setLocal] = useState({
     risk_per_trade_pct: 1,
+    max_risk_per_asset_pct: 3,
+    max_risk_per_strategy_pct: 3,
+    max_total_risk_pct: 6,
+    max_exposure_pct: 95,
+    max_exposure_per_asset_pct: 60,
+    max_exposure_per_strategy_pct: 40,
+    target_volatility_pct: 0,
+    atr_risk_multiplier: 1.5,
+    fractional_kelly: 0.25,
     daily_stop_pct: 3,
     daily_target_pct: 5,
     max_ops_per_day: 20,
@@ -182,6 +308,15 @@ function Page() {
     if (data?.settings) {
       setLocal({
         risk_per_trade_pct: data.settings.risk_per_trade_pct,
+        max_risk_per_asset_pct: data.settings.max_risk_per_asset_pct ?? 3,
+        max_risk_per_strategy_pct: data.settings.max_risk_per_strategy_pct ?? 3,
+        max_total_risk_pct: data.settings.max_total_risk_pct ?? 6,
+        max_exposure_pct: data.settings.max_exposure_pct ?? 95,
+        max_exposure_per_asset_pct: data.settings.max_exposure_per_asset_pct ?? 60,
+        max_exposure_per_strategy_pct: data.settings.max_exposure_per_strategy_pct ?? 40,
+        target_volatility_pct: data.settings.target_volatility_pct ?? 0,
+        atr_risk_multiplier: data.settings.atr_risk_multiplier ?? 1.5,
+        fractional_kelly: data.settings.fractional_kelly ?? 0.25,
         daily_stop_pct: data.settings.daily_stop_pct,
         daily_target_pct: data.settings.daily_target_pct,
         max_ops_per_day: data.settings.max_ops_per_day,

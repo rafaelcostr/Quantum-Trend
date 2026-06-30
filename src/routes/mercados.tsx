@@ -1,9 +1,9 @@
-import { Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { ExternalLink, LineChart, Loader2 } from "lucide-react";
 import { MarketChartLegend } from "@/components/markets/MarketChartLegend";
-import { StrategyMarketChart } from "@/components/markets/StrategyMarketChart";
 import { PageHeader, Panel } from "@/components/ui/page";
+import { EmptyState, InlineError, StaleBadge } from "@/components/ui/query-state";
 import { cn } from "@/lib/utils";
 import {
   MARKET_TIMEFRAMES,
@@ -14,6 +14,12 @@ import {
 import { isBrowser, useMarketChart, useMarkets } from "@/lib/queries";
 import { tradingViewChartUrl } from "@/lib/tradingview-chart";
 import type { MarketTicker } from "@/lib/api";
+
+const StrategyMarketChart = lazy(() =>
+  import("@/components/markets/StrategyMarketChart").then((module) => ({
+    default: module.StrategyMarketChart,
+  })),
+);
 
 export const Route = createFileRoute("/mercados")({
   head: () => ({ meta: [{ title: "Mercados · Quantum-Trend" }] }),
@@ -99,6 +105,7 @@ function ChartBlock({
           {price != null && (
             <span className="chip num text-sm hidden sm:inline-flex">${formatPrice(price)}</span>
           )}
+          <StaleBadge stale={chart.data?.stale} lastSuccessAt={chart.data?.last_success_at} />
           <a
             href={tvUrl}
             target="_blank"
@@ -117,11 +124,25 @@ function ChartBlock({
           Carregando candles e indicadores…
         </div>
       ) : chart.isError || !chart.data ? (
-        <div className="h-[560px] flex items-center justify-center text-sm text-destructive px-6 text-center">
-          Erro ao carregar gráfico. Confirme a API Python e conexão com a Binance.
+        <div className="h-[560px] flex items-center justify-center px-6">
+          <InlineError error={chart.error} title="Erro ao carregar gráfico" className="max-w-md" />
+        </div>
+      ) : chart.data.bars.length === 0 ? (
+        <div className="h-[560px] flex items-center justify-center px-6">
+          <EmptyState
+            title="Sem candles disponíveis"
+            detail="A API respondeu, mas não retornou histórico para este par e timeframe."
+          />
         </div>
       ) : (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div className="h-[560px] flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Preparando gráfico...
+            </div>
+          }
+        >
           <StrategyMarketChart
             key={`${pair}-${timeframe}`}
             data={chart.data}
@@ -161,21 +182,42 @@ function Page() {
       <PageHeader
         title="Mercados"
         subtitle="BTC/USDT e ETH/USDT — gráfico nativo com os mesmos indicadores calculados no backtest."
+        actions={
+          <StaleBadge
+            stale={markets.data?.cache?.stale}
+            lastSuccessAt={markets.data?.cache?.last_success_at}
+          />
+        }
       />
 
+      {markets.isError && !markets.data && (
+        <InlineError
+          error={markets.error}
+          title="API de mercados indisponível"
+          className="max-w-2xl"
+        />
+      )}
+
       <Panel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {OPERATED_MARKETS.map((market) => (
-            <PairCard
-              key={market.pair}
-              market={market}
-              ticker={tickerByBase.get(market.base)}
-              loading={markets.isPending && !markets.data}
-              selected={openedPair === market.pair}
-              onSelect={() => setOpenedPair(market.pair)}
-            />
-          ))}
-        </div>
+        {!markets.isPending && !markets.data?.items.length ? (
+          <EmptyState
+            title="Sem cotações disponíveis"
+            detail="A lista de mercados veio vazia. Verifique conexão, Binance ou configuração de símbolos."
+          />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {OPERATED_MARKETS.map((market) => (
+              <PairCard
+                key={market.pair}
+                market={market}
+                ticker={tickerByBase.get(market.base)}
+                loading={markets.isPending && !markets.data}
+                selected={openedPair === market.pair}
+                onSelect={() => setOpenedPair(market.pair)}
+              />
+            ))}
+          </div>
+        )}
       </Panel>
 
       {selectedMarket ? (

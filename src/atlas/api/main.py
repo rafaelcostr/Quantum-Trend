@@ -74,6 +74,9 @@ class OperationalSlotsUpdateRequest(BaseModel):
 
 class KillSwitchRequest(BaseModel):
     active: bool
+    scope: str = "global"
+    key: str | None = None
+    reason: str | None = None
 
 
 class NotificationsUpdateRequest(BaseModel):
@@ -89,8 +92,34 @@ class BacktestAllRequest(BaseModel):
     base_asset: str = "BTC"
 
 
+class QuantLabAnnotationRequest(BaseModel):
+    tags: list[str] | None = None
+    note: str | None = None
+
+
+class QuantLabCompareRequest(BaseModel):
+    experiment_ids: list[str]
+
+
+class QuantLabStrategyStatusRequest(BaseModel):
+    status: str
+    note: str | None = None
+
+
 class RiskUpdateRequest(BaseModel):
     risk_per_trade_pct: float | None = None
+    max_risk_per_asset_pct: float | None = None
+    max_risk_per_strategy_pct: float | None = None
+    max_total_risk_pct: float | None = None
+    max_exposure_pct: float | None = None
+    max_exposure_per_asset_pct: float | None = None
+    max_exposure_per_strategy_pct: float | None = None
+    max_exposure_per_direction_pct: float | None = None
+    max_exposure_per_timeframe_pct: float | None = None
+    target_volatility_pct: float | None = None
+    atr_risk_multiplier: float | None = None
+    fractional_kelly: float | None = None
+    correlation_risk_scale: float | None = None
     daily_stop_pct: float | None = None
     daily_target_pct: float | None = None
     max_ops_per_day: int | None = None
@@ -102,6 +131,10 @@ class SystemResetRequest(BaseModel):
     reports: bool = True
     ohlcv_cache: bool = False
     paper_demo: bool = False
+
+
+class LiveStartRequest(BaseModel):
+    confirm_text: str = ""
 
 
 class CacheStatusResponse(BaseModel):
@@ -209,6 +242,30 @@ def create_app() -> FastAPI:
 
         return alert_center_payload()
 
+    @app.get("/api/monitoring/health")
+    def monitoring_health() -> dict:
+        from atlas.monitoring.health_panel import monitoring_health_payload
+
+        return monitoring_health_payload()
+
+    @app.get("/api/monitoring/incidents")
+    def monitoring_incidents(status: str | None = None) -> dict:
+        from atlas.monitoring.incident_manager import incidents_payload, list_incidents
+
+        if status:
+            items = list_incidents(status=status, limit=100)
+            return {"status": status, "total": len(items), "items": items}
+        return incidents_payload()
+
+    @app.post("/api/monitoring/incidents/{incident_id}/resolve")
+    def monitoring_resolve_incident(incident_id: str) -> dict:
+        from atlas.monitoring.incident_manager import resolve_incident
+
+        item = resolve_incident(incident_id, message="Resolvido manualmente")
+        if not item:
+            raise HTTPException(status_code=404, detail="Incidente não encontrado")
+        return {"ok": True, "incident": item}
+
     @app.get("/api/platform/decisions")
     def platform_decisions(limit: int = 30) -> dict:
         from atlas.platform.store import load_platform_state
@@ -312,9 +369,15 @@ def create_app() -> FastAPI:
         return bot_state.snapshot()
 
     @app.post("/api/bot/start-live")
-    def bot_start_live() -> dict:
+    def bot_start_live(body: LiveStartRequest | None = None) -> dict:
         from atlas.services.terminal import clear_dashboard_cache
 
+        confirmation = (body.confirm_text if body else "").strip()
+        if confirmation != "CONFIRMO LIVE":
+            raise HTTPException(
+                status_code=403,
+                detail='Confirmação live inválida. Digite exatamente "CONFIRMO LIVE".',
+            )
         try:
             bot_state.start_live()
         except RuntimeError as exc:
@@ -405,6 +468,58 @@ def create_app() -> FastAPI:
     def backtest_matrix(quote: str = "USDT") -> dict:
         return load_backtest_matrix_from_reports(quote=quote.upper())
 
+    @app.get("/api/quant-lab/experiments")
+    def quant_lab_experiments() -> dict:
+        from atlas.services.quant_lab import list_experiments
+
+        return list_experiments()
+
+    @app.put("/api/quant-lab/experiments/{experiment_id}/annotation")
+    def quant_lab_annotation(experiment_id: str, body: QuantLabAnnotationRequest) -> dict:
+        from atlas.services.quant_lab import update_experiment_annotation
+
+        try:
+            return update_experiment_annotation(experiment_id, tags=body.tags, note=body.note)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Experimento não encontrado") from exc
+
+    @app.post("/api/quant-lab/compare")
+    def quant_lab_compare(body: QuantLabCompareRequest) -> dict:
+        from atlas.services.quant_lab import compare_experiments
+
+        try:
+            return compare_experiments(body.experiment_ids)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=f"Experimento não encontrado: {exc}") from exc
+
+    @app.get("/api/quant-lab/replay/{experiment_id}")
+    def quant_lab_replay(experiment_id: str) -> dict:
+        from atlas.services.quant_lab import strategy_replay
+
+        try:
+            return strategy_replay(experiment_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Experimento não encontrado") from exc
+
+    @app.get("/api/quant-lab/strategies")
+    def quant_lab_strategies() -> dict:
+        from atlas.services.quant_lab import strategy_library
+
+        return strategy_library()
+
+    @app.put("/api/quant-lab/strategies/{strategy_id}/status")
+    def quant_lab_strategy_status(strategy_id: str, body: QuantLabStrategyStatusRequest) -> dict:
+        from atlas.services.quant_lab import update_strategy_status
+
+        try:
+            return update_strategy_status(strategy_id, status=body.status, note=body.note)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Estratégia não encontrada") from exc
+
     @app.post("/api/backtest")
     def backtest(body: BacktestRequest) -> dict:
         from atlas.dashboard.actions import run_backtest_dashboard
@@ -441,13 +556,24 @@ def create_app() -> FastAPI:
 
     @app.post("/api/research/walkforward")
     def walkforward(body: WalkforwardRequest) -> dict:
+        import json
+
         from atlas.research.backtester import run_walkforward_from_yaml
         from atlas.services.terminal import clear_intelligence_cache
 
         config_rel, _, _ = _resolve_backtest_config(body)
         path = run_walkforward_from_yaml(config_rel, train_pct=body.train_pct)
         clear_intelligence_cache()
-        return {"ok": True, "report_path": str(path)}
+        payload = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        return {
+            "ok": True,
+            "report_path": str(path),
+            "robustness": payload.get("robustness") or {},
+            "monte_carlo": payload.get("monte_carlo") or {},
+            "promotion_checklist": payload.get("promotion_checklist") or [],
+            "rolling_windows": payload.get("rolling_windows") or [],
+            "holdout": payload.get("holdout"),
+        }
 
     @app.get("/api/validation")
     def validation() -> dict:
@@ -535,7 +661,24 @@ def create_app() -> FastAPI:
 
     @app.put("/api/settings/kill-switch")
     def settings_kill_switch(body: KillSwitchRequest) -> dict:
-        save_runtime_system(kill_switch=body.active)
+        from atlas.runtime.operational_safety import set_scoped_kill_switch
+        from atlas.services.terminal import clear_dashboard_cache
+
+        if body.scope == "global":
+            save_runtime_system(kill_switch=body.active)
+        else:
+            if not body.key:
+                raise HTTPException(status_code=400, detail="Informe key para kill switch por ativo/estratégia")
+            try:
+                set_scoped_kill_switch(
+                    scope=body.scope,
+                    key=body.key,
+                    active=body.active,
+                    reason=body.reason or "manual",
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        clear_dashboard_cache()
         return get_settings_payload()
 
     @app.put("/api/settings/notifications")

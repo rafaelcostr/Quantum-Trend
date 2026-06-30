@@ -1,4 +1,3 @@
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import type { StrategyRuntimeView } from "@/lib/operations-terminal";
 import { fmtCountdown, fmtTime } from "@/lib/operations-terminal";
 import { ConfidenceBar, ProgressBar } from "./ConfidenceBar";
@@ -28,34 +27,38 @@ const HEALTH_TEXT = {
 } as const;
 
 function Sparkline({ data }: { data: number[] }) {
-  const series =
-    data.length > 1
-      ? data.map((v, i) => ({ i, v }))
-      : [
-          { i: 0, v: 50 },
-          { i: 1, v: 52 },
-        ];
-  const up = series[series.length - 1]?.v >= series[0]?.v;
+  const values = data.length > 1 ? data : [50, 52];
+  const up = values[values.length - 1] >= values[0];
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const points = values
+    .map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * 100;
+      const y = 30 - ((value - min) / span) * 24;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+  const color = up ? "#22C55E" : "#EF4444";
+  const gradId = `spark-op-${up ? "up" : "down"}`;
   return (
     <div className="h-10 mt-3">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={series}>
-          <defs>
-            <linearGradient id="sparkOp" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={up ? "#22C55E" : "#EF4444"} stopOpacity={0.45} />
-              <stop offset="100%" stopColor={up ? "#22C55E" : "#EF4444"} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <Area
-            type="monotone"
-            dataKey="v"
-            stroke={up ? "#22C55E" : "#EF4444"}
-            strokeWidth={1.5}
-            fill="url(#sparkOp)"
-            dot={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      <svg viewBox="0 0 100 34" preserveAspectRatio="none" className="h-full w-full">
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.45} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <polygon points={`0,34 ${points} 100,34`} fill={`url(#${gradId})`} />
+        <polyline
+          points={points}
+          fill="none"
+          stroke={color}
+          strokeWidth="1.8"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
     </div>
   );
 }

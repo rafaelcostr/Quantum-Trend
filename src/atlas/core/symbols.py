@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 QUOTE_ASSETS = ("USDT", "USDC")
 OPERATED_BASES = ("BTC", "ETH")
@@ -13,13 +14,54 @@ BACKTEST_REPORT_JSON = re.compile(
 )
 
 
+@dataclass(frozen=True)
+class NormalizedSymbol:
+    """Representação canônica de símbolo independente da exchange."""
+
+    base: str
+    quote: str
+    canonical: str
+    exchange: str
+    compact: str
+
+
+def normalize_symbol(symbol: str, *, default_quote: str = "USDT") -> NormalizedSymbol:
+    """Aceita BTC/USDT, BTCUSDT ou base isolada e devolve formatos padronizados."""
+    raw = (symbol or "").strip().upper().replace("-", "/").replace("_", "/")
+    if not raw:
+        raw = f"BTC/{default_quote}"
+
+    base: str
+    quote: str
+    if "/" in raw:
+        left, right = raw.split("/", 1)
+        base, quote = left.strip(), right.strip()
+    else:
+        quote = next((q for q in QUOTE_ASSETS if raw.endswith(q) and len(raw) > len(q)), default_quote.upper())
+        base = raw[: -len(quote)] if raw.endswith(quote) and len(raw) > len(quote) else raw
+
+    base = (base or "BTC").upper()
+    quote = (quote or default_quote).upper()
+    return NormalizedSymbol(
+        base=base,
+        quote=quote,
+        canonical=f"{base}/{quote}",
+        exchange=f"{base}/{quote}",
+        compact=f"{base}{quote}",
+    )
+
+
+def compact_symbol(symbol: str) -> str:
+    return normalize_symbol(symbol).compact
+
+
 def quote_from_symbol(symbol: str, default: str = "USDT") -> str:
-    q = symbol.split("/")[-1].upper()
+    q = normalize_symbol(symbol, default_quote=default).quote
     return q if q in QUOTE_ASSETS else default
 
 
 def base_from_symbol(symbol: str, default: str = "BTC") -> str:
-    base = symbol.split("/")[0].upper()
+    base = normalize_symbol(symbol).base
     return base if base in OPERATED_BASES else default
 
 
@@ -35,7 +77,7 @@ def build_symbol(base: str, quote: str = "USDT") -> str:
     q = quote.upper()
     if q not in QUOTE_ASSETS:
         raise ValueError(f"Quote invalido: {quote}. Use USDT ou USDC.")
-    return f"{b}/{q}"
+    return normalize_symbol(f"{b}/{q}").canonical
 
 
 def operated_symbols(*, quote: str = "USDT") -> list[str]:

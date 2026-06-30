@@ -54,3 +54,30 @@ database_url: postgresql://invalid:5432/nodb
     config = load_config(config_path)
     engine = TradingEngine(config)
     assert engine.journal.using_file_fallback
+
+
+def test_local_paper_does_not_require_binance_keys(monkeypatch, tmp_path):
+    monkeypatch.delenv("BINANCE_DEMO_API_KEY", raising=False)
+    monkeypatch.delenv("BINANCE_DEMO_API_SECRET", raising=False)
+
+    config_path = tmp_path / "paper_local.yaml"
+    config_path.write_text(
+        """
+mode: paper
+exchange:
+ id: simulated
+ symbol: BTCUSDT
+ timeframe: 4h
+ venue: paper_local
+strategy:
+ name: mm200_trend_v2
+ params:
+  warmup_bars: 205
+database_url: postgresql://invalid:5432/nodb
+""",
+        encoding="utf-8",
+    )
+    config = load_config(config_path)
+    engine = TradingEngine(config)
+    assert engine.broker.spec.exchange_id == "simulated"
+    assert engine.broker.spec.canonical_symbol == "BTC/USDT"

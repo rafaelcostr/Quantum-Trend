@@ -44,6 +44,10 @@ export const queryKeys = {
     ["backtest", "chart", strategy, timeframe, base] as const,
   backtestActive: ["backtest", "active"] as const,
   reports: ["reports"] as const,
+  quantLab: ["quant-lab"] as const,
+  quantLabComparison: (ids: string[]) => ["quant-lab", "compare", ids.join("|")] as const,
+  quantLabReplay: (id: string | null) => ["quant-lab", "replay", id ?? "none"] as const,
+  quantLabStrategies: ["quant-lab", "strategies"] as const,
   portfolio: ["portfolio"] as const,
   quantum: ["quantum"] as const,
   settings: ["settings"] as const,
@@ -187,7 +191,10 @@ export function useBotStatus() {
 export function useBotToggle() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (action: "start" | "stop" | "start-live") => {
+    mutationFn: async (
+      action: "start" | "stop" | "start-live" | { type: "start-live"; confirmText: string },
+    ) => {
+      if (typeof action === "object") return api.botStartLive(action.confirmText);
       if (action === "start") return api.botStart();
       if (action === "start-live") return api.botStartLive();
       return api.botStop();
@@ -457,6 +464,84 @@ export function useReports() {
   return useQuery({ queryKey: queryKeys.reports, queryFn: api.reports });
 }
 
+export function useQuantLabExperiments() {
+  return useQuery({
+    queryKey: queryKeys.quantLab,
+    queryFn: api.quantLabExperiments,
+    enabled: isBrowser,
+    staleTime: 45_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useQuantLabComparison(experimentIds: string[]) {
+  return useQuery({
+    queryKey: queryKeys.quantLabComparison(experimentIds),
+    queryFn: () => api.compareQuantLabExperiments(experimentIds),
+    enabled: isBrowser && experimentIds.length >= 2,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+export function useQuantLabReplay(experimentId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.quantLabReplay(experimentId),
+    queryFn: () => api.quantLabReplay(experimentId!),
+    enabled: isBrowser && !!experimentId,
+    staleTime: 45_000,
+    retry: 1,
+  });
+}
+
+export function useQuantLabStrategies() {
+  return useQuery({
+    queryKey: queryKeys.quantLabStrategies,
+    queryFn: api.quantLabStrategies,
+    enabled: isBrowser,
+    staleTime: 45_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useUpdateQuantLabAnnotation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      experimentId,
+      tags,
+      note,
+    }: {
+      experimentId: string;
+      tags?: import("./api").QuantLabTag[];
+      note?: string;
+    }) => api.updateQuantLabAnnotation(experimentId, { tags, note }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.quantLab });
+    },
+  });
+}
+
+export function useUpdateQuantLabStrategyStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      strategyId,
+      status,
+      note,
+    }: {
+      strategyId: string;
+      status: import("./api").QuantLabStrategyStatus;
+      note?: string;
+    }) => api.updateQuantLabStrategyStatus(strategyId, { status, note }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.quantLabStrategies });
+    },
+  });
+}
+
 export function useSettings() {
   return useQuery({
     queryKey: queryKeys.settings,
@@ -497,7 +582,23 @@ export function useUpdateOperationalSlots() {
 export function useUpdateKillSwitch() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: api.updateKillSwitch,
+    mutationFn: (
+      payload:
+        | boolean
+        | {
+            active: boolean;
+            scope?: "global" | "asset" | "strategy";
+            key?: string;
+            reason?: string;
+          },
+    ) =>
+      typeof payload === "boolean"
+        ? api.updateKillSwitch(payload)
+        : api.updateKillSwitch(payload.active, {
+            scope: payload.scope,
+            key: payload.key,
+            reason: payload.reason,
+          }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.settings });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard });

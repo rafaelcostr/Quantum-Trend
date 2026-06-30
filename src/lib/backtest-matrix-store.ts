@@ -5,6 +5,7 @@ import type {
   OperatedBase,
   OperationalTimeframe,
 } from "./api";
+import { api } from "./api";
 import type { BacktestPeriodFields } from "./backtest-period";
 import {
   buildMatrixGroups,
@@ -123,7 +124,6 @@ export async function hydrateMatrixPeriods(
   const missing = matrix.items.filter((item) => item.ok && !hasPeriod(item));
   if (!missing.length) return normalizeMatrixResponse(matrix);
 
-  const { api } = await import("./api");
   const updates = new Map<string, BacktestPeriodFields>();
 
   await Promise.all(
@@ -266,7 +266,6 @@ export function clearCachedMatrix(): void {
 }
 
 export async function buildMatrixFromResultsFallback(): Promise<BacktestMatrixResponse | null> {
-  const { api } = await import("./api");
   const settings = await api.settings();
   const strategies = settings.operational?.strategies ?? [];
   const timeframes = settings.operational?.timeframes ?? ["1h", "4h", "1d"];

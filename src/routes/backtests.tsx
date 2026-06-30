@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PageHeader, Panel } from "@/components/ui/page";
+import { EmptyState, InlineError, LoadingBlock } from "@/components/ui/query-state";
 import { BacktestRunningBanner } from "@/components/backtests/BacktestRunningBanner";
 import {
   BacktestMatrixAssetTabs,
@@ -22,9 +23,8 @@ import type {
   OperationalTimeframe,
   OperatedBase,
 } from "@/lib/api";
-import { ApiError } from "@/lib/api";
 import { resolveRunningAsset, resolveRunningLabel } from "@/lib/backtest-running";
-import { Layers, Play, GitBranch } from "lucide-react";
+import { Layers, Play, GitBranch, CircleCheck, CircleX } from "lucide-react";
 
 export const Route = createFileRoute("/backtests")({
   head: () => ({ meta: [{ title: "Backtests · Quantum-Trend" }] }),
@@ -155,9 +155,7 @@ function Page() {
           </div>
         )}
 
-        {matrix.isLoading && !savedMatrix && (
-          <p className="text-sm text-muted-foreground mt-4">Carregando matriz salva…</p>
-        )}
+        {matrix.isLoading && !savedMatrix && <LoadingBlock label="Carregando matriz salva..." />}
 
         {savedMatrix && savedMatrix.items.length > 0 && (
           <div className="mt-4 space-y-6">
@@ -170,10 +168,12 @@ function Page() {
         )}
 
         {!matrix.isLoading && !savedMatrix?.items.length && !isRunning && (
-          <p className="text-sm text-muted-foreground mt-4">
-            Nenhuma matriz salva ainda. Clique em &quot;Testar todas&quot; para gerar os{" "}
-            {MATRIX_TOTAL} relatórios.
-          </p>
+          <div className="mt-4">
+            <EmptyState
+              title="Nenhuma matriz salva"
+              detail={`Clique em Testar todas para gerar os ${MATRIX_TOTAL} relatórios.`}
+            />
+          </div>
         )}
 
         {matrix.isError && !savedMatrix?.items.length && (
@@ -181,14 +181,7 @@ function Page() {
         )}
 
         {backtestAll.isError && (
-          <div className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            <strong>Falha na matriz:</strong>{" "}
-            {backtestAll.error instanceof ApiError
-              ? backtestAll.error.message
-              : backtestAll.error instanceof Error
-                ? backtestAll.error.message
-                : "Erro desconhecido — confirme que a API está ativa (python -m atlas.cli api)."}
-          </div>
+          <InlineError error={backtestAll.error} title="Falha na matriz" className="mt-4" />
         )}
 
         {!backtestAll.isPending &&
@@ -295,12 +288,7 @@ function Page() {
             </div>
           </div>
         )}
-        {walkforward.data && (
-          <div className="rounded-xl bg-success/10 border border-success/30 p-4 text-sm text-success mt-4">
-            Walk-forward salvo em{" "}
-            <code className="text-secondary">{walkforward.data.report_path}</code>
-          </div>
-        )}
+        {walkforward.data && <WalkforwardValidationSummary data={walkforward.data} />}
       </Panel>
 
       <div className="flex flex-wrap justify-center gap-4">
@@ -323,6 +311,71 @@ function Page() {
           {walkforward.isPending ? "Walk-forward…" : "Walk-forward OOS"}
         </button>
       </div>
+    </div>
+  );
+}
+
+function pct(value?: number | null, fraction = false): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  const normalized = fraction ? value * 100 : value;
+  return `${normalized >= 0 ? "+" : ""}${normalized.toFixed(1)}%`;
+}
+
+function WalkforwardValidationSummary({ data }: { data: import("@/lib/api").WalkforwardResponse }) {
+  const robustness = data.robustness ?? {};
+  const mc = data.monte_carlo ?? {};
+  const holdout = data.holdout;
+  const checklist = data.promotion_checklist ?? [];
+  return (
+    <div className="rounded-xl bg-white/[0.03] border border-white/10 p-4 text-sm mt-4 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="font-semibold">Validação estatística concluída</div>
+          <code className="text-xs text-secondary">{data.report_path}</code>
+        </div>
+        <div
+          className={`rounded-lg px-3 py-2 text-right ${
+            robustness.approved ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+          }`}
+        >
+          <div className="text-[11px] uppercase opacity-80">Robustez</div>
+          <div className="num text-lg font-semibold">
+            {typeof robustness.score === "number" ? robustness.score.toFixed(1) : "—"}
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <ValidationStat label="Holdout" value={pct(holdout?.net_profit_pct, true)} />
+        <ValidationStat label="Ruína" value={pct(mc.risk_of_ruin_pct)} />
+        <ValidationStat label="MC P5" value={pct(mc.return_p05_pct)} />
+        <ValidationStat label="DD P95" value={pct(mc.drawdown_p95_pct)} />
+      </div>
+      {checklist.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {checklist.map((item) => {
+            const Icon = item.ok ? CircleCheck : CircleX;
+            return (
+              <div
+                key={`${item.stage}-${item.label}`}
+                className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-xs"
+              >
+                <Icon className={`h-4 w-4 ${item.ok ? "text-success" : "text-warning"}`} />
+                <span className="flex-1">{item.label}</span>
+                <span className="num text-muted-foreground text-right">{item.value}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ValidationStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+      <div className="text-[11px] uppercase text-muted-foreground">{label}</div>
+      <div className="num font-semibold">{value}</div>
     </div>
   );
 }

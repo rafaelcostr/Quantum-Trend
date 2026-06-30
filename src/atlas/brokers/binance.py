@@ -8,11 +8,12 @@ from typing import Any
 import ccxt
 import pandas as pd
 
+from atlas.brokers.base import BrokerCapabilities, BrokerVenue, ExchangeId, MarketSpec, MarketType, market_spec
 from atlas.core.env import get_settings
 from atlas.core.external import ExternalErrorInfo, classify_external_error
 from atlas.core.log import log_event, logger
 from atlas.core.models import Candle, MarketTicker, Order, OrderResult, Position, Side
-from atlas.core.symbols import operated_market_watchlist
+from atlas.core.symbols import normalize_symbol, operated_market_watchlist
 
 ASSET_COLORS = {
     "BTC": "#F7931A",
@@ -30,6 +31,10 @@ ASSET_COLORS = {
 }
 
 WATCHLIST = operated_market_watchlist()
+
+
+def _exchange_symbol(symbol: str) -> str:
+    return normalize_symbol(symbol).exchange
 
 
 def _public_exchange() -> ccxt.binance:
@@ -144,6 +149,7 @@ def _wallet_equity_usdt(ex: ccxt.binance, balance: dict | None = None) -> float:
 
 
 def _fetch_ohlcv_exchange(ex: ccxt.Exchange, symbol: str, timeframe: str, **kwargs) -> list[list]:
+    symbol = _exchange_symbol(symbol)
     try:
         return ex.fetch_ohlcv(symbol, timeframe=timeframe, **kwargs)
     except Exception as exc:
@@ -273,6 +279,7 @@ def _log_external_failure(event: str, exc: Exception, **fields: Any) -> External
 
 def fetch_tickers(symbols: list[str] | None = None, *, include_sparkline: bool = True) -> list[MarketTicker]:
     symbols = symbols or WATCHLIST
+    symbols = [_exchange_symbol(sym) for sym in symbols]
     ex = _public_exchange()
     try:
         tickers = ex.fetch_tickers(symbols)
@@ -313,7 +320,7 @@ def fetch_tickers_cached(
     include_sparkline: bool = True,
     ttl: float = _TICKERS_TTL,
 ) -> list[MarketTicker]:
-    symbols = symbols or WATCHLIST
+    symbols = [_exchange_symbol(sym) for sym in (symbols or WATCHLIST)]
     key = (tuple(symbols), include_sparkline)
     now = time.time()
     cached = _TICKERS_CACHE.get(key)
@@ -336,7 +343,7 @@ def tickers_cache_status(
     include_sparkline: bool = True,
     ttl: float = _TICKERS_TTL,
 ) -> dict[str, Any]:
-    symbols = symbols or WATCHLIST
+    symbols = [_exchange_symbol(sym) for sym in (symbols or WATCHLIST)]
     key = (tuple(symbols), include_sparkline)
     cached = _TICKERS_CACHE.get(key)
     error = _LAST_TICKERS_ERROR.get(key)
@@ -384,6 +391,7 @@ _LAST_PRICE_TTL = 8.0
 
 
 def fetch_last_price(symbol: str = "BTC/USDT") -> float:
+    symbol = _exchange_symbol(symbol)
     now = time.time()
     cached = _LAST_PRICE_CACHE.get(symbol)
     if cached and (now - cached[1]) < _LAST_PRICE_TTL:
@@ -407,6 +415,7 @@ def fetch_last_price(symbol: str = "BTC/USDT") -> float:
 
 
 def fetch_account_snapshot(symbol: str = "BTC/USDT", *, live: bool = False, force: bool = False) -> AccountSnapshot | None:
+    symbol = _exchange_symbol(symbol)
     global _SNAPSHOT_CACHE, _SNAPSHOT_CACHE_AT
     now = time.time()
     cached = _SNAPSHOT_CACHE.get(live)
@@ -455,11 +464,12 @@ def fetch_account_snapshot(symbol: str = "BTC/USDT", *, live: bool = False, forc
 
 
 def asset_color(symbol: str) -> str:
-    base = symbol.split("/")[0] if "/" in symbol else symbol
+    base = normalize_symbol(symbol).base
     return ASSET_COLORS.get(base.upper(), "#7C3AED")
 
 
 def market_buy_quote(symbol: str, quote_amount: float) -> dict | None:
+    symbol = _exchange_symbol(symbol)
     ex = _demo_exchange()
     if ex is None or quote_amount <= 0:
         return None
@@ -473,6 +483,7 @@ def market_buy_quote(symbol: str, quote_amount: float) -> dict | None:
 
 
 def market_sell_base(symbol: str, base_amount: float) -> dict | None:
+    symbol = _exchange_symbol(symbol)
     ex = _demo_exchange()
     if ex is None or base_amount <= 0:
         return None
@@ -499,6 +510,7 @@ def credentials_configured(*, live: bool = False) -> bool:
 
 
 def fetch_public_candles(symbol: str, timeframe: str, limit: int = 500) -> list[Candle]:
+    symbol = _exchange_symbol(symbol)
     raw = _public_exchange().fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
     return [
         Candle(
@@ -514,8 +526,22 @@ def fetch_public_candles(symbol: str, timeframe: str, limit: int = 500) -> list[
 
 
 class BinanceDemoBroker:
-    def __init__(self, symbol: str) -> None:
-        self.symbol = symbol
+    def __init__(self, symbol: str, *, market_type: str = MarketType.SPOT.value, venue: str = BrokerVenue.DEMO_EXCHANGE.value) -> None:
+        self.symbol = _exchange_symbol(symbol)
+        self.spec = market_spec(
+            self.symbol,
+            exchange_id=ExchangeId.BINANCE.value,
+            market_type=market_type,
+            venue=venue,
+        )
+        self.capabilities = BrokerCapabilities(
+            exchange_id=ExchangeId.BINANCE.value,
+            market_types=(MarketType.SPOT, MarketType.FUTURES),
+            venues=(BrokerVenue.DEMO_EXCHANGE, BrokerVenue.LIVE_EXCHANGE),
+            supports_client_order_id=True,
+            supports_fetch_open_orders=True,
+            supports_exchange_stops=True,
+        )
 
     def _exchange(self) -> ccxt.binance:
         ex = _demo_exchange()
@@ -524,6 +550,7 @@ class BinanceDemoBroker:
         return ex
 
     def fetch_candles(self, symbol: str, timeframe: str, limit: int = 500) -> list[Candle]:
+        symbol = _exchange_symbol(symbol)
         if credentials_configured(live=False):
             try:
                 raw = self._exchange().fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
@@ -548,7 +575,8 @@ class BinanceDemoBroker:
         return _balance_amount(balance, quote, field="free")
 
     def get_position(self, symbol: str) -> Position | None:
-        base = symbol.split("/")[0].upper()
+        symbol = _exchange_symbol(symbol)
+        base = normalize_symbol(symbol).base
         balance = self._exchange().fetch_balance()
         qty = _balance_amount(balance, base, field="total")
         if qty <= 0.0001:
@@ -564,12 +592,15 @@ class BinanceDemoBroker:
 
     def place_order(self, order: Order) -> OrderResult:
         try:
+            symbol = _exchange_symbol(order.symbol)
+            params = {"newClientOrderId": order.client_order_id} if order.client_order_id else {}
             result = self._exchange().create_order(
-                order.symbol,
+                symbol,
                 order.order_type,
                 order.side.value,
                 order.quantity,
                 order.price,
+                params,
             )
             return OrderResult(
                 success=True,
@@ -590,6 +621,7 @@ class BinanceDemoBroker:
 
     def fetch_open_orders(self, symbol: str) -> list[dict]:
         try:
+            symbol = _exchange_symbol(symbol)
             raw = self._exchange().fetch_open_orders(symbol)
             out: list[dict] = []
             for order in raw or []:
@@ -608,8 +640,41 @@ class BinanceDemoBroker:
             _log_external_failure("external.binance.fetch_open_orders.failed", exc, symbol=symbol)
             return [{"error": str(exc)}]
 
+    def market_spec(self, symbol: str | None = None) -> MarketSpec:
+        target = _exchange_symbol(symbol or self.symbol)
+        spec = market_spec(
+            target,
+            exchange_id=ExchangeId.BINANCE.value,
+            market_type=self.spec.market_type,
+            venue=self.spec.venue,
+        )
+        try:
+            ex = self._exchange()
+            ex.load_markets()
+            market = ex.market(target)
+            precision = market.get("precision") or {}
+            limits = market.get("limits") or {}
+            amount = limits.get("amount") or {}
+            cost = limits.get("cost") or {}
+            return market_spec(
+                target,
+                exchange_id=ExchangeId.BINANCE.value,
+                market_type=self.spec.market_type,
+                venue=self.spec.venue,
+                price_precision=precision.get("price"),
+                quantity_precision=precision.get("amount"),
+                min_qty=amount.get("min") or 0,
+                min_notional=cost.get("min") or 0,
+            )
+        except Exception as exc:
+            logger.debug("market_spec Binance fallback para %s: %s", target, exc)
+            return spec
+
 
 class BinanceLiveBroker(BinanceDemoBroker):
+    def __init__(self, symbol: str, *, market_type: str = MarketType.SPOT.value, venue: str = BrokerVenue.LIVE_EXCHANGE.value) -> None:
+        super().__init__(symbol, market_type=market_type, venue=venue)
+
     def _exchange(self) -> ccxt.binance:
         ex = _live_exchange()
         if ex is None:

@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     binance_live_api_secret: str | None = None
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    discord_webhook_url: str | None = None
+    alert_email_to: str | None = None
+    alert_email_from: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = True
+    alert_webhook_url: str | None = None
     atlas_kill_switch: bool = False
     atlas_api_host: str = "127.0.0.1"
     atlas_api_port: int = 8000

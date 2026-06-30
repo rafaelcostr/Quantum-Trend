@@ -29,6 +29,7 @@ from atlas.services.demo_account import (
 from atlas.runtime.risk_store import get_risk_settings, update_risk_settings
 from atlas.runtime.operational_config import operational_options
 from atlas.runtime.system_store import get_runtime_system
+from atlas.runtime.operational_safety import kill_switch_snapshot
 from atlas.runtime.journal import Journal
 from atlas.runtime.state import active_config, bot_state, build_positions
 from atlas.runtime.live_gates import evaluate_live_gates
@@ -579,18 +580,32 @@ def get_risk_payload() -> dict:
     snap = fetch_account_snapshot(cfg.exchange.symbol, live=live)
     balance = snap.equity_usdt if snap else 0.0
     r = risk.to_dict()
+    from atlas.runtime.portfolio_risk import aggregate_exposure
+
+    exposure = aggregate_exposure().to_dict(balance)
     payload = {
         "settings": r,
         "balance": round(balance, 2),
         "summary": {
-            "max_exposure": round(balance * r["risk_per_trade_pct"] / 100 * r["max_ops_per_day"], 0),
+            "max_exposure": round(balance * r.get("max_exposure_pct", 95) / 100, 0),
             "max_daily_loss": round(balance * r["daily_stop_pct"] / 100, 0),
             "daily_target": round(balance * r["daily_target_pct"] / 100, 0),
+            "current_exposure": exposure["total_usdt"],
+            "current_exposure_pct": exposure["total_pct"],
+            "max_total_risk": round(balance * r.get("max_total_risk_pct", 6) / 100, 0),
         },
+        "exposure": exposure,
         "protections": [
             "Stop diário",
+            "Stop semanal",
+            "Drawdown máximo",
             "Pausar após perdas",
             "Cooldown automático",
+            "Limite por ativo",
+            "Limite por estratégia",
+            "Limite por direção",
+            "Redução por correlação",
+            "Sizing por ATR/volatilidade/Kelly",
             "Kill switch global",
             f"Slippage máx {cfg.execution.slippage_rate * 100:.2f}%",
         ],
@@ -616,6 +631,8 @@ def get_results_payload(
         meta = load_report_by_strategy_timeframe(strategy, timeframe, base=base)
         if meta and meta.get("metadata", {}).get("market"):
             symbol = str(meta["metadata"]["market"])
+    else:
+        meta = load_report_by_strategy_timeframe(strategy, timeframe, base=base)
 
     metrics, trades, equity = load_trades_for_results(
         strategy=strategy,
@@ -651,6 +668,10 @@ def get_results_payload(
         "period_start": period_start,
         "period_end": period_end,
         "period_days": period_days,
+        "advanced_metrics": (meta or {}).get("advanced_metrics") or {},
+        "costs": (meta or {}).get("costs") or {},
+        "period_analysis": (meta or {}).get("period_analysis") or {},
+        "overfitting": (meta or {}).get("overfitting") or {},
         "spark_up": _spark_from_equity(equity, True),
         "spark_mix": _spark_from_equity(equity, None),
     }
@@ -669,6 +690,10 @@ def get_settings_payload() -> dict:
     cfg = active_config()
     settings = get_settings()
     runtime = get_runtime_system()
+    scoped_kill = kill_switch_snapshot()
+    from atlas.monitoring.incident_manager import configured_channels
+
+    channels = configured_channels()
     live_active = bot_state.running and bot_state.mode == TradingMode.LIVE
     demo_connected = credentials_configured(live=False) and fetch_account_snapshot(cfg.exchange.symbol, live=False) is not None
     live_connected = live_api_connected(default_config_for_mode(TradingMode.LIVE).exchange.symbol)
@@ -704,6 +729,7 @@ def get_settings_payload() -> dict:
             "configured": bool(settings.telegram_bot_token and settings.telegram_chat_id),
             "chat_id_set": bool(settings.telegram_chat_id),
         },
+        "alert_channels": channels,
         "system": {
             "strategy": strategy_display_name(cfg.strategy.name),
             "strategy_id": cfg.strategy.name,
@@ -711,6 +737,7 @@ def get_settings_payload() -> dict:
             "timeframe": cfg.exchange.timeframe,
             "poll_seconds": cfg.runtime.poll_seconds,
             "kill_switch": settings.kill_switch_active,
+            "kill_switches": scoped_kill,
             "bot_running": bot_state.snapshot()["running"],
             "bot_mode": bot_state.mode.value,
         },

@@ -9,6 +9,7 @@ import numpy as np
 from atlas.core.config import AtlasConfig
 from atlas.core.symbols import quote_from_symbol, report_json_basename
 from atlas.research.engine_backtest import BacktestResult
+from atlas.research.professional_metrics import compute_professional_analysis
 from atlas.research.report_metadata import build_report_metadata, remove_stale_reports
 
 
@@ -168,5 +169,41 @@ def save_report(
             if payload.get("metadata"):
                 payload["metadata"]["module_stats"] = module_stats
     path = out_dir / report_json_basename(name)
+    professional = compute_professional_analysis(result, config)
+    adv = professional["advanced_metrics"]
+    payload["metrics"] = {
+        "total_return_pct": round(report.net_profit_pct * 100, 2),
+        "profit_factor": round(min(report.profit_factor, 99.0), 2),
+        "max_drawdown_pct": round(report.max_drawdown_pct * 100, 2),
+        "sharpe": round(float(report.sharpe_ratio or adv.get("sharpe_ratio", 0.0)), 2),
+        "sortino": round(float(adv.get("sortino_ratio", 0.0)), 2),
+        "calmar": round(float(adv.get("calmar_ratio", 0.0)), 2),
+        "win_rate_pct": round(report.win_rate * 100, 2),
+        "trades": report.total_trades,
+        "expectancy": round(report.avg_trade_pct, 4),
+        "payoff_ratio": round(float(adv.get("payoff_ratio", 0.0)), 2),
+        "recovery_factor": round(float(adv.get("recovery_factor", 0.0)), 2),
+        "drawdown_duration_bars": int(adv.get("drawdown_duration_bars", 0)),
+        "exposure_time_pct": round(float(adv.get("exposure_time_pct", 0.0)), 2),
+        "turnover": round(float(adv.get("turnover", 0.0)), 2),
+        "var_95_pct": round(float(adv.get("var_95_pct", 0.0)), 2),
+        "cvar_95_pct": round(float(adv.get("cvar_95_pct", 0.0)), 2),
+        "stability_score": round(float(professional.get("overfitting", {}).get("stability_score", 0.0)), 1),
+        "atlas_score": 0,
+    }
+    try:
+        from atlas.intelligence.score import compute_atlas_score
+
+        payload["metrics"]["atlas_score"] = compute_atlas_score(
+            max_drawdown_pct=report.max_drawdown_pct,
+            profit_factor=min(report.profit_factor, 99.0),
+            expectancy_pct=report.avg_trade_pct,
+            sharpe=report.sharpe_ratio or float(adv.get("sharpe_ratio", 0.0)),
+            net_profit_pct=report.net_profit_pct,
+            total_trades=report.total_trades,
+        )
+    except Exception:
+        payload["metrics"]["atlas_score"] = 0
+    payload.update(professional)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path

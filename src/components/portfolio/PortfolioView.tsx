@@ -1,21 +1,11 @@
+import { lazy, Suspense } from "react";
 import type { PortfolioResponse } from "@/lib/api";
 import { Panel } from "@/components/ui/page";
-import {
-  Area,
-  Bar,
-  CartesianGrid,
-  Cell,
-  ComposedChart,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { EmptyState, LoadingBlock } from "@/components/ui/query-state";
 
-const ALLOC_COLORS = ["#7C3AED", "#22C55E", "#3B82F6", "#F59E0B", "#EF4444"];
+const PortfolioCharts = lazy(() =>
+  import("./PortfolioCharts").then((module) => ({ default: module.PortfolioCharts })),
+);
 
 type Props = { data: PortfolioResponse };
 
@@ -23,11 +13,6 @@ export function PortfolioView({ data }: Props) {
   const p = data.portfolio;
   const equity = data.equity_curve ?? [];
   const ddCurve = data.drawdown_curve ?? [];
-  const chartData = equity.map((row, i) => ({
-    day: row.day,
-    equity: row.equity,
-    drawdown_pct: ddCurve[i]?.drawdown_pct ?? 0,
-  }));
   const strategies = data.strategy_performance ?? [];
   const allocation = data.allocation ?? [];
   const positions = data.open_positions_detail ?? [];
@@ -35,6 +20,7 @@ export function PortfolioView({ data }: Props) {
   const heatmap = data.monthly_heatmap ?? [];
   const health = data.health;
   const dd = data.drawdown_summary ?? { current_pct: 0, max_pct: 0 };
+  const advancedRisk = data.advanced_risk;
 
   const healthCls =
     health?.tone === "success"
@@ -73,94 +59,38 @@ export function PortfolioView({ data }: Props) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-4">
-        <Panel title="Curva de patrimônio" subtitle="Equity curve + overlay de drawdown">
-          <div className="flex gap-6 text-xs mb-3">
-            <span className="text-muted-foreground">
-              DD atual: <span className="num text-destructive">{dd.current_pct.toFixed(1)}%</span>
-            </span>
-            <span className="text-muted-foreground">
-              DD máximo: <span className="num text-destructive">{dd.max_pct.toFixed(1)}%</span>
-            </span>
-          </div>
-          <div className="h-80">
-            {chartData.length < 2 ? (
-              <EmptyChart message="Patrimônio será plotado após ticks do bot ou trades fechados." />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis dataKey="day" tick={{ fill: "#94a3b8", fontSize: 10 }} />
-                  <YAxis
-                    yAxisId="eq"
-                    tick={{ fill: "#94a3b8", fontSize: 10 }}
-                    domain={["auto", "auto"]}
-                  />
-                  <YAxis
-                    yAxisId="dd"
-                    orientation="right"
-                    tick={{ fill: "#f87171", fontSize: 10 }}
-                    domain={[0, "auto"]}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "#12161f",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  />
-                  <Legend />
-                  <Area
-                    yAxisId="eq"
-                    type="monotone"
-                    dataKey="equity"
-                    name="Patrimônio"
-                    stroke="#22C55E"
-                    fill="url(#eqGrad)"
-                    strokeWidth={2}
-                  />
-                  <Bar
-                    yAxisId="dd"
-                    dataKey="drawdown_pct"
-                    name="Drawdown %"
-                    fill="#EF4444"
-                    opacity={0.45}
-                    barSize={6}
-                  />
-                  <defs>
-                    <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22C55E" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#22C55E" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                </ComposedChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </Panel>
+      <Suspense fallback={<LoadingBlock label="Preparando gráficos do portfólio..." />}>
+        <PortfolioCharts
+          equity={equity}
+          drawdownCurve={ddCurve}
+          drawdownSummary={dd}
+          allocation={allocation}
+        />
+      </Suspense>
 
-        <Panel title="Risk summary" subtitle="Indicadores consolidados">
-          {stats ? (
-            <div className="space-y-3 text-sm">
-              <StatRow label="Win Rate" value={`${stats.win_rate_pct.toFixed(1)}%`} />
-              <StatRow label="Profit Factor" value={stats.profit_factor.toFixed(2)} />
-              <StatRow
-                label="Retorno total"
-                value={`${stats.total_return_pct >= 0 ? "+" : ""}${stats.total_return_pct.toFixed(1)}%`}
-              />
-              <StatRow label="Sharpe Ratio" value={stats.sharpe_ratio.toFixed(2)} />
-              <StatRow
-                label="Max DD"
-                value={`${stats.max_drawdown_pct.toFixed(1)}%`}
-                tone="danger"
-              />
-              <StatRow label="Trades totais" value={String(stats.total_trades)} />
-              <StatRow label="P&L diário" value={`$${p.daily_pnl.toFixed(2)}`} />
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Sem estatísticas ainda.</p>
-          )}
-        </Panel>
-      </div>
+      {advancedRisk && <AdvancedRiskPanel risk={advancedRisk} />}
+
+      <Panel title="Risk summary" subtitle="Indicadores consolidados">
+        {stats ? (
+          <div className="space-y-3 text-sm">
+            <StatRow label="Win Rate" value={`${stats.win_rate_pct.toFixed(1)}%`} />
+            <StatRow label="Profit Factor" value={stats.profit_factor.toFixed(2)} />
+            <StatRow
+              label="Retorno total"
+              value={`${stats.total_return_pct >= 0 ? "+" : ""}${stats.total_return_pct.toFixed(1)}%`}
+            />
+            <StatRow label="Sharpe Ratio" value={stats.sharpe_ratio.toFixed(2)} />
+            <StatRow label="Max DD" value={`${stats.max_drawdown_pct.toFixed(1)}%`} tone="danger" />
+            <StatRow label="Trades totais" value={String(stats.total_trades)} />
+            <StatRow label="P&L diário" value={`$${p.daily_pnl.toFixed(2)}`} />
+          </div>
+        ) : (
+          <EmptyState
+            title="Sem estatísticas ainda"
+            detail="Os indicadores aparecem após trades."
+          />
+        )}
+      </Panel>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-4">
         <Panel title="Performance por estratégia">
@@ -207,52 +137,6 @@ export function PortfolioView({ data }: Props) {
               </tbody>
             </table>
           </div>
-        </Panel>
-
-        <Panel title="Alocação por estratégia">
-          <div className="h-64">
-            {allocation.length === 0 ? (
-              <EmptyChart message="Alocação aparece com slots ativos." />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={allocation}
-                    dataKey="pct"
-                    nameKey="label"
-                    innerRadius={52}
-                    outerRadius={80}
-                    paddingAngle={3}
-                  >
-                    {allocation.map((_, i) => (
-                      <Cell key={i} fill={ALLOC_COLORS[i % ALLOC_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: "#12161f",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-          <ul className="mt-2 space-y-1 text-xs">
-            {allocation.map((a, i) => (
-              <li key={a.strategy_id} className="flex justify-between">
-                <span className="flex items-center gap-2">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ background: ALLOC_COLORS[i % ALLOC_COLORS.length] }}
-                  />
-                  {a.label}
-                </span>
-                <span className="num">{a.pct.toFixed(1)}%</span>
-              </li>
-            ))}
-          </ul>
         </Panel>
       </div>
 
@@ -328,6 +212,93 @@ export function PortfolioView({ data }: Props) {
   );
 }
 
+function AdvancedRiskPanel({ risk }: { risk: NonNullable<PortfolioResponse["advanced_risk"]> }) {
+  const exposure = risk.exposure;
+  const alerts = risk.alerts ?? [];
+  return (
+    <Panel title="Risco avançado" subtitle="Exposição agregada, limites e sizing">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <Cap label="Exposição USDT" value={`$${exposure.total_usdt.toLocaleString()}`} />
+        <Cap label="Exposição total" value={`${exposure.total_pct.toFixed(1)}%`} />
+        <Cap
+          label="Risco por trade"
+          value={`${risk.limits.risk_per_trade_pct?.toFixed(2) ?? "—"}%`}
+        />
+        <Cap
+          label="Scale recomendado"
+          value={`${(risk.sizing.recommended_scale * 100).toFixed(0)}%`}
+        />
+      </div>
+      {alerts.length > 0 && (
+        <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+          {alerts.join(" · ")}
+        </div>
+      )}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <RiskBucket title="Por ativo" items={exposure.by_asset} />
+        <RiskBucket title="Por direção" items={exposure.by_direction} />
+        <RiskBucket title="Por timeframe" items={exposure.by_timeframe} />
+      </div>
+      <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+        <table className="w-full text-sm min-w-[620px]">
+          <thead className="text-[10px] uppercase text-muted-foreground bg-white/[0.02]">
+            <tr className="text-left">
+              <th className="px-3 py-2">Estratégia</th>
+              <th className="px-3 py-2">Ativo</th>
+              <th className="px-3 py-2">TF</th>
+              <th className="px-3 py-2 text-right">Risco/trade</th>
+              <th className="px-3 py-2 text-right">Máx estratégia</th>
+              <th className="px-3 py-2 text-right">Máx ativo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {risk.risk_allocation.map((row) => (
+              <tr
+                key={`${row.strategy_id}-${row.asset}-${row.timeframe}`}
+                className="border-t border-white/5"
+              >
+                <td className="px-3 py-2 font-medium">{row.label}</td>
+                <td className="px-3 py-2">{row.asset}</td>
+                <td className="px-3 py-2">{row.timeframe}</td>
+                <td className="px-3 py-2 text-right num">
+                  ${row.risk_budget_usdt.toLocaleString()}
+                </td>
+                <td className="px-3 py-2 text-right num">
+                  ${row.max_strategy_risk_usdt.toLocaleString()}
+                </td>
+                <td className="px-3 py-2 text-right num">
+                  ${row.max_asset_risk_usdt.toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+
+function RiskBucket({ title, items }: { title: string; items: Record<string, number> }) {
+  const rows = Object.entries(items);
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+      <div className="text-xs uppercase text-muted-foreground mb-2">{title}</div>
+      {rows.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Sem exposição aberta.</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map(([key, value]) => (
+            <div key={key} className="flex justify-between gap-3 text-sm">
+              <span>{key}</span>
+              <span className="num">${value.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Cap({ label, value }: { label: string; value: string }) {
   return (
     <div className="glass rounded-2xl border border-white/10 px-4 py-3">
@@ -344,14 +315,6 @@ function StatRow({ label, value, tone }: { label: string; value: string; tone?: 
       <span className={`num font-medium ${tone === "danger" ? "text-destructive" : ""}`}>
         {value}
       </span>
-    </div>
-  );
-}
-
-function EmptyChart({ message }: { message: string }) {
-  return (
-    <div className="h-full flex items-center justify-center text-sm text-muted-foreground text-center px-4">
-      {message}
     </div>
   );
 }

@@ -5,6 +5,8 @@ import pytest
 from atlas.core.symbols import (
     OPERATED_BASES,
     build_symbol,
+    compact_symbol,
+    normalize_symbol,
     operated_market_watchlist,
     validate_operated_base,
 )
@@ -22,6 +24,16 @@ def test_operated_market_watchlist():
 
 def test_build_symbol_eth():
     assert build_symbol("ETH", "USDT") == "ETH/USDT"
+
+
+def test_normalize_symbol_accepts_compact_and_slash():
+    compact = normalize_symbol("BTCUSDT")
+    slash = normalize_symbol("BTC/USDT")
+    assert compact.canonical == "BTC/USDT"
+    assert compact.exchange == slash.exchange == "BTC/USDT"
+    assert compact.base == "BTC"
+    assert compact.quote == "USDT"
+    assert compact_symbol("ETH_USDT") == "ETHUSDT"
 
 
 def test_report_json_basename():

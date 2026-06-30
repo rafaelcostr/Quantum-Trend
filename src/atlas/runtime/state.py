@@ -14,6 +14,7 @@ from atlas.runtime.bot_runner import bot_pool
 from atlas.runtime.live_gates import evaluate_live_gates
 from atlas.core.symbols import base_from_symbol
 from atlas.runtime.operational_config import enabled_paper_configs, resolve_active_config, slot_key
+from atlas.runtime.operational_safety import evaluate_scoped_kill_switch
 from atlas.services.demo_account import entry_price_from_event, mark_price, open_entry_from_journal
 from atlas.strategies.mm200_trend_v2 import strategy_display_name
 
@@ -32,8 +33,9 @@ class BotState:
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def _start(self, mode: TradingMode) -> None:
-        if get_settings().kill_switch_active:
-            raise RuntimeError("Kill switch ativo — bot bloqueado")
+        settings = get_settings()
+        if settings.kill_switch_active:
+            raise RuntimeError("Kill switch global ativo — bot bloqueado")
         if bot_pool.is_alive() and bot_pool.mode != mode:
             raise RuntimeError(
                 f"Bot já rodando em modo {bot_pool.mode.value if bot_pool.mode else '?'} — pare antes"
@@ -57,6 +59,15 @@ class BotState:
                 raise RuntimeError(
                     "Nenhuma estratégia habilitada — configure até 6 em Estratégias (4H e/ou 1D)"
                 )
+
+        for _, cfg in configs:
+            kill = evaluate_scoped_kill_switch(
+                global_active=settings.kill_switch_active,
+                symbol=cfg.exchange.symbol,
+                strategy=cfg.strategy.name,
+            )
+            if kill.blocked:
+                raise RuntimeError(kill.reason or "Kill switch ativo — bot bloqueado")
 
         bot_pool.start_all(mode=mode, configs=configs)
         primary = configs[0][1]

@@ -79,5 +79,13 @@ def build_level3_values(
         values["wf_split"] = walkforward.get("split_timestamp")
         is_stats = walkforward.get("in_sample", {})
         values["is_return"] = is_stats.get("net_profit_pct")
+        holdout = walkforward.get("holdout") or {}
+        values["holdout_return"] = holdout.get("net_profit_pct")
+        values["holdout_trades"] = walkforward.get("holdout_trades")
+        robustness = walkforward.get("robustness") or {}
+        values["robustness_score"] = robustness.get("score")
+        values["robustness_approved"] = robustness.get("approved")
+        wf_mc = walkforward.get("monte_carlo") or {}
+        values["wf_risk_of_ruin_pct"] = wf_mc.get("risk_of_ruin_pct")
 
     return values

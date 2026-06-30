@@ -83,7 +83,7 @@ def test_list_backtest_matrix_includes_bear_strategies():
 
 
 def test_matrix_groups_payload():
-    from atlas.services.backtest_batch import _matrix_groups_payload
+    from atlas.services.backtest_batch import _matrix_groups_payload, _strategy_rankings
 
     items = [
         {
@@ -105,6 +105,13 @@ def test_matrix_groups_payload():
     assert groups[1]["market_type"] == "bear"
     assert groups[0]["total"] == 1
     assert groups[1]["items"][0]["strategy"] == "pullback_short_v1"
+    rankings = _strategy_rankings([
+        {**items[0], "ok": True, "metrics": {"total_return_pct": 10.0, "max_drawdown_pct": 12.0, "sharpe": 1.1, "stability_score": 60}},
+        {**items[1], "ok": True, "metrics": {"total_return_pct": 5.0, "max_drawdown_pct": 4.0, "sharpe": 1.8, "stability_score": 80}},
+    ])
+    assert rankings["by_return"][0]["strategy"] == "pullback_ema20_v1"
+    assert rankings["by_drawdown"][0]["strategy"] == "pullback_short_v1"
+    assert rankings["by_stability"][0]["strategy"] == "pullback_short_v1"
 
 
 def test_resolve_backtest_config_path_1d():

@@ -51,6 +51,56 @@ def _live_opt_in() -> bool:
     return os.getenv("ATLAS_ALLOW_LIVE", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _min_live_balance() -> float:
+    raw = os.getenv("ATLAS_LIVE_MIN_BALANCE_USDT", "25").strip()
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return 25.0
+
+
+def _recent_operational_error() -> str | None:
+    events = Journal(database_url="", mode=TradingMode.PAPER).fetch_events(limit=100)
+    for ev in events:
+        if ev.get("event") == "error":
+            payload = ev.get("payload") or {}
+            return str(payload.get("error") or "erro operacional recente")[:180]
+    return None
+
+
+def _paper_drawdown_pct() -> float:
+    from atlas.services.demo_account import journal_entries, trade_stats
+
+    stats = trade_stats(journal_entries(mode=TradingMode.PAPER))
+    return float(stats.get("dd") or 0)
+
+
+def _risk_configured() -> tuple[bool, str]:
+    from atlas.runtime.risk_store import get_risk_settings
+
+    risk = get_risk_settings()
+    if risk.risk_per_trade_pct <= 0:
+        return False, "risk_per_trade_pct precisa ser > 0"
+    if risk.daily_stop_pct <= 0:
+        return False, "daily_stop_pct precisa ser > 0"
+    if risk.max_ops_per_day <= 0:
+        return False, "max_ops_per_day precisa ser > 0"
+    return True, "ok"
+
+
+def _reconciliation_ok() -> tuple[bool, str]:
+    from atlas.platform.store import load_platform_state
+
+    state = load_platform_state()
+    recovery = state.get("recovery") or {}
+    issues = recovery.get("issues") or []
+    if issues:
+        return False, "; ".join(map(str, issues[:2]))
+    if recovery.get("open_orders"):
+        return False, "existem ordens abertas pendentes"
+    return True, recovery.get("reconciled_at") or "sem pendências"
+
+
 def _paper_days_running() -> int:
     from atlas.runtime.state import bot_state
 
@@ -133,6 +183,32 @@ def evaluate_live_gates() -> dict[str, Any]:
         live_snap is not None,
         "conectada" if live_snap else "falha ao ler saldo live",
     )
+    min_balance = _min_live_balance()
+    live_balance = float(live_snap.equity_usdt) if live_snap else 0.0
+    add(
+        f"Saldo live mínimo ≥ ${min_balance:.0f}",
+        live_balance >= min_balance,
+        f"${live_balance:.2f}",
+    )
+
+    add(
+        "API saudável",
+        credentials_configured(live=False) or credentials_configured(live=True),
+        "credenciais presentes" if credentials_configured(live=False) or credentials_configured(live=True) else "sem credenciais",
+    )
+
+    risk_ok, risk_value = _risk_configured()
+    add("Risco configurado", risk_ok, risk_value)
+
+    rec_ok, rec_value = _reconciliation_ok()
+    add("Reconciliação sem pendências", rec_ok, rec_value)
+
+    recent_error = _recent_operational_error()
+    add(
+        "Sem erro operacional recente",
+        recent_error is None,
+        "ok" if recent_error is None else recent_error,
+    )
 
     add(
         "Bot paper não está rodando",
@@ -151,6 +227,14 @@ def evaluate_live_gates() -> dict[str, Any]:
         f"Paper rodando ≥ {min_days} dias",
         paper_days >= min_days,
         f"{paper_days} / {min_days} dias",
+    )
+
+    max_dd = float(os.getenv("ATLAS_LIVE_MAX_PAPER_DD_PCT", "15") or 15)
+    paper_dd = _paper_drawdown_pct()
+    add(
+        f"Drawdown paper ≤ {max_dd:.1f}%",
+        paper_dd <= max_dd,
+        f"{paper_dd:.2f}%",
     )
 
     metrics = _backtest_values(cfg.strategy.name)

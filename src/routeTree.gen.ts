@@ -17,6 +17,7 @@ import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as OperacoesRouteImport } from './routes/operacoes'
 import { Route as MercadosRouteImport } from './routes/mercados'
 import { Route as LiveRouteImport } from './routes/live'
+import { Route as LaboratorioRouteImport } from './routes/laboratorio'
 import { Route as IaRouteImport } from './routes/ia'
 import { Route as EstrategiasLateralRouteImport } from './routes/estrategias-lateral'
 import { Route as EstrategiasBaixaRouteImport } from './routes/estrategias-baixa'
@@ -65,6 +66,11 @@ const MercadosRoute = MercadosRouteImport.update({
 const LiveRoute = LiveRouteImport.update({
   id: '/live',
   path: '/live',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaboratorioRoute = LaboratorioRouteImport.update({
+  id: '/laboratorio',
+  path: '/laboratorio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IaRoute = IaRouteImport.update({
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/estrategias-baixa': typeof EstrategiasBaixaRoute
   '/estrategias-lateral': typeof EstrategiasLateralRoute
   '/ia': typeof IaRoute
+  '/laboratorio': typeof LaboratorioRoute
   '/live': typeof LiveRoute
   '/mercados': typeof MercadosRoute
   '/operacoes': typeof OperacoesRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/estrategias-baixa': typeof EstrategiasBaixaRoute
   '/estrategias-lateral': typeof EstrategiasLateralRoute
   '/ia': typeof IaRoute
+  '/laboratorio': typeof LaboratorioRoute
   '/live': typeof LiveRoute
   '/mercados': typeof MercadosRoute
   '/operacoes': typeof OperacoesRoute
@@ -162,6 +170,7 @@ export interface FileRoutesById {
   '/estrategias-baixa': typeof EstrategiasBaixaRoute
   '/estrategias-lateral': typeof EstrategiasLateralRoute
   '/ia': typeof IaRoute
+  '/laboratorio': typeof LaboratorioRoute
   '/live': typeof LiveRoute
   '/mercados': typeof MercadosRoute
   '/operacoes': typeof OperacoesRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/estrategias-baixa'
     | '/estrategias-lateral'
     | '/ia'
+    | '/laboratorio'
     | '/live'
     | '/mercados'
     | '/operacoes'
@@ -202,6 +212,7 @@ export interface FileRouteTypes {
     | '/estrategias-baixa'
     | '/estrategias-lateral'
     | '/ia'
+    | '/laboratorio'
     | '/live'
     | '/mercados'
     | '/operacoes'
@@ -221,6 +232,7 @@ export interface FileRouteTypes {
     | '/estrategias-baixa'
     | '/estrategias-lateral'
     | '/ia'
+    | '/laboratorio'
     | '/live'
     | '/mercados'
     | '/operacoes'
@@ -241,6 +253,7 @@ export interface RootRouteChildren {
   EstrategiasBaixaRoute: typeof EstrategiasBaixaRoute
   EstrategiasLateralRoute: typeof EstrategiasLateralRoute
   IaRoute: typeof IaRoute
+  LaboratorioRoute: typeof LaboratorioRoute
   LiveRoute: typeof LiveRoute
   MercadosRoute: typeof MercadosRoute
   OperacoesRoute: typeof OperacoesRoute
@@ -307,6 +320,13 @@ declare module '@tanstack/react-router' {
       path: '/live'
       fullPath: '/live'
       preLoaderRoute: typeof LiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/laboratorio': {
+      id: '/laboratorio'
+      path: '/laboratorio'
+      fullPath: '/laboratorio'
+      preLoaderRoute: typeof LaboratorioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ia': {
@@ -385,6 +405,7 @@ const rootRouteChildren: RootRouteChildren = {
   EstrategiasBaixaRoute: EstrategiasBaixaRoute,
   EstrategiasLateralRoute: EstrategiasLateralRoute,
   IaRoute: IaRoute,
+  LaboratorioRoute: LaboratorioRoute,
   LiveRoute: LiveRoute,
   MercadosRoute: MercadosRoute,
   OperacoesRoute: OperacoesRoute,

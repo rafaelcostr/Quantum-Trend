@@ -55,6 +55,74 @@ function inferMarketType(strategy: string): BacktestMatrixGroup["market_type"] {
   return "bull";
 }
 
+function RankingColumn({
+  title,
+  items,
+  metric,
+  suffix = "",
+}: {
+  title: string;
+  items?: BacktestBatchItem[];
+  metric: keyof NonNullable<BacktestBatchItem["metrics"]>;
+  suffix?: string;
+}) {
+  if (!items?.length) return null;
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+      <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2">{title}</h3>
+      <div className="space-y-2">
+        {items.slice(0, 5).map((row, idx) => {
+          const value = row.metrics?.[metric];
+          return (
+            <div
+              key={`${title}-${row.base_asset}-${row.strategy}-${row.timeframe}`}
+              className="flex items-center justify-between gap-3 text-xs"
+            >
+              <span className="truncate">
+                <span className="num text-muted-foreground mr-1">{idx + 1}.</span>
+                {row.strategy_label} · {row.timeframe.toUpperCase()}
+              </span>
+              <span className="num shrink-0 text-secondary">
+                {typeof value === "number"
+                  ? `${value.toFixed(metric === "trades" ? 0 : 2)}${suffix}`
+                  : "—"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BacktestRankingsPanel({ matrix }: { matrix: BacktestMatrixResponse }) {
+  const rankings = matrix.rankings;
+  if (!rankings) return null;
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+      <RankingColumn
+        title="Retorno"
+        items={rankings.by_return}
+        metric="total_return_pct"
+        suffix="%"
+      />
+      <RankingColumn
+        title="Menor DD"
+        items={rankings.by_drawdown}
+        metric="max_drawdown_pct"
+        suffix="%"
+      />
+      <RankingColumn title="Sharpe" items={rankings.by_sharpe} metric="sharpe" />
+      <RankingColumn title="Estabilidade" items={rankings.by_stability} metric="stability_score" />
+      <RankingColumn
+        title="Retorno Ajustado"
+        items={rankings.by_risk_adjusted_return}
+        metric="calmar"
+      />
+    </div>
+  );
+}
+
 export function BacktestMatrixTable({
   items,
   selected,
@@ -261,6 +329,7 @@ export function BacktestMatrixGroupedSummary({
           </span>
         </div>
       )}
+      <BacktestRankingsPanel matrix={matrix} />
       {groups.map((group) => (
         <BacktestMatrixGroupSection
           key={group.market_type}

@@ -1,7 +1,38 @@
-import { motion } from "framer-motion";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import type { LucideIcon } from "lucide-react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+
+function Sparkline({ data, color, id }: { data: number[]; color: string; id: string }) {
+  const values = data.length > 1 ? data : [3, 5, 4, 7, 6, 9, 8, 11, 10, 13];
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const points = values
+    .map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * 100;
+      const y = 34 - ((value - min) / span) * 28;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+
+  return (
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="h-12 w-full">
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.45} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <polygon points={`0,40 ${points} 100,40`} fill={`url(#${id})`} />
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="2.5"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
 
 export function StatCard({
   label,
@@ -27,15 +58,10 @@ export function StatCard({
     destructive: "#EF4444",
   } as const;
   const color = accentMap[accent];
-  const series = (data ?? [3, 5, 4, 7, 6, 9, 8, 11, 10, 13]).map((y, i) => ({ x: i, y }));
   const gradId = `g-${label.replace(/\s/g, "")}-${accent}`;
 
   return (
-    <motion.div
-      whileHover={{ y: -3 }}
-      transition={{ type: "spring", stiffness: 220, damping: 20 }}
-      className="glass rounded-2xl p-5 relative overflow-hidden"
-    >
+    <div className="glass rounded-2xl p-5 relative overflow-hidden transition-transform duration-200 hover:-translate-y-0.5">
       <div
         className="absolute -top-12 -right-12 h-32 w-32 rounded-full blur-3xl opacity-30"
         style={{ background: color }}
@@ -64,24 +90,8 @@ export function StatCard({
         </div>
       )}
       <div className="h-12 mt-3 -mx-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series}>
-            <defs>
-              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.55} />
-                <stop offset="100%" stopColor={color} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <Area
-              type="monotone"
-              dataKey="y"
-              stroke={color}
-              strokeWidth={2}
-              fill={`url(#${gradId})`}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <Sparkline data={data ?? []} color={color} id={gradId} />
       </div>
-    </motion.div>
+    </div>
   );
 }

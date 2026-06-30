@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHeader, Panel } from "@/components/ui/page";
 import { StatCard } from "@/components/widgets/StatCard";
 import { Wallet, Target, Gauge, ShieldAlert, Activity, Calendar, Rocket } from "lucide-react";
-import { motion } from "framer-motion";
 import { useValidation } from "@/lib/queries";
 
 export const Route = createFileRoute("/validacao")({
@@ -116,7 +115,7 @@ function Page() {
                   strokeWidth="10"
                   fill="none"
                 />
-                <motion.circle
+                <circle
                   cx="80"
                   cy="80"
                   r="70"
@@ -124,9 +123,7 @@ function Page() {
                   strokeWidth="10"
                   strokeLinecap="round"
                   stroke="url(#scoreG)"
-                  initial={{ strokeDasharray: `0 ${circ}` }}
-                  animate={{ strokeDasharray: `${(score / 100) * circ} ${circ}` }}
-                  transition={{ duration: 1.2, ease: "easeOut" }}
+                  strokeDasharray={`${(score / 100) * circ} ${circ}`}
                 />
                 <defs>
                   <linearGradient id="scoreG" x1="0" y1="0" x2="1" y2="1">

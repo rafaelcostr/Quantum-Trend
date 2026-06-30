@@ -23,6 +23,12 @@ def get_platform_status(*, quantum: dict[str, Any] | None = None) -> dict[str, A
     data_q = state.get("data_quality") or {}
     recovery = state.get("recovery") or {}
     scaling = state.get("capital_scaling") or {}
+    try:
+        from atlas.monitoring.health_panel import monitoring_health_payload
+
+        monitoring = monitoring_health_payload(evaluate=True)
+    except Exception:
+        monitoring = {}
 
     strategy_health = float(quantum.get("health_score") or 0)
     engine_health = float(engine.get("score") or 0)
@@ -60,6 +66,7 @@ def get_platform_status(*, quantum: dict[str, Any] | None = None) -> dict[str, A
         "recovery": recovery,
         "data_quality": data_q,
         "engine": engine,
+        "monitoring": monitoring,
         "alerts": alert_center_payload(),
         "score_explanation": state.get("latest_score_explanation"),
         "score_history": (state.get("score_explanations") or [])[:20],
