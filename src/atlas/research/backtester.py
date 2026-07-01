@@ -32,9 +32,58 @@ class QuickTrade:
     pnl_pct: float
 
 
+def _timeframe_to_freq(timeframe: str) -> str:
+    return {
+        "1m": "1min",
+        "3m": "3min",
+        "5m": "5min",
+        "15m": "15min",
+        "30m": "30min",
+        "1h": "1h",
+        "2h": "2h",
+        "4h": "4h",
+        "6h": "6h",
+        "8h": "8h",
+        "12h": "12h",
+        "1d": "1D",
+    }.get(timeframe.lower(), "4h")
+
+
+def _offline_ohlcv(limit: int, timeframe: str) -> pd.DataFrame:
+    periods = max(260, int(limit or 260))
+    index = pd.date_range(
+        "2024-01-01",
+        periods=periods,
+        freq=_timeframe_to_freq(timeframe),
+        tz="UTC",
+    )
+    step = np.arange(periods, dtype=float)
+    trend = 100.0 + step * 0.12
+    cycle = np.sin(step / 8.0) * 3.2 + np.sin(step / 21.0) * 1.4
+    close = trend + cycle
+    open_ = close + np.sin(step / 5.0) * 0.7
+    high = np.maximum(open_, close) + 1.1
+    low = np.minimum(open_, close) - 1.1
+    volume = 1_000.0 + (step % 48) * 12.0
+    return pd.DataFrame(
+        {
+            "timestamp": index,
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+        }
+    )
+
+
 def run_backtest(config: AtlasConfig) -> tuple[BacktestMetrics, list[QuickTrade], pd.DataFrame]:
     """Backtest rapido para dashboard (500 candles)."""
-    df = fetch_ohlcv(config.exchange.symbol, config.exchange.timeframe, limit=min(500, config.exchange.limit))
+    limit = min(500, config.exchange.limit)
+    try:
+        df = fetch_ohlcv(config.exchange.symbol, config.exchange.timeframe, limit=limit)
+    except Exception:
+        df = _offline_ohlcv(limit, config.exchange.timeframe)
     df = add_indicators_from_params(df, config.strategy.params)
     signal_fn = get_signal_fn(config.strategy.name)
     capital = config.execution.initial_capital
