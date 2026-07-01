@@ -47,9 +47,10 @@ def run_backtest(config: AtlasConfig) -> tuple[BacktestMetrics, list[QuickTrade]
     fee = config.execution.fee_rate
     slip = config.execution.slippage_rate
 
-    for i, (_, row) in enumerate(df.iterrows()):
+    for i, (idx, row) in enumerate(df.iterrows()):
         sig = signal_fn(row, in_position=in_position)
-        ts = row.timestamp.isoformat() if hasattr(row["timestamp"], "isoformat") else str(row["timestamp"])
+        raw_ts = row.get("timestamp", idx)
+        ts = raw_ts.isoformat() if hasattr(raw_ts, "isoformat") else str(raw_ts)
         if not in_position and sig.action.value == "enter_long":
             entry_price = float(row["close"]) * (1 + slip)
             entry_time = ts

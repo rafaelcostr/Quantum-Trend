@@ -136,6 +136,17 @@ def load_trades_for_results(
         equity = eq_df.to_dict(orient="records")
         return metrics, trades, equity
 
+    quick_cfg = cfg.model_copy(deep=True)
+    quick_cfg.strategy.name = strategy
+    quick_cfg.exchange.timeframe = timeframe
+    quick_cfg.exchange.quote_asset = quote
+    quick_cfg.exchange.symbol = f"{base.upper()}/{quote.upper()}"
+    m, trades, eq_df = run_backtest(quick_cfg)
+    metrics = m.model_dump()
+    equity = eq_df.to_dict(orient="records")
+    if equity:
+        return metrics, trades, equity
+
     raise FileNotFoundError(f"Relatório de backtest não encontrado para {strategy} · {timeframe}")
 
 

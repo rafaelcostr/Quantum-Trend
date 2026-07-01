@@ -55,10 +55,10 @@ def get_signal_fn(name: str):
     def _fn(row, *, in_position: bool):
         from atlas.core.models import Candle, IndicatorSnapshot, Position, Side, SignalAction
 
+        raw_ts = row.get("timestamp", getattr(row, "name", None))
+        timestamp = raw_ts.to_pydatetime() if hasattr(raw_ts, "to_pydatetime") else raw_ts
         candle = Candle(
-            timestamp=row["timestamp"].to_pydatetime()
-            if hasattr(row["timestamp"], "to_pydatetime")
-            else row["timestamp"],
+            timestamp=timestamp,
             open=float(row["open"]),
             high=float(row["high"]),
             low=float(row["low"]),
